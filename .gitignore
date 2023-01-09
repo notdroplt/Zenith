@@ -1,0 +1,7 @@
+build/*
+.cache/*
+# while documentation isn't comlpeted, its better not to put it in the repo
+docs/*
+
+*.json
+!.vscode/launch.json

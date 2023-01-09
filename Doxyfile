@@ -1,0 +1,17 @@
+PROJECT_NAME           = "Zenith"
+PROJECT_NUMBER         = 0.0.1
+PROJECT_BRIEF          = "simple, small and fast "
+OUTPUT_DIRECTORY       = ./docs
+SHORT_NAMES            = YES
+INPUT                  = src/
+FILE_PATTERNS          = *.c *.cc *.cxx *.cpp *.c++ *.h *.hh *.hxx *.hpp *.h++ 
+ALPHABETICAL_INDEX     = YES
+HTML_OUTPUT            = .
+GENERATE_TREEVIEW      = YES
+SEARCHENGINE           = NO
+GENERATE_LATEX         = NO
+HAVE_DOT               = YES
+TEMPLATE_RELATIONS     = YES
+DOT_IMAGE_FORMAT       = svg
+INTERACTIVE_SVG        = YES
+DOT_MULTI_TARGETS      = YES
