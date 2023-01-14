@@ -15,7 +15,6 @@
 
 #include <algorithm>
 #include <cinttypes>
-#include <concepts>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -68,11 +67,15 @@ enum TokenTypes : unsigned char {
 	TT_Identifier,			//!< unmanaged names
 	TT_Keyword,				//!< language-specific names
 	TT_Plus,				//!< "+"
+	TT_Increment,			//!< "++"
 	TT_Minus,				//!< "-"
+	TT_Decrement,			//!< "--"
 	TT_Multiply,			//!< "*"
 	TT_Divide,				//!< "/"
 	TT_LessThan,			//!< "<"
 	TT_LessThanEqual,		//!< "<="
+	TT_LeftShift,			//!< "<<"
+	TT_RightShift,			//!< ">>"
 	TT_CompareEqual,		//!< "=="
 	TT_NotEqual,			//!< "!="
 	TT_GreaterThan,			//!< ">"
@@ -87,17 +90,23 @@ enum TokenTypes : unsigned char {
 	TT_RightSquareBracket,	//!< "]"
 	TT_LeftCurlyBracket,	//!< "{"
 	TT_RightCurlyBracket,	//!< "}"
-	TT_Arrow,				//!< "->" and "=>"
+	TT_Arrow,				//!< "=>"
 	TT_Dot,					//!< "."
 	TT_Comma,				//!< ","
 	TT_Semicolon,			//!< ";"
-	TT_At					//!< "@"
+	TT_At,					//!< "@"
+	TT_BitwiseOr,			//!< "|"
+	TT_BinaryOr,			//!< "||"
+	TT_BitwiseAnd,			//!< "&"
+	TT_BinaryAnd,			//!< "&&"
+	TT_BitWiseXor,			//!< "^"
+	TT_Tilda,				//!< "~"
 
 };
 
 /**
  * @enum KeywordTypes
- * @brief Save space by deallocating space for keywords
+ * @brief Saves space by deallocating space for keywords
  * <br>
  * size: 1 byte
  */
@@ -109,6 +118,7 @@ enum KeywordTypes : unsigned char {
 	KW_switch,	  //!< "switch"
 	KW_default,	  //!< "default"
 	KW_if,		  //!< "if"
+	KW_then,	  //!< "if"
 	KW_else,	  //!< "else"
 	KW_end,		  //!< "end"
 	KW_return,	  //!< "return"
@@ -135,7 +145,7 @@ class parse_exception : public std::exception
  * @todo make this struct smaller
  */
 struct Token {
-	double number = 0.0;				//!<  decimal numbers
+	double number = 0.0;				//!< decimal numbers
 	uint64_t integer = 0;				//!< integer numbers
 	std::string_view string = "";		//!< strings or identifiers
 	KeywordTypes keyword = KW_Unknown;	//!< language keywords
@@ -1134,7 +1144,7 @@ class Context final
 	inline auto operator[](std::string_view name) -> type_pointer { return this->lookup(name); }
 };
 
-auto interpreter_init(int /*argc*/, std::vector<Parse::node_pointer> & /*vec*/) -> int;
+auto interpreter_init(int /*argc*/, std::vector<Parse::node_pointer> & /*vec*/) -> int64_t;
 
 auto interpret_UnaryNode(const Parse::UnaryNode *node, Context &context) -> type_pointer;
 auto interpret_BinaryNode(const Parse::BinaryNode *node, Context &context) -> type_pointer;
@@ -1344,136 +1354,10 @@ using CompilerValue = uint64_t;
 using asm_container = std::stringstream;
 
 /**
- * @class ConceptSet
- *
- * @brief defines an interface for instruction sets
- *
- * @note instruction sets might not need to implement these as they are here, but
- * they might need to implement some work arounds.
- *
- * the compiler will normally compile to user code, but has intrinsics to compile to bare metal
- * aswell (as seen by the "flags" and "control registers")
- *
- *
+ * @brief actual instruction bytes tht should be put into running code
+ * 
  */
-class ConceptSet
-{
-   public:
-	/**
-	 * @brief defines if the target arch has support for no argument instructions,
-	 * such as `hlt` or `cli`
-	 */
-	static const instruction_status no_argument_operations;
-
-	/**
-	 * @defgroup un_instrc unary instructions
-	 * @brief toggle unary instructions
-	 *
-	 * this group is responsible to toggle activation of specific patterns of unary instructions:
-	 * - registers: `op r#`
-	 * - immediates: `op imm`
-	 * - memory: `op [imm]` @b and `op [r#]`
-	 * - io: `op io#`
-	 *
-	 * toggling these options @b will cause the compiler to generate different code
-	 * @{
-	 */
-
-	static const instruction_status unary_register_operations;	 //!< enable register unary operations
-	static const instruction_status unary_immediate_operations;	 //!< enable immediate unary operations
-	static const instruction_status unary_memory_operations;	 //!< enable memory unary operations
-	static const instruction_status unary_io_operations;		 //!< enable io unary operations
-
-	/** @} */  // end of group "unary instructions"
-
-	/**
-	 * @defgroup bin_instrc binary instructions
-	 * @brief toggle binary instructions
-	 * this group enables/disables certain types of binary instructions
-	 *
-	 * - registers: `op r#, r#`
-	 * - immediate: `op r#, imm`
-	 * - memory: `op r#, [imm]` @b and `op r#, [r#]`
-	 * @note all binary operations (except move) have the source argument as a register, by default
-	 * @{
-	 */
-	static const instruction_status binary_register_operations;	  //!< enable register binary operations
-	static const instruction_status binary_immediate_operations;  //!< enable immediate binary operations
-	static const instruction_status binary_memory_operations;	  //!< enable memory binary operations
-	static const instruction_status binary_io_operations;		  //!< enable io binary operations
-	/** @} */													  // end of group "binary instructions"
-
-	/**
-	 * const
-	 * @brief generates an string assembly for an instruction that takes no arguments
-	 *
-	 * @param container assembly stream
-	 * @param instruction current instruction
-	 */
-	virtual void no_arg_instruction(asm_container &container, const prefixes instruction) const = 0;
-
-	/**
-	 * CompilerValue &value, const CompilerTypes compiler) const
-	 * @brief generates an string assembly for an instruction that takes one argument
-	 *
-	 * @param container assembly stream
-	 * @param instruction current instruction to generate
-	 * @param type type of argument
-	 * @param value value of the argument
-	 */
-	virtual void unary_instruction(asm_container &container, const prefixes instruction, const CompilerTypes type,
-								   const CompilerValue value) const = 0;
-
-	virtual void binary_instruction(asm_container &container, const prefixes instruction, const CompilerTypes type,
-									const CompilerValue left, const CompilerValue right) const = 0;
-
-	/**
-	 * @defgroup instrc_gp instruction groups
-	 * @brief toggle instruction groups
-	 *
-	 * by toggling these options, the compiler can some times evade using that group for mainly two
-	 reasons,
-	 * being them no support for the architecture, or not enough amount of privilege.
-	 *
-	 * all instructions here are based on the virtual set, but can easily ported to other
-	 * architectures
-	 *
-	 *
-	 * @note these groups are combined with the @ref un_instrc "unary" and @ref bin_instrc "binary"
-	 instructions to enable machine instructions
-	 * @{
-	 */
-
-	static const instruction_status bitwise;  //!< enables `and`, `or`, `xor`, `not`, and `neg`
-
-	static const instruction_status logic_bitshift;				   //!< enables `shl` and `shr`
-	static const instruction_status arithimetic_bitshift;		   //!< enables `sal` and `sar`
-	static const instruction_status addition;					   //!< enables `add`
-	static const instruction_status addition_with_carry;		   //!< enable `adc`
-	static const instruction_status subtraction;				   //!< enables `sub`
-	static const instruction_status subtraction_with_borrow;	   //!< enables `sbb`
-	static const instruction_status unsigned_multiplication;	   //!< enables `mul`
-	static const instruction_status signed_multiplication;		   //!< enables `imul`
-	static const instruction_status unsigned_division;			   //!< enables `div`
-	static const instruction_status signed_division;			   //!< enables `idiv`
-	static const instruction_status floating_point_basic_math;	   //!< enables `fpadd`, `fpsub`, `fpmul`, and `fpdiv`,
-	static const instruction_status floating_point_advanced_math;  //!< enables  `fppow`, `fproot`, and `fplog`,
-	static const instruction_status floating_point_rounding;	   //!< enables `fptrnc`, `fprou`, `fpflr`, and `fpceil`
-	static const instruction_status floating_point_trig;		   //!< enables `fpsin`, `fpcos`, and `fptan`
-	static const instruction_status floating_point;				   //!< enables `fpset` and `fpget`
-	static const instruction_status move;						   //!< enables `mov`
-	static const instruction_status conditional_move;			   //!< enables `cmovz`
-	static const instruction_status conditional_set;			   //!< enables `sete`, `setne`, `setz`, and `setnz`
-	static const instruction_status flags;						   //!< enables `cl[ipcs]` and `st[ipcs]`
-	static const instruction_status control_registers;			   //!< enables `ld[0-7]` and `st[0-7]`
-	static const instruction_status conditional_testing;		   //!< enables `test`
-	static const instruction_status conditional_comparisons;	   //!< enables `cmp`
-	static const instruction_status jump;		 //!< enables `jmp`, `jl`, `jg`, `jle`, `jge`, `j[czso]`, and `jn[czso]`
-	static const instruction_status stack;		 //!< enables `push`, `pusha`, `pop`, `popa`, `call`, and `ret`
-	static const instruction_status interrupts;	 //!< enables `int` and `iret`
-	static const instruction_status cpuio;		 //!< enables `in` and `out`
-	/** @} */									 // end of group instruction groups
-};
+using byte_containter = std::vector<uint64_t>;
 
 /**
  * @enum TargetCallingConvention
@@ -1495,15 +1379,64 @@ enum TargetCallingConvention {
 	conv_arch_defined
 };
 
-template <int _hw_size = 16, bool _endianess = false, int _stack_align = 0, int _stack_depth = 0, bool _multithreaded = false,
+/**
+ * @struct memory_region_t 
+ * @brief defines a region in memory
+ * 
+ */
+struct memory_region_t {
+
+	/**
+	 * @enum memory_region_types
+	 * @brief define types of memory, used only with bare-metal targets
+	 */
+	enum memory_region_types {
+		usable, //!< memory able to be used normally
+		bank, 	//!< address is inside a bank
+		shadow, //!< rom mapped area
+		mapped, //!< hardware mapped area
+		registers, //!< register map area
+		data_area, //!< reclaimable area that might have data with it
+		reserved, //!< default unusable memory area
+	};
+
+	const uint64_t start; //!< start of memory region
+	const uint64_t end; //!< end of memory region
+	const memory_region_types type; //!< type of region
+	
+	/**
+	 * @brief Construct a new memory region object
+	 * 
+	 * memory regions are pretty useful as they let the compiler map what is where when running a bare-metal code
+	 * but they also provide a way to limit runtime usage on "big targets"
+	 *
+	 * @param reg_start start of memory region
+	 * @param reg_end end of memory region
+	 * @param reg_type type of memory region
+	 */
+	memory_region_t(const uint64_t reg_start, const uint64_t reg_end, const memory_region_types reg_type) noexcept :
+		start(reg_start),
+		end(reg_end),
+		type(reg_type)
+	{
+	}
+};
+
+template <int _hw_size = 64, int _register_count = 32, bool _endianess = false, int _stack_align = 0, int _stack_depth = 0, bool _multithreaded = false,
 		  int _memory_size = 32768, TargetCallingConvention _calling_convention = conv_arch_defined>
-struct TargetInterface {
+struct ConceptTarget {
 	static_assert(_hw_size >= 4, "serial and 2 bit computers are not supported");
 	/**
 	 * @brief says how big, in bits, the biggest value a register can carry without extensions
 	 *
 	 */
 	using hardware_size = std::integral_constant<int, _hw_size>;
+
+	/**
+	 * @brief how many registers can the compiler use
+	 * registers are always `r#` no matter the architecture (x86[_64] fanyboys gonna scream too)
+	 */
+	using register_count = std::integral_constant<int, _register_count>;
 
 	/**
 	 * @brief set when the target works with big endian values
@@ -1521,11 +1454,175 @@ struct TargetInterface {
 	 * @note as far as I am aware, only targets with less than 16kb ram use this
 	 */
 	using stack_depth =
-	std::integral_constant<int, _stack_depth>;	//!< used in targets with less than 16kb ram (what I've seen so far)
+	std::integral_constant<int, _stack_depth>;	
+
 	using multithreaded = std::bool_constant<_multithreaded>;  //!< marked for multithreaded targets
 	using memory_size =
 	std::integral_constant<int, _memory_size>;	//!< used mainly by MCU's or low-level systems to set memory size
 	using calling_convention = std::integral_constant<TargetCallingConvention, _calling_convention>;
 };
 
+
+
+using return_t = std::vector<uint64_t>;
+/**
+ * @brief assemble nodes to form running code (does not format)
+ * not the best name because it goes from nodes -> bytes, but anyway
+ * 
+ * the compiler will basically go through the node tree and compile node by node in the least optimal way,
+ * but generates code
+ */
+template <typename TargetPolicy>
+class Assembler {
+
+	/**
+	 * @brief enum for probable status of registers
+	 * 
+	 */
+	enum register_status {
+		clear = 0, //!< register has **for sure** 0x0000 on its value
+		trashed = 1, //!< bogus values on register, might need to do a cleanup
+		used = 2, //!< the current function is using this register
+		callee_saved = 3, //!< current function cannot use this register for any kind of reason
+		caller_saved = 4 //!< current function cannot use this register because the caller is using it
+	};
+		
+	
+	register_status registers[32] = {
+		register_status::used, register_status::used
+	}; //!< save status for all registers
+
+	std::vector<Parse::node_pointer> &parsed_nodes; 
+	std::unordered_map<std::string_view, uint64_t> symbols; //!< symbols defined 
+	byte_containter instructions;
+	uint64_t dot;
+
+	/**
+	 * @brief request a register to be used, kind of a `malloc()` function
+	 * 
+	 * Complexity: Linear, depends on which registers are used or not
+	 * @return 
+	 */
+	int request_register() {
+		for (int i = 0; i < 32; ++i) {
+			if (this->registers[i] == register_status::trashed || this->registers[i] == register_status::clear) return i;
+		}
+		//! TODO: use stack (if target supports it)
+		Error("compiler", "ran out of registers");
+	}
+
+	/**
+	 * @brief says that its already done using the function
+	 * 
+	 * Complexity: Constant (but may be slower if value is not in cache)
+	 * @param index 
+	 */
+	void clear_register(int index) {
+		this->registers[index] = register_status::trashed;
+	}
+
+	/**
+	 * @brief adds another instruction to the instruction vector
+	 * 
+	 * Complexity: Constant (when there is enough space)
+	 * @param instruction 
+	 */
+	void append_instruction(const uint64_t instruction) {
+		this->instructions.push_back(instruction);
+		dot += 8;
+	}
+
+
+	/**
+	 * @brief put a immediate into a register
+	 * 
+	 * @param node number node
+	 * 
+	 * Complexity: Linear ()
+	 */
+	return_t assemble_number(Parse::NumberNode * node) {
+		uint64_t reg_index = this->request_register();
+
+		// set lower number as `lower_num + 0` -> rd
+		this->append_instruction(VirtMac::SInstruction(VirtMac::addi_instrc, 0, reg_index, node->number & 0x3FFFFFFFFFFF));
+
+		// goes only if number actually needs it
+		if (node->number > 0x400000000000) { 
+			this->append_instruction(VirtMac::LInstruction(VirtMac::lui_instrc, reg_index, (node->number & 0xFFFFC00000000000) >> 18));
+		} 
+
+		return {reg_index};
+	}
+
+	return_t assemble_unary(Parse::UnaryNode * node) {
+		auto used_regs = this->assemble(node->value);
+		
+		switch (node->token)
+		{
+		case Parse::TT_Minus:
+			// `0 - x = -x`
+			this->append_instruction(VirtMac::SInstruction(VirtMac::subi_instrc, used_regs[0], 0, used_regs[0]));
+			break;
+		case Parse::TT_Not:
+			// xor is basically a "conditional not", so when all bits are set, the other ones are flipped
+			this->append_instruction(VirtMac::SInstruction(VirtMac::xori_instrc, used_regs[0], used_regs[0], -1));
+			break;
+		case Parse::TT_Increment:
+			this->append_instruction(VirtMac::SInstruction(VirtMac::addi_instrc, used_regs[0], used_regs[0], 1));
+			break;
+		case Parse::TT_Decrement:
+			this->append_instruction(VirtMac::SInstruction(VirtMac::subi_instrc, used_regs[0], used_regs[0], 1));
+			break;
+		default: 
+			break;
+		}
+
+		return used_regs;
+	}
+
+	return_t assemble_lambda(Parse::LambdaNode * node) {
+		this->add_function(node->name);
+		this->assemble(node->expression);
+		return {};
+	}
+
+	return_t assemble(const Parse::node_pointer & node) {
+		switch (node->type) {
+			case Parse::Integer:
+				this->assemble_number(node->cget<Parse::NumberNode>());
+				break;
+			case Parse::Unary:
+				this->assemble_unary(node->cget<Parse::UnaryNode>());
+				break;
+			case Parse::Lambda:
+				this->assemble_lambda(node->cget<Parse::LambdaNode>());
+				break;
+			default:
+				Error("compiler", "unhandled node");
+		}
+		return {};
+	}
+
+	uint64_t add_function(std::string_view name) {
+		if(symbols.count(name)) {
+			std::cerr << "symbol : " << name << '\n';
+			Error("compiler", "multiple definitions of ^");
+		}
+		symbols[name] = dot;
+		return dot;
+	}
+
+	public:
+		Assembler(std::vector<Parse::node_pointer> & nodes) : parsed_nodes(nodes) {
+			
+		}		
+		
+		auto compile() {
+			for (auto && node : parsed_nodes) {
+				this->assemble(node);
+			}
+			return this->instructions;
+		}
+
+};
 }  // namespace Compiler

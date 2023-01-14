@@ -44,8 +44,8 @@ void Parse::Parser::Warning(std::string_view warn, std::string_view desc) const
 void Parse::Parser::Error(std::string_view error, std::string_view desc) const
 {
 	std::cerr << this->filename << ':' << this->current_position.line << ":"
-			  << this->current_position.column << ": Parser (" << error
-			  << "): error: " << desc << '\n';
+			  << this->current_position.column << ": " << AnsiFormat::Red <<"Parser (" << error
+			  << "): error: " << AnsiFormat::Reset << desc << '\n';
 	throw Parse::parse_exception();
 }
 
@@ -59,20 +59,18 @@ void Parse::Parser::Error(std::string_view error, std::string_view desc) const
  * \returns a vector of parsed nodes
  *
  */
-auto Parse::Parser::List(Parse::TokenTypes end_token) -> std::vector<Parse::node_pointer>
+std::vector<Parse::node_pointer> Parse::Parser::List(Parse::TokenTypes end_token) 
 {
 	auto list = std::vector<Parse::node_pointer>();
 
 	while (this->current_token != end_token) {
 		auto value = this->Ternary();
-		if (!value) {
-			return std::vector<Parse::node_pointer>{};
-		};
+		if (!value) return {};
+		
 		list.emplace_back(std::move(value));
 
-		if (this->current_token != Parse::TT_Comma || this->current_token == end_token) {
-			break;
-		}
+		if (this->current_token != Parse::TT_Comma || this->current_token == end_token) break;
+		
 		this->next();
 	}
 
@@ -88,9 +86,8 @@ auto Parse::Parser::List(Parse::TokenTypes end_token) -> std::vector<Parse::node
 auto Parse::Parser::Array() -> Parse::node_pointer
 {
 	auto list = this->List(Parse::TT_RightSquareBracket);
-	if (list.empty()) {
-		return nullptr;
-	} else if (this->current_token != Parse::TT_RightSquareBracket) {
+	if (list.empty()) return nullptr;
+	else if (this->current_token != Parse::TT_RightSquareBracket) {
 		this->Error("array", "expected ']'");
 	}
 	this->next();
@@ -105,24 +102,20 @@ auto Parse::Parser::Array() -> Parse::node_pointer
 auto Parse::Parser::Number() -> Parse::node_pointer
 {
 	const auto tok = this->current_token;
-	if (tok == TT_Unknown) {
-		return nullptr;
-	}
+	if (tok == TT_Unknown) return nullptr;
+	
 	this->next();
 
-	if (tok.number == 0.0) {
-		return std::make_unique<Parse::NumberNode>(tok.integer);
-	}
+	if (!tok.number) return std::make_unique<Parse::NumberNode>(tok.integer);
+	
 	return std::make_unique<Parse::NumberNode>(tok.number);
 }
 
 auto Parse::Parser::String(uint8_t type) -> Parse::node_pointer
 {
 	const auto tok = this->current_token;
-	if (tok == TT_Unknown) {
-		return nullptr;
-	}
 	this->next();
+	if (tok == TT_Unknown) return nullptr;
 	return std::make_unique<Parse::StringNode>(tok.string, static_cast<Parse::NodeTypes>(type));
 }
 
@@ -140,9 +133,7 @@ auto Parse::Parser::Switch() -> Parse::node_pointer
 
 	switch_expr = this->Ternary();
 
-	if (!switch_expr) {
-		return nullptr;
-	}
+	if (!switch_expr) return nullptr;
 
 	while (this->current_token.keyword != Parse::KW_end) {
 		Parse::node_pointer value;
@@ -155,9 +146,7 @@ auto Parse::Parser::Switch() -> Parse::node_pointer
 		if (this->current_token == Parse::TT_Colon) {
 			this->next();
 			value = this->Ternary();
-			if (!value) {
-				this->Error("case", "expected a case expression.");
-			}
+			if (!value) this->Error("case", "expected a case expression.");
 		} else {
 			this->next();
 			value = nullptr;
@@ -206,21 +195,19 @@ auto Parse::Parser::Atom() -> Parse::node_pointer
 		case Parse::TT_Identifier:
 			return this->String(this->current_token.type);
 		case Parse::TT_Keyword:
-			if (this->current_token == Token(Parse::KW_switch)) {
+			if (this->current_token == Token(Parse::KW_switch))
 				return this->Switch();
-			} else if (this->current_token == Token(Parse::KW_do)) {
+			else if (this->current_token == Token(Parse::KW_do))
 				return this->Task();
-			}
 			return nullptr;
 		case Parse::TT_LeftParentesis:
 			this->next();
 
 			node = this->Ternary();
-			if (!node) {
+			if (!node)
 				return nullptr;
-			} else if (this->current_token.type != Parse::TT_RightParentesis) {
+			else if (this->current_token.type != Parse::TT_RightParentesis)
 				this->Error("atom", "expected ')'");
-			}
 
 			this->next();
 			return node;
@@ -241,12 +228,10 @@ auto Parse::Parser::Prefix() -> Parse::node_pointer
 		return this->Atom();
 	}
 
-	if (type != Parse::TT_Minus && type != Parse::TT_Not) {
-		return this->Atom();
-	}
+	if (type != Parse::TT_Minus && type != Parse::TT_Not) return this->Atom();
 
 	this->next();
-	auto &&value = this->Ternary();
+	auto value = this->Ternary();
 	if (!value->isConst) {
 		return std::make_unique<Parse::UnaryNode>(std::move(value), type);
 	}
@@ -257,18 +242,10 @@ auto Parse::Parser::Prefix() -> Parse::node_pointer
 
 	if (value->type == Parse::Integer) {
 		auto &val_ref = value->cget<Parse::NumberNode>()->number;
-		if (type == Parse::TT_Minus) {
-			val_ref = -val_ref;
-		} else {
-			val_ref = !val_ref;
-		}
+		val_ref = type == Parse::TT_Minus ? -val_ref : !val_ref;
 	} else {
 		auto &val_ref = value->cget<Parse::NumberNode>()->value;
-		if (type == Parse::TT_Minus) {
-			val_ref = -val_ref;
-		} else {
-			val_ref = val_ref != 0.0;
-		}
+		val_ref = type == Parse::TT_Minus ? -val_ref : !val_ref;
 	}
 
 	return value;
@@ -278,9 +255,7 @@ auto Parse::Parser::Postfix() -> Parse::node_pointer
 {
 	auto value = this->Prefix();
 
-	if (!value) {
-		return nullptr;
-	}
+	if (!value) return nullptr;
 
 	if (this->current_token == Parse::TT_LeftParentesis) {
 		this->next();
@@ -323,9 +298,8 @@ auto Parse::Parser::Term() -> Parse::node_pointer
 {
 	Parse::node_pointer lside = this->Postfix();
 	Parse::node_pointer rside;
-	if (this->current_token == Parse::TT_Unknown) {
-		return lside;
-	}
+	if (this->current_token == Parse::TT_Unknown) return lside;
+	
 	while (this->current_token == Parse::TT_Multiply || this->current_token == Parse::TT_Divide) {
 		const auto tok = this->current_token.type;
 		this->next();
@@ -536,21 +510,18 @@ auto Parse::Parser::Ternary() -> Parse::node_pointer
 
 	this->next();
 	falseop = this->Comparisions();
-	if (falseop) {
-		if (condition->isConst) {
-			bool truthy = false;
-			truthy = (condition->type == Parse::Integer &&
-					  condition->cget<Parse::NumberNode>()->number != 0) ||
+	if (falseop && condition->isConst) {
+			bool truthy  = (condition->type == Parse::Integer &&
+					  condition->cget<Parse::NumberNode>()->number) ||
 					 (condition->type == Parse::Double &&
-					  condition->cget<Parse::NumberNode>()->value != 0.0L) ||
+					  condition->cget<Parse::NumberNode>()->value) ||
 					 (condition->type == Parse::String &&
-					  condition->cget<Parse::StringNode>()->value.empty() != 0);
+					  condition->cget<Parse::StringNode>()->value.empty());
 			return truthy ? std::move(trueop) : std::move(falseop);
 		}
+	else if (falseop) 
 		return std::make_unique<Parse::TernaryNode>(std::move(condition), std::move(trueop),
 													std::move(falseop));
-	}
-
 	return nullptr;
 }
 
@@ -644,9 +615,7 @@ auto Parse::Parser::File() -> std::vector<Parse::node_pointer> try
 
 	while (this->current_token.type) {
 		auto node = this->Assign();
-		if (!node) {
-			break;
-		}
+		if (!node) break;
 		value.emplace_back(std::move(node));
 	}
 	if (this->current_position.index < this->file_size) {

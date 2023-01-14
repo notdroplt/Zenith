@@ -124,13 +124,10 @@ auto Interpreter::interpret_Node(const Parse::node_pointer &ptr, Interpreter::Co
 	}
 }
 
-void add_builtins_to_context(Interpreter::Context &ctx);
-
-auto Interpreter::interpreter_init(int argc, std::vector<Parse::node_pointer> &vec) -> int
+int64_t Interpreter::interpreter_init(int argc, std::vector<Parse::node_pointer> &vec)
 {
 	Interpreter::Context context = Interpreter::Context();
 
-	add_builtins_to_context(context);
 	for (auto &&item : vec) {
 		interpret_Node(item, context);
 	}
@@ -155,10 +152,5 @@ auto Interpreter::interpreter_init(int argc, std::vector<Parse::node_pointer> &v
 	if (return_val->type() != Interpreter::vNumber) {
 		Error("runtime", "expected main to return <int>");
 	}
-	return static_cast<int>(return_val->get<Interpreter::Number>()->value());
-}
-
-void add_builtins_to_context(Interpreter::Context & ctx [[maybe_unused]])
-{
-
+	return static_cast<int64_t>(return_val->get<Interpreter::Number>()->value());
 }

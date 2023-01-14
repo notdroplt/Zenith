@@ -1,21 +1,25 @@
-CXX = clang++
+# both gcc and cland work
+CC = gcc
+CXX = g++ 
+CFLAGS :=-Wall -Wextra -Werror -pedantic -g3
+CCFLAGS :=$(CFLAGS) -fno-rtti
 
-DEBUG := -O3
-CFLAGS := -Wall -Wextra -Werror -Wdocumentation -pedantic --std=c++17 $(DEBUG) -fno-rtti
-
+CSOURCES := $(wildcard src/*.c) 
 CCSOURCES := $(wildcard src/*.cc)
-
 all: $(CSOURCES:src/%.c=build/%.o) $(CCSOURCES:src/%.cc=build/%.o)
-	$(CXX) $(CFLAGS) -s -flto -o build/zenith $^ 
+	$(CXX) $(CFLAGS) -o build/zenith $^ 
+
+build/%.o: src/%.c 
+	$(CC) $(CFLAGS) --std=c2x -c $< -o $@
 
 build/%.o: src/%.cc 
-	$(CXX) $(CFLAGS) -c $< -o $@
+	$(CXX) $(CCFLAGS) --std=c++17 -c $< -o $@
+
 
 .PHONY: clean setup docs
 
 setup:
 	$(MKDIR) build
-	$(MKDIR) docs
 
 docs: 
 	doxygen

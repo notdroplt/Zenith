@@ -2,7 +2,6 @@
 
 #include "zenith.hpp"
 
-
 static auto lexNext(Parse::Parser *parser) -> char
 {
 	auto &pos = parser->current_position;
@@ -60,8 +59,7 @@ static inline auto lexNumber(Parse::Parser *parser) -> Parse::Token
 
 	} while (lexNext(parser) && (isdigit(parser->current_char) || parser->current_char == '.'));
 
-	return dot ? Parse::Token(std::stod(numstr))
-			   : Parse::Token(static_cast<uint64_t>(std::stoull(numstr)));
+	return dot ? Parse::Token(std::stod(numstr)) : Parse::Token(static_cast<uint64_t>(std::stoull(numstr)));
 }
 
 static inline auto lexNewToken(Parse::Parser *parser, Parse::TokenTypes val) -> Parse::Token
@@ -76,9 +74,8 @@ static inline auto lexIdentifier(Parse::Parser *parser) -> Parse::Token
 	uint64_t offset = 0;
 	auto start = parser->current_position.index;
 
-	static const std::vector<std::string_view> keywords{"var",	  "function", "as",		 "do",
-														"switch", "default",  "if",		 "else",
-														"end",	  "return",	  "include", ""};
+	static const std::vector<std::string_view> keywords{"var",	"function", "as",  "do",	 "switch",	"default", "if",
+														"then", "else",		"end", "return", "include", ""};
 	do {
 		lexNext(parser);
 	} while (isalnum(parser->current_char) || parser->current_char == '_');
@@ -98,12 +95,16 @@ static inline auto lexIdentifier(Parse::Parser *parser) -> Parse::Token
 	return tok;
 }
 
-static inline auto lexCompare(Parse::Parser *parser, Parse::TokenTypes value) -> Parse::Token
+static inline auto lexCompare(Parse::Parser *parser, char c, Parse::TokenTypes value) -> Parse::Token
 {
 	Parse::Token tok(value);
 	lexNext(parser);
 	if (parser->current_char == '=') {
 		tok.type = static_cast<Parse::TokenTypes>(value + 1);
+		lexNext(parser);
+	}
+	if (parser->current_char == c) {
+		tok.type = static_cast<Parse::TokenTypes>(value + 2);
 		lexNext(parser);
 	}
 	return tok;
@@ -136,12 +137,11 @@ static inline auto lexNot(Parse::Parser *parser) -> Parse::Token
 	return tok;
 }
 
-static inline auto lexMinus(Parse::Parser *parser) -> Parse::Token
-{
-	Parse::Token tok(Parse::TT_Minus);
+static inline Parse::Token lexRepeat(Parse::Parser * parser, Parse::TokenTypes type, char c) {
+	Parse::Token tok(type);
 	lexNext(parser);
-	if (parser->current_char == '>') {
-		tok.type = Parse::TT_Arrow;
+	if (parser->current_char == c) {
+		tok.type = static_cast<Parse::TokenTypes>(type + 1);
 		lexNext(parser);
 	}
 	return tok;
@@ -166,7 +166,7 @@ void Parse::Parser::next()
 			tok = lexString(this);
 			break;
 		case '#':
-			while (this->current_char != '\0' && this->current_char != '\n') {
+			while (this->current_char && this->current_char != '\n') {
 				lexNext(this);
 			}
 			this->next();
@@ -175,10 +175,10 @@ void Parse::Parser::next()
 			tok = lexNewToken(this, Parse::TT_Semicolon);
 			break;
 		case '+':
-			tok = lexNewToken(this, Parse::TT_Plus);
+			tok = lexRepeat(this, Parse::TT_Plus, '+');
 			break;
 		case '-':
-			tok = lexMinus(this);
+			tok = lexRepeat(this, Parse::TT_Minus, '-');
 			break;
 		case '/':
 			tok = lexNewToken(this, Parse::TT_Divide);
@@ -199,10 +199,10 @@ void Parse::Parser::next()
 			tok = lexNewToken(this, Parse::TT_Colon);
 			break;
 		case '>':
-			tok = lexCompare(this, Parse::TT_GreaterThan);
+			tok = lexCompare(this, '<', Parse::TT_GreaterThan);
 			break;
 		case '<':
-			tok = lexCompare(this, Parse::TT_LessThan);
+			tok = lexCompare(this, '>', Parse::TT_LessThan);
 			break;
 		case '(':
 			tok = lexNewToken(this, Parse::TT_LeftParentesis);
@@ -230,6 +230,18 @@ void Parse::Parser::next()
 			break;
 		case '@':
 			tok = lexNewToken(this, Parse::TT_At);
+			break;
+		case '|':
+			tok = lexRepeat(this, Parse::TT_BitwiseOr, '|');
+			break;
+		case '&':
+			tok = lexRepeat(this, Parse::TT_BitwiseAnd, '&');
+			break;
+		case '^':
+			tok = lexNewToken(this, Parse::TT_BitWiseXor);
+			break;
+		case '~':
+			tok = lexNewToken(this, Parse::TT_Tilda);
 			break;
 		case '0':
 		case '1':
