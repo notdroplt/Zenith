@@ -20,18 +20,22 @@ Parse::Parser::Parser(std::string_view fname) : filename(fname)
 	std::ifstream file(fname.data());
 	std::stringstream buf;
 	buf << file.rdbuf();
-	this->content = strdup(buf.str().c_str()); 
-	this->file_size = this->content.size(); 
-	this->current_char = this->content[0];	 
+	this->lexer.content = strdup(buf.str().c_str()); 
+	this->lexer.current_char = this->lexer.content[0];
+	this->lexer.file_size = strlen(this->lexer.content);
+	this->lexer.position.column = 1;
+	this->lexer.position.index = 0;
+	this->lexer.position.last_line_pos = 0;
+	this->lexer.position.line = 1;
 	this->next();
 }
+
 
 void Parse::Parser::Note(std::string_view note, std::string_view desc) const
 {
 	std::cerr << this->filename << ':' << this->current_position.line << ':'
 			  << this->current_position.column << ": " << AnsiFormat::Cyan << note << ": "
-			  << AnsiFormat::Reset << desc << '\n'
-			  << this->content.substr(this->current_position.last_line_pos) << '\n';
+			  << AnsiFormat::Reset << desc << '\n';
 }
 
 void Parse::Parser::Warning(std::string_view warn, std::string_view desc) const
@@ -43,8 +47,8 @@ void Parse::Parser::Warning(std::string_view warn, std::string_view desc) const
 
 void Parse::Parser::Error(std::string_view error, std::string_view desc) const
 {
-	std::cerr << this->filename << ':' << this->current_position.line << ":"
-			  << this->current_position.column << ": " << AnsiFormat::Red <<"Parser (" << error
+	std::cerr << this->filename << ':' << this->lexer.position.line << ":"
+			  << this->lexer.position.column << ": " << AnsiFormat::Red <<"Parser (" << error
 			  << "): error: " << AnsiFormat::Reset << desc << '\n';
 	throw Parse::parse_exception();
 }
@@ -63,13 +67,13 @@ std::vector<Parse::node_pointer> Parse::Parser::List(Parse::TokenTypes end_token
 {
 	auto list = std::vector<Parse::node_pointer>();
 
-	while (this->current_token != end_token) {
+	while (this->current_token.type != end_token) {
 		auto value = this->Ternary();
 		if (!value) return {};
 		
 		list.emplace_back(std::move(value));
 
-		if (this->current_token != Parse::TT_Comma || this->current_token == end_token) break;
+		if (this->current_token.type != Parse::TT_Comma || this->current_token.type == end_token) break;
 		
 		this->next();
 	}
@@ -87,7 +91,7 @@ auto Parse::Parser::Array() -> Parse::node_pointer
 {
 	auto list = this->List(Parse::TT_RightSquareBracket);
 	if (list.empty()) return nullptr;
-	else if (this->current_token != Parse::TT_RightSquareBracket) {
+	else if (this->current_token.type != Parse::TT_RightSquareBracket) {
 		this->Error("array", "expected ']'");
 	}
 	this->next();
@@ -102,11 +106,11 @@ auto Parse::Parser::Array() -> Parse::node_pointer
 auto Parse::Parser::Number() -> Parse::node_pointer
 {
 	const auto tok = this->current_token;
-	if (tok == TT_Unknown) return nullptr;
+	if (tok.type == Parse::TT_Unknown) return nullptr;
 	
 	this->next();
 
-	if (!tok.number) return std::make_unique<Parse::NumberNode>(tok.integer);
+	if (tok.type == Parse::TT_Int) return std::make_unique<Parse::NumberNode>(tok.integer);
 	
 	return std::make_unique<Parse::NumberNode>(tok.number);
 }
@@ -115,7 +119,7 @@ auto Parse::Parser::String(uint8_t type) -> Parse::node_pointer
 {
 	const auto tok = this->current_token;
 	this->next();
-	if (tok == TT_Unknown) return nullptr;
+	if (tok.type == Parse::TT_Unknown) return nullptr;
 	return std::make_unique<Parse::StringNode>(tok.string, static_cast<Parse::NodeTypes>(type));
 }
 
@@ -137,13 +141,13 @@ auto Parse::Parser::Switch() -> Parse::node_pointer
 
 	while (this->current_token.keyword != Parse::KW_end) {
 		Parse::node_pointer value;
-		if (this->current_token != Parse::TT_Colon &&
-			this->current_token != Parse::Token(Parse::KW_default)) {
+		if (this->current_token.type != Parse::TT_Colon &&
+			this->current_token.type == Parse::TT_Keyword && this->current_token.keyword != Parse::KW_default) {
 			this->Error("case", "':' or \"default\" to initiate a case expression.");
 			return nullptr;
 		}
 
-		if (this->current_token == Parse::TT_Colon) {
+		if (this->current_token.type == Parse::TT_Colon) {
 			this->next();
 			value = this->Ternary();
 			if (!value) this->Error("case", "expected a case expression.");
@@ -152,7 +156,7 @@ auto Parse::Parser::Switch() -> Parse::node_pointer
 			value = nullptr;
 		}
 
-		if (this->current_token != Parse::TT_Equal) {
+		if (this->current_token.type != Parse::TT_Equal) {
 			this->Error("case", "expected '=' after case expression");
 		}
 
@@ -160,7 +164,7 @@ auto Parse::Parser::Switch() -> Parse::node_pointer
 		cases.emplace_back(std::move(value), this->Ternary());
 	}
 
-	if (!this->current_token.type || this->current_token != Parse::Token(Parse::KW_end)) {
+	if (!this->current_token.type || (this->current_token.type == Parse::TT_Keyword && this->current_token.keyword != Parse::KW_end)) {
 		this->Error("switch", "expected 'end' to close switch expression");
 	}
 
@@ -173,7 +177,7 @@ auto Parse::Parser::Task() -> Parse::node_pointer
 {
 	this->next();
 	std::vector<Parse::node_pointer> task_list = {};
-	while (this->current_token != Parse::Token(Parse::KW_end)) {
+	while (this->current_token.type == Parse::TT_Keyword && this->current_token.keyword != Parse::KW_end) {
 		this->next();
 		task_list.push_back(this->Assign());
 	}
@@ -195,9 +199,9 @@ auto Parse::Parser::Atom() -> Parse::node_pointer
 		case Parse::TT_Identifier:
 			return this->String(this->current_token.type);
 		case Parse::TT_Keyword:
-			if (this->current_token == Token(Parse::KW_switch))
+			if (this->current_token.keyword == Parse::KW_switch)
 				return this->Switch();
-			else if (this->current_token == Token(Parse::KW_do))
+			else if (this->current_token.keyword == Parse::KW_do)
 				return this->Task();
 			return nullptr;
 		case Parse::TT_LeftParentesis:
@@ -257,14 +261,14 @@ auto Parse::Parser::Postfix() -> Parse::node_pointer
 
 	if (!value) return nullptr;
 
-	if (this->current_token == Parse::TT_LeftParentesis) {
+	if (this->current_token.type == Parse::TT_LeftParentesis) {
 		this->next();
 		auto argsnode = this->List(Parse::TT_RightParentesis);
 
 		if (this->current_token.type == TT_Unknown || argsnode.empty()) {
 			this->next();
 			return value;
-		} else if (this->current_token != Parse::TT_RightParentesis) {
+		} else if (this->current_token.type != Parse::TT_RightParentesis) {
 			this->Error("function call", "expected a ')' after a function call");
 		}
 
@@ -273,21 +277,21 @@ auto Parse::Parser::Postfix() -> Parse::node_pointer
 		return std::make_unique<Parse::CallNode>(std::move(value), std::move(argsnode));
 		/// TODO: implement compile time call (this is gonna be awesome)
 	}
-	if (this->current_token == Parse::TT_LeftSquareBracket) {
+	if (this->current_token.type == Parse::TT_LeftSquareBracket) {
 		this->next();
 		std::vector<Parse::node_pointer> index;
 		index.push_back(this->Ternary());
 
 		if (index.empty()) {
 			this->Error("indexing", "expected an expression for an index");
-		} else if (this->current_token != Parse::TT_RightSquareBracket) {
+		} else if (this->current_token.type != Parse::TT_RightSquareBracket) {
 			this->Error("indexing", "expected a ']' to close index marker");
 		}
 
 		this->next();
 		return std::make_unique<Parse::CallNode>(std::move(value), std::move(index), Parse::Index);
 	}
-	if (this->current_token == Parse::TT_Dot) {
+	if (this->current_token.type == Parse::TT_Dot) {
 		this->next();
 		return std::make_unique<Parse::ScopeNode>(std::move(value), this->Postfix());
 	}
@@ -298,9 +302,9 @@ auto Parse::Parser::Term() -> Parse::node_pointer
 {
 	Parse::node_pointer lside = this->Postfix();
 	Parse::node_pointer rside;
-	if (this->current_token == Parse::TT_Unknown) return lside;
+	if (this->current_token.type == Parse::TT_Unknown) return lside;
 	
-	while (this->current_token == Parse::TT_Multiply || this->current_token == Parse::TT_Divide) {
+	while (this->current_token.type == Parse::TT_Multiply || this->current_token.type == Parse::TT_Divide) {
 		const auto tok = this->current_token.type;
 		this->next();
 		rside = this->Postfix();
@@ -358,7 +362,7 @@ auto Parse::Parser::Factor() -> Parse::node_pointer
 	if (this->current_token.type == Parse::TT_Unknown) {
 		return lside;
 	}
-	while (this->current_token.type == Parse::TT_Plus || this->current_token == Parse::TT_Minus) {
+	while (this->current_token.type == Parse::TT_Plus || this->current_token.type == Parse::TT_Minus) {
 		const auto tok = this->current_token.type;
 		this->next();
 		rside = this->Term();
@@ -493,7 +497,7 @@ auto Parse::Parser::Ternary() -> Parse::node_pointer
 	Parse::node_pointer trueop;
 	Parse::node_pointer falseop;
 
-	if (this->current_token != Parse::TT_Question ||
+	if (this->current_token.type != Parse::TT_Question ||
 		this->current_token.type == Parse::TT_Unknown || !condition) {
 		return condition;
 	}
@@ -504,7 +508,7 @@ auto Parse::Parser::Ternary() -> Parse::node_pointer
 	} else if (!(trueop = this->Comparisions())) {
 		return nullptr;
 	} else if (this->current_token.type == Parse::TT_Unknown ||
-			   this->current_token != Parse::TT_Colon) {
+			   this->current_token.type != Parse::TT_Colon) {
 		this->Error("ternary", "expected expression after ':'");
 	}
 
@@ -527,7 +531,7 @@ auto Parse::Parser::Ternary() -> Parse::node_pointer
 
 auto Parse::Parser::Name() -> std::string_view
 {
-	if (this->current_token != Parse::TT_Identifier) {
+	if (this->current_token.type != Parse::TT_Identifier) {
 		this->Error("name", "token cannot be a name");
 	}
 	return this->current_token.string;
@@ -541,10 +545,10 @@ auto Parse::Parser::Lambda(std::string_view name, bool arrowed) -> Parse::node_p
 	}
 
 	do {
-		if (this->current_token == Parse::TT_Comma) {
+		if (this->current_token.type == Parse::TT_Comma) {
 			this->next();
 			continue;
-		} else if (this->current_token != Parse::TT_Identifier) {
+		} else if (this->current_token.type != Parse::TT_Identifier) {
 			break;
 		}
 		auto arg = this->current_token.string;
@@ -553,12 +557,12 @@ auto Parse::Parser::Lambda(std::string_view name, bool arrowed) -> Parse::node_p
 		args.push_back(std::make_unique<Parse::StringNode>(arg, Identifier));
 	} while (this->current_token.type);
 
-	if (!arrowed && this->current_token != Parse::TT_RightParentesis) {
+	if (!arrowed && this->current_token.type != Parse::TT_RightParentesis) {
 		this->Error("lambda", "expected ')' to close parameter list");
 	} else if (!arrowed) {
 		this->next();
 	}
-	if (this->current_token != Parse::TT_Arrow) {
+	if (this->current_token.type != Parse::TT_Arrow) {
 		this->Error("lambda", "expected '=>' after parameter list");
 	}
 
@@ -578,7 +582,7 @@ auto Parse::Parser::Define(std::string_view name) -> Parse::node_pointer
 
 auto Parse::Parser::Assign() -> Parse::node_pointer
 {
-	if (this->current_token == Token(Parse::KW_include)) {
+	if (this->current_token.keyword == Parse::KW_include) {
 		this->next();
 		auto str = this->current_token.string;
 		this->next();
@@ -594,12 +598,12 @@ auto Parse::Parser::Assign() -> Parse::node_pointer
 	const auto tok = this->current_token;
 	this->next();
 	Parse::node_pointer ptr;
-	if (tok == Parse::TT_LeftParentesis || tok == Parse::TT_Arrow) {
-		ptr = this->Lambda(name, tok == Parse::TT_Arrow);
-	} else if (tok == Parse::TT_Colon || this->current_token == Parse::Token(Parse::KW_as)) {
+	if (tok.type == Parse::TT_LeftParentesis || tok.type == Parse::TT_Arrow) {
+		ptr = this->Lambda(name, tok.type == Parse::TT_Arrow);
+	} else if (tok.type == Parse::TT_Colon || (this->current_token.type == Parse::TT_Keyword && this->current_token.keyword == Parse::KW_as)) {
 		this->Warning("discouraged use", "use of defines is not yet completed, consider removing");
 		ptr = this->Define(name);
-	} else if (tok == Parse::TT_Equal) {
+	} else if (tok.type == Parse::TT_Equal) {
 		ptr = std::make_unique<ExpressionNode>(name, this->Ternary());
 	} else {
 		this->Error("assign", "expected either '(' or '=>', \"as\" or ':', or '='");
@@ -617,10 +621,6 @@ auto Parse::Parser::File() -> std::vector<Parse::node_pointer> try
 		auto node = this->Assign();
 		if (!node) break;
 		value.emplace_back(std::move(node));
-	}
-	if (this->current_position.index < this->file_size) {
-		this->Error("error", "general error");
-		return {};
 	}
 	return value;
 } catch(Parse::parse_exception &e) {

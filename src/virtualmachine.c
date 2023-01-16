@@ -231,9 +231,10 @@ void exec_instruction(register struct thread_t * thread) {
 }
 
 void print_status(register struct thread_t * thread) {
+    register int i = 0;
     printf("registers:\n");
 
-    for (register int i = 0; i < 32; i += 4)
+    for (; i < 32; i += 4)
     {
         printf("| r%02d: 0x%016lX | r%02d: 0x%016lX | r%02d: 0x%016lX | r%02d: 0x%016lX |\n",
         i, thread->registers[i], i + 1, thread->registers[i + 1], i + 2, thread->registers[i + 2], i + 3, thread->registers[i + 3]);
@@ -245,6 +246,7 @@ void print_status(register struct thread_t * thread) {
 void run(const char * filename) {
     FILE * fp;
     struct thread_t thread;
+    register long size;
     uint8_t *mem = (uint8_t*) malloc(1 << 10);
     if (!mem) return;    
 
@@ -254,22 +256,17 @@ void run(const char * filename) {
         return;
     }
     fseek(fp, 0, SEEK_END);
-    register long size = ftell(fp);
+    size = ftell(fp);
     fseek(fp, 0, SEEK_SET);
     
     if(!fread(mem, min(1 << 10, size), 1, fp)) {
         free(mem);
-        if (!fclose(fp)) {
-            perror("pain");
-        }
+        fclose(fp);        
     }
 
     for (int i = 0; i < min(1 << 10, size); i++)
-    {
         printf(" %02X", mem[i]);
-    }
     
-
     thread.program_counter = 0;
     thread.memory = mem;
     exec_instruction(&thread);

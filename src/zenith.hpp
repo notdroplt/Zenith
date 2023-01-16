@@ -53,79 +53,10 @@ static constexpr const char *const Reset = "\x1b[0m";	  //!< clears styled outpu
 
 namespace Parse
 {
-/**
- * @enum TokenTypes
- * @brief All possible token types
- * <br>
- * size : 1 byte
- */
-enum TokenTypes : unsigned char {
-	TT_Unknown,				//!< used as the default token in case of errors
-	TT_Int,					//!< integer numbers
-	TT_Double,				//!< decimal numbers
-	TT_String,				//!< character strings
-	TT_Identifier,			//!< unmanaged names
-	TT_Keyword,				//!< language-specific names
-	TT_Plus,				//!< "+"
-	TT_Increment,			//!< "++"
-	TT_Minus,				//!< "-"
-	TT_Decrement,			//!< "--"
-	TT_Multiply,			//!< "*"
-	TT_Divide,				//!< "/"
-	TT_LessThan,			//!< "<"
-	TT_LessThanEqual,		//!< "<="
-	TT_LeftShift,			//!< "<<"
-	TT_RightShift,			//!< ">>"
-	TT_CompareEqual,		//!< "=="
-	TT_NotEqual,			//!< "!="
-	TT_GreaterThan,			//!< ">"
-	TT_GreaterThanEqual,	//!< ">="
-	TT_Question,			//!< "?"
-	TT_Colon,				//!< ":"
-	TT_Equal,				//!< "="
-	TT_Not,					//!< "!"
-	TT_LeftParentesis,		//!< "("
-	TT_RightParentesis,		//!< ")"
-	TT_LeftSquareBracket,	//!< "["
-	TT_RightSquareBracket,	//!< "]"
-	TT_LeftCurlyBracket,	//!< "{"
-	TT_RightCurlyBracket,	//!< "}"
-	TT_Arrow,				//!< "=>"
-	TT_Dot,					//!< "."
-	TT_Comma,				//!< ","
-	TT_Semicolon,			//!< ";"
-	TT_At,					//!< "@"
-	TT_BitwiseOr,			//!< "|"
-	TT_BinaryOr,			//!< "||"
-	TT_BitwiseAnd,			//!< "&"
-	TT_BinaryAnd,			//!< "&&"
-	TT_BitWiseXor,			//!< "^"
-	TT_Tilda,				//!< "~"
+	extern "C" {
+		#include "lex.h"
+	};
 
-};
-
-/**
- * @enum KeywordTypes
- * @brief Saves space by deallocating space for keywords
- * <br>
- * size: 1 byte
- */
-enum KeywordTypes : unsigned char {
-	KW_var,		  //!< "var"
-	KW_function,  //!< "function"
-	KW_as,		  //!< "as"
-	KW_do,		  //!< "do"
-	KW_switch,	  //!< "switch"
-	KW_default,	  //!< "default"
-	KW_if,		  //!< "if"
-	KW_then,	  //!< "if"
-	KW_else,	  //!< "else"
-	KW_end,		  //!< "end"
-	KW_return,	  //!< "return"
-	KW_include,	  //!< "include"
-
-	KW_Unknown	//!< error code for keywords
-};
 
 /**
  * @brief class for terminating program "safely"
@@ -144,120 +75,109 @@ class parse_exception : public std::exception
  *
  * @todo make this struct smaller
  */
-struct Token {
-	double number = 0.0;				//!< decimal numbers
-	uint64_t integer = 0;				//!< integer numbers
-	std::string_view string = "";		//!< strings or identifiers
-	KeywordTypes keyword = KW_Unknown;	//!< language keywords
 
-	TokenTypes type = TT_Unknown;  //!< specify token type
 
-	/**
-	 * @brief default token constructor
-	 *
-	 * Complexity: constant
-	 * does not take any arguments, and every element is default-initialized
-	 */
-	explicit Token() noexcept = default;
 
-	/**
-	 * @brief token constructor for tokens that don't require another
-	 * argument
-	 *
-	 * @param type_ @ref TokenTypes "token type"
-	 *
-	 * Complexity: constant
-	 *
-	 */
+// struct Token : token_t {
+	
+// 	/**
+// 	 * @brief default token constructor
+// 	 *
+// 	 * Complexity: constant
+// 	 * does not take any arguments, and every element is default-initialized
+// 	 */
+// 	explicit Token() noexcept = default;
 
-	inline explicit Token(const TokenTypes type_) noexcept : type(type_) {}
+// 	/**
+// 	 * @brief token constructor for tokens that don't require another
+// 	 * argument
+// 	 *
+// 	 * @param type_ @ref TokenTypes "token type"
+// 	 *
+// 	 * Complexity: constant
+// 	 *
+// 	 */
 
-	/**
-	 * @brief token constructor for @ref KeywordTypes "keywords"
-	 *
-	 * @param kwd @ref KeywordTypes "keyword types"
-	 *
-	 * Complexity: Constant
-	 */
-	inline explicit Token(const KeywordTypes kwd) noexcept : keyword(kwd), type(TT_Keyword) {}
+// 	inline Token(const TokenTypes type_) noexcept {
+// 		this->type = type_;
+// 	}
 
-	/**
-	 * @brief token constructor for @ref TokenTypes "Integer type" tokens
-	 *
-	 * @param val integer value
-	 *
-	 * Complexity: Constant
-	 */
-	inline explicit Token(uint64_t val) noexcept : integer(val), type(TT_Int) {}
+// 	/**
+// 	 * @brief token constructor for @ref KeywordTypes "keywords"
+// 	 *
+// 	 * @param kwd @ref KeywordTypes "keyword types"
+// 	 *
+// 	 * Complexity: Constant
+// 	 */
+// 	inline Token(const KeywordTypes kwd) noexcept {
+// 		this->type = TT_Keyword;
+// 		this->keyword = kwd;
+// 	}
 
-	/**
-	 * @brief token constructor for @ref TokenTypes "Double type" tokens
-	 *
-	 * @param val double value
-	 *
-	 * Complexity: Constant
-	 */
-	inline explicit Token(double val) noexcept : number(val), type(TT_Double) {}
+// 	/**
+// 	 * @brief token constructor for @ref TokenTypes "Integer type" tokens
+// 	 *
+// 	 * @param val integer value
+// 	 *
+// 	 * Complexity: Constant
+// 	 */
+// 	inline Token(uint64_t val) noexcept {
+// 		this->type = TT_Int;
+// 		this->integer = val;
+// 	}
 
-	/**
-	 * @brief token constructor for @ref TokenTypes "Identifier and String type" tokens
-	 *
-	 *
-	 * Complexity: Constant
-	 */
-	inline explicit Token(std::string_view str, const TokenTypes tok_type) noexcept : string(str), type(tok_type) {}
+// 	/**
+// 	 * @brief token constructor for @ref TokenTypes "Double type" tokens
+// 	 *
+// 	 * @param val double value
+// 	 *
+// 	 * Complexity: Constant
+// 	 */
+// 	inline explicit Token(double val) noexcept {
+// 		this->type = TT_Double;
+// 		this->number = val;
+// 	}
 
-	/**
-	 * @brief tests if a token is equal to another one
-	 *
-	 * @param other another token
-	 * @return true if they are the same
-	 * @return false if they are not
-	 *
-	 * Complexity: Constant, Constant, Linear
-	 *
-	 * the function is only linear when the token is either "string" or "identifier",
-	 * else it is just comparing numerical equality
-	 */
-	inline bool operator==(const Token &other) const noexcept
-	{
-		return this->type == other.type &&
-			   (this->integer == other.integer || this->number == other.number || this->string == other.string);
-	}
+// 	/**
+// 	 * @brief token constructor for @ref TokenTypes "Identifier and String type" tokens
+// 	 *
+// 	 *
+// 	 * Complexity: Constant
+// 	 */
+// 	inline explicit Token(std::string_view str, const TokenTypes tok_type) noexcept {
+// 		this->type = tok_type;
+// 		this->string = str;
+// 	}
 
-	/**
-	 * @brief tests if a token is different from another one
-	 *
-	 * @param other another token
-	 * @return true if they are different
-	 * @return false if they are equal
-	 *
-	 * Complexity: Constant, Constant, Linear
-	 */
-	inline bool operator!=(const Token &other) const noexcept { return !this->operator==(other); }
+// 	/**
+// 	 * @brief tests if a token is equal to another one
+// 	 *
+// 	 * @param other another token
+// 	 * @return true if they are the same
+// 	 * @return false if they are not
+// 	 *
+// 	 * Complexity: Constant, Constant, Linear
+// 	 *
+// 	 * the function is only linear when the token is either "string" or "identifier",
+// 	 * else it is just comparing numerical equality
+// 	 */
+// 	inline bool operator==(const Token &other) const noexcept
+// 	{
+// 		return this->type == other.type &&
+// 			   (this->integer == other.integer || this->number == other.number || this->string == other.string);
+// 	}
 
-	/**
-	 * @brief test if two tokens are the same type
-	 *
-	 * @param type_ token type
-	 * @return true if they are the same
-	 * @return false if they are not
-	 *
-	 * Complexity: Constant
-	 */
-	inline bool operator==(const TokenTypes type_) const noexcept { return this->type == type_; }
-
-	/**
-	 * @brief test if two tokens from different types
-	 *
-	 * @param type_ token type
-	 * @return true if they are different
-	 * @return false if they are the same type
-	 *
-	 * Complexity: Constant
-	 */
-	inline bool operator!=(const TokenTypes type_) const noexcept { return this->type != type_; }
-};
+// 	/**
+// 	 * @brief tests if a token is different from another one
+// 	 *
+// 	 * @param other another token
+// 	 * @return true if they are different
+// 	 * @return false if they are equal
+// 	 *
+// 	 * Complexity: Constant, Constant, Linear
+// 	 */
+// 	inline bool operator!=(const Token &other) const noexcept { return !this->operator==(other); }
+// };
 
 //////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -869,7 +789,9 @@ class Parser final
 	 * #              ^---- current token
 	 * @endcode
 	 */
-	void next();
+	void next() {
+		this->current_token = getNextToken(&this->lexer);
+	}
 
 	/**
 	 * @brief parses a list of tokens in ortder
@@ -998,17 +920,11 @@ class Parser final
    public:
 	std::unordered_map<std::string_view, std::pair<Node *, int>>
 	map{};					   //!< map of parsed top level nodes names, with reference count
-	Token current_token{0.0};  //!< last token returned by the lexer
-	struct Position {
-		uint32_t index{0};			//!< current character count
-		uint32_t last_line_pos{0};	//!< index of the last newline character
-		uint32_t line{1};			//!< line count
-		uint32_t column{1};			//!< column count
-	} current_position;				//!< file position
+	token_t current_token;  //!< last token returned by the lexer
+	pos_t current_position;				//!< file position
 	std::string_view filename;		//!< current translating unit name
-	std::string_view content;		//!< current file content
+	lex_t lexer;
 	uint32_t file_size{0};			//!< index limit
-	char current_char{'\0'};		//!< lexer current char
 
 	/**
 	 * @brief Construct a new Parser object
@@ -1542,7 +1458,6 @@ class Assembler {
 	 */
 	return_t assemble_number(Parse::NumberNode * node) {
 		uint64_t reg_index = this->request_register();
-
 		// set lower number as `lower_num + 0` -> rd
 		this->append_instruction(VirtMac::SInstruction(VirtMac::addi_instrc, 0, reg_index, node->number & 0x3FFFFFFFFFFF));
 
