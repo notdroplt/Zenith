@@ -11,9 +11,6 @@
 #ifndef VM_CODE_H
 #define VM_CODE_H 1
 
-
-
-
 #include <cstdint>
 
 /**
