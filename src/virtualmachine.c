@@ -1,5 +1,32 @@
 #include "virtualmachine.h"
 
+union instruction_t RInstruction(const uint8_t opcode, const uint8_t r1, const uint8_t r2, const uint8_t rd) {
+    union instruction_t instrc;
+    instrc.rtype.opcode = opcode;
+    instrc.rtype.r1 = r1;
+    instrc.rtype.r2 = r2;
+    instrc.rtype.rd = rd;
+    instrc.rtype.pad = 0;
+    return instrc;
+}
+
+union instruction_t SInstruction(const uint8_t opcode, const uint8_t r1, const uint8_t rd, const uint64_t immediate){
+    union instruction_t instrc;
+    instrc.stype.opcode = opcode;
+    instrc.stype.r1 = r1;
+    instrc.stype.rd = rd;
+    instrc.stype.immediate = immediate;
+    return instrc;
+}
+
+union instruction_t LInstruction(const uint8_t opcode, const uint8_t r1, const uint64_t immediate){
+    union instruction_t instrc;
+    instrc.ltype.opcode = opcode;
+    instrc.ltype.r1 = r1;
+    instrc.ltype.immediate = immediate;
+    return instrc;
+}
+
 union instruction_t fetch_instruction(register struct thread_t * thread) {
     assert(thread->program_counter + 8 < thread->memory_size);
     thread->program_counter += 8;
@@ -50,6 +77,7 @@ void set_memory_64(register struct thread_t * thread, register uint64_t address,
 void exec_instruction(register struct thread_t * thread) {
     register union instruction_t instruction = fetch_instruction(thread);
     thread->registers[0] = 0;
+    thread->registers[0] = -1;
     switch (instruction.rtype.opcode)
     {
     case andr_instrc:
@@ -140,17 +168,10 @@ void exec_instruction(register struct thread_t * thread) {
         thread->registers[instruction.stype.rd] = (int64_t)thread->registers[instruction.stype.r1] / (int64_t)instruction.stype.immediate;
         break;
     /**/
-    case setur_instrc:
-        thread->registers[instruction.rtype.rd] = thread->registers[instruction.rtype.r1] < thread->registers[instruction.rtype.r2];
-        break;
-    case setui_instrc:
-        thread->registers[instruction.stype.rd] = thread->registers[instruction.stype.r1] < instruction.stype.immediate;
-        break;
-    case setsr_instrc:
-        thread->registers[instruction.rtype.rd] = (int64_t)thread->registers[instruction.rtype.r1] < (int64_t)thread->registers[instruction.rtype.r2];
-        break;
-    case setsi_instrc:
-        thread->registers[instruction.stype.rd] = (int64_t)thread->registers[instruction.stype.r1] < (int64_t)instruction.stype.immediate;
+    case 0x1C:
+    case 0x1D:
+    case 0x1E:
+    case 0x1F:
         break;
     /**/
     case ld_byte_instrc:
@@ -213,14 +234,42 @@ void exec_instruction(register struct thread_t * thread) {
             thread->program_counter += instruction.stype.immediate;
         break;
     /**/
+    case setlur_instrc:
+        thread->registers[instruction.rtype.rd] = thread->registers[instruction.rtype.r1] < thread->registers[instruction.rtype.r2];
+        break;
+    case setlui_instrc:
+        thread->registers[instruction.stype.rd] = thread->registers[instruction.stype.r1] < instruction.stype.immediate;
+        break;
+    case setlsr_instrc:
+        thread->registers[instruction.rtype.rd] = (int64_t)thread->registers[instruction.rtype.r1] < (int64_t)thread->registers[instruction.rtype.r2];
+        break;
+    case setlsi_instrc:
+        thread->registers[instruction.stype.rd] = (int64_t)thread->registers[instruction.stype.r1] < (int64_t)instruction.stype.immediate;
+        break;
+    /**/
+    case setleur_instrc:
+        thread->registers[instruction.rtype.rd] = thread->registers[instruction.rtype.r1] <= thread->registers[instruction.rtype.r2];
+        break;
+    case setleui_instrc:
+        thread->registers[instruction.stype.rd] = thread->registers[instruction.stype.r1] <= instruction.stype.immediate;
+        break;
+    case setlesr_instrc:
+        thread->registers[instruction.rtype.rd] = (int64_t)thread->registers[instruction.rtype.r1] <= (int64_t)thread->registers[instruction.rtype.r2];
+        break;
+    case setlesi_instrc:
+        thread->registers[instruction.stype.rd] = (int64_t)thread->registers[instruction.stype.r1] <= (int64_t)instruction.stype.immediate;
+        break;
+    /**/
     case lui_instrc:
-        thread->registers[instruction.ltype.r1] = instruction.ltype.immediate << 18;
+        thread->registers[instruction.ltype.r1] |= instruction.ltype.immediate << 18;
         break;
     case auipc_instrc:
         thread->registers[instruction.ltype.r1] = thread->program_counter + (instruction.ltype.immediate << 18);
         break;
     case ecall_instrc:
-        /* nothing for now */
+        if (thread->registers[2] == 0x1) {
+            break; // no-op for now but a `exit(r3)` later
+        }
         break;
     case ebreak_instrc:
         print_status(thread);
@@ -243,11 +292,12 @@ void print_status(register struct thread_t * thread) {
 
 #define min(a, b) ((a) > (b) ? b : a)
 
-void run(const char * filename) {
+void run(const char * filename, int argc, char ** argv) {
     FILE * fp;
     struct thread_t thread;
     register long size;
     uint8_t *mem = (uint8_t*) malloc(1 << 10);
+    (void) argv;
     if (!mem) return;    
 
     fp = fopen(filename, "r");
@@ -264,11 +314,12 @@ void run(const char * filename) {
         fclose(fp);        
     }
 
-    for (int i = 0; i < min(1 << 10, size); i++)
-        printf(" %02X", mem[i]);
-    
     thread.program_counter = 0;
     thread.memory = mem;
+    thread.registers[1] = argc;
+    
+    exec_instruction(&thread);
+    print_status(&thread);
     exec_instruction(&thread);
     print_status(&thread);
 }

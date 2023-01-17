@@ -1,10 +1,7 @@
-#include <ctype.h>
-#include <stdbool.h>
-#include <stdio.h>
-#include <string.h>
+
 #include "lex.h"
 
-char lexNext(struct lex_t *lex)
+static char lexNext(struct lex_t *lex)
 {
 	if (lex->position.index >= lex->file_size)
 		return '\0';
@@ -23,7 +20,7 @@ char lexNext(struct lex_t *lex)
 	return lex->current_char;
 }
 
-struct token_t lexString(struct lex_t *lex)
+static struct token_t lexString(struct lex_t *lex)
 {
 	size_t start = lex->position.index + 1; /* skip the first " */
 	struct token_t tok;
@@ -79,10 +76,10 @@ static double strtod(struct string_t str)
 	return value;
 }
 
-struct token_t lexNumber(struct lex_t *lex)
+static struct token_t lexNumber(struct lex_t *lex)
 {
 	struct token_t tok;
-	bool dot = false;
+	int dot = 0;
 	tok.string.string = lex->content + lex->position.index;
 	tok.string.size = 0;
 	do
@@ -90,7 +87,7 @@ struct token_t lexNumber(struct lex_t *lex)
 		if (lex->current_char == '.' && dot)
 			return tok;
 		else if (lex->current_char == '.')
-			dot = true;
+			dot = 1;
 
 		++tok.string.size;
 

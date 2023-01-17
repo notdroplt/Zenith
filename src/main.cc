@@ -9,11 +9,7 @@
  *
  */
 
-#include <cstdio>
-#include <fstream>
-#include <memory>
 #include "zenith.hpp"
-#include <bitset>
 
 [[noreturn]] void Error(std::string_view error, std::string_view desc)
 {
@@ -21,15 +17,15 @@
 	exit(EXIT_FAILURE);
 } 
 
-
 int main(int argc, char **argv) 
 {
 	if (argc < 2) {
 		Error("arguments", "expected a file name");
 	}
 	auto nodes = Parse::Parser(argv[1]).File();	
-	Compiler::Assembler<Compiler::ConceptTarget<>> comp(nodes);
+	Compiler::Assembler comp(nodes);
 
-	//VirtMac::run("test.bin");
+	comp.compile();
+	VirtMac::run("out.bin", argc, argv);
 	return nodes.empty();
 }

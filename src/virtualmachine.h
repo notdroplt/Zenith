@@ -2,7 +2,7 @@
  * @file virtualmachine.h
  * @author notdroplt (117052412+notdroplt@users.noreply.github.com)
  * @brief all virtual machine components (in C!)
- * @version
+ * @version 0.0.1
  * @date 2023-01-14
  *
  * @copyright Copyright (c) 2023
@@ -13,9 +13,17 @@
 #define _virtual_machine_h 1
 
 #ifdef __cplusplus
+/**
+ * @brief defines C linkage
+ *
+ */
 #define extc extern "C"
 #include <cstdint>
 #else
+/**
+ * @brief defines C linkage
+ *
+ */
 #define extc
 #include <stdint.h>
 #endif
@@ -31,6 +39,16 @@
 #define CONCAT_IMPL(x, y) x##y
 #define MACRO_CONCAT(x, y) CONCAT_IMPL(x, y)
 #endif
+
+/**
+ * \defgroup virtset Virtual Instruction Set Emulation
+ *
+ * \brief all the instruction prefixes used on the emulated vm cpu, all designed by me
+ *
+ * instructions follow something like risc-v, but with some patches and differences
+ *
+ * @{
+ */
 
 /**
  * @brief creates a uniquely "increasing" name for a reserved instruction,
@@ -118,12 +136,12 @@ enum instruction_prefixes
     sdivr_instrc = 0x1A, //!< `sdiv r#, r#, r#` : R type
     sdivi_instrc = 0x1B, //!< `sdiv r#, r#, imm` : S type
 
-    setur_instrc = 0x1C, //!< `setu r#, r#, r#` : R type
-    setui_instrc = 0x1D, //!< `setu r#, r#, imm` : S type
-    setsr_instrc = 0x1E, //!< `setr r#, r#, r#` : R type
-    setsi_instrc = 0x1F, //!< `setr r#, r#, imm` : S type
+    Reserved = 0x1C, //!< `setu r#, r#, r#` : R type
+    Reserved = 0x1D, //!< `setu r#, r#, imm` : S type
+    Reserved = 0x1E, //!< `setr r#, r#, r#` : R type
+    Reserved = 0x1F, //!< `setr r#, r#, imm` : S type
 
-    /* group */
+    /* group 2 */
     ld_byte_instrc = 0x20, //!< `ldb r#, r#, imm` : S type
     ld_half_instrc = 0x21, //!< `ldh r#, r#, imm` : S type
     ld_word_instrc = 0x22, //!< `ldw r#, r#, imm` : S type
@@ -145,20 +163,20 @@ enum instruction_prefixes
     jles_instrc = 0x2F, //!< `jles r#, r#, imm` : S type
 
     /* other instructions, 0x30 - 0x32 */
-    lui_instrc = 0x30,    //!< `lu r#, imm` : L type
-    auipc_instrc = 0x31,  //!< `auipc r#, imm` : L type
-    ecall_instrc = 0x32,  //!< `ecall r#, imm` : L type
-    ebreak_instrc = 0x33, //!< `ebreak` : L type
+    setleur_instrc = 0x30,
+    setleui_instrc = 0x31,
+    setlesr_instrc = 0x32,
+    setlesi_instrc = 0x33,
 
-    Reserved = 0x34,
-    Reserved = 0x35,
-    Reserved = 0x36,
-    Reserved = 0x37,
+    setlur_instrc = 0x34,
+    setlui_instrc = 0x35,
+    setlsr_instrc = 0x36,
+    setlsi_instrc = 0x37,
 
-    Reserved = 0x38,
-    Reserved = 0x39,
-    Reserved = 0x3A,
-    Reserved = 0x3B,
+    lui_instrc = 0x38,     //!< `lu r#, imm` : L type
+    auipc_instrc = 0x39,  //!< `auipc r#, imm` : L type
+    ecall_instrc = 0x3A,  //!< `ecall r#, imm` : L type
+    ebreak_instrc = 0x3B, //!< `ebreak` : L type
 
     Reserved = 0x3C,
     Reserved = 0x3D,
@@ -221,16 +239,49 @@ union instruction_t
 };
 
 /**
+ * @brief R-type instruction constructor
+ *
+ * @param opcode instruction operation code
+ * @param r1 first argument register
+ * @param r2 second argument register
+ * @param rd instruction result destination register
+ *
+ * @return formatted instruction
+ */
+union instruction_t RInstruction(const uint8_t opcode, const uint8_t r1, const uint8_t r2, const uint8_t rd);
+
+/**
+ * @brief S-type instruction constructor
+ *
+ * @param opcode instruction operation code
+ * @param r1 argument register
+ * @param rd instruction result destination register
+ * @param immediate immediate argument
+ * @return formatted instruction
+ */
+union instruction_t SInstruction(const uint8_t opcode, const uint8_t r1, const uint8_t rd, const uint64_t immediate);
+
+/**
+ * @brief L-type instruction constructor
+ *
+ * @param opcode instruction operation code
+ * @param r1 argument register
+ * @param immediate immediate argument
+ * @return formatted instruction
+ */
+union instruction_t LInstruction(const uint8_t opcode, const uint8_t r1, const uint64_t immediate);
+
+/**
  * @brief defines a thread that will run vm code
  *
  * Size: 320 bytes (aligned)
  */
 struct thread_t
 {
-    uint64_t registers[32];
-    uint64_t program_counter;
-    uint64_t memory_size;
-    uint8_t *memory;
+    uint64_t registers[32];   //!< thread registers
+    uint64_t program_counter; //!< thread instructon pointer
+    uint64_t memory_size;     //!< thread memory size
+    uint8_t *memory;          //!< thread memory pointer
 } __attribute__((aligned(64)));
 
 /**
@@ -326,7 +377,10 @@ void print_status(struct thread_t *thread);
  * @brief run code from a file
  *
  * @param filename file name to run
+ * @param argc main's argc
+ * @param argv main's argv
  */
-void run(const char *filename);
+void run(const char *filename, int argc, char **argv);
 
+/** @} */ /* end of group Virtual Instrucion Set Emulation */
 #endif

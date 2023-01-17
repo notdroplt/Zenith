@@ -15,5 +15,6 @@ TEMPLATE_RELATIONS     = YES
 DOT_IMAGE_FORMAT       = svg
 INTERACTIVE_SVG        = YES
 DOT_MULTI_TARGETS      = YES
+HTML_EXTRA_STYLESHEET  = /usr/local/share/doxygen-awesome-css/doxygen-awesome.css
 # doxygen should not see some of thse stuff out there
 PREDEFINED             = doxygen 

@@ -1,5 +1,18 @@
+/**
+ * @file lex.h
+ * @author notdroplt (117052412+notdroplt@users.noreply.github.com)
+ * @brief definitions for the tokenizer
+ * @version 0.0.1
+ * @date 2023-01-15
+ * 
+ * @copyright Copyright (c) 2023
+ * 
+ */
+
 #include <stdint.h>
 #include <stddef.h>
+#include <ctype.h>
+#include <string.h>
 
 /**
  * @enum TokenTypes
@@ -91,30 +104,48 @@ struct pos_t
 	uint32_t column;		/*!< column count */
 };
 
+/**
+ * @brief defines a tokenizer object 
+ * 
+ */
 struct lex_t
 {
-	struct pos_t position;
-	uint64_t file_size;
-	char *content;
-	char current_char;
+	struct pos_t position; /*!< current tokenizer cursor position*/
+	uint64_t file_size; /*!< total file size */
+	char *content; /*!< file content */
+	char current_char; /*!< current cursor char*/
 };
 
+#ifndef __cplusplus
 /**
  * @brief a c string_view object
  *
  * Size : 16 bytes
  */
-#ifndef __cplusplus
 struct string_t
 {
-	size_t size;
-	char *string;
+	size_t size; //!< string size
+	char *string; //!< string pointer
 };
 
+/**
+ * @brief allow c and c++ to use the same "type"
+ * 
+ */
 typedef struct string_t string_t;
 #else 
+
+/**
+ * @brief defines a string_view with the same name in c and c++
+ * 
+ */
 typedef std::string_view string_t;
 #endif
+
+/**
+ * @brief defines a struct that carries tokens
+ * 
+ */
 struct token_t
 {
 	union
