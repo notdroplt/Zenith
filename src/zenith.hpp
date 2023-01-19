@@ -1121,6 +1121,20 @@ namespace Compiler
 	using return_t = std::vector<uint64_t>;
 
 	/**
+	 * @brief defines a type for a symbol table entry
+	 * 
+	 */
+	struct symbol_table_entry {
+		uint64_t dot; 
+
+		uint64_t value;
+		uint16_t reg_idx;
+		std::unordered_map<std::string_view, struct symbol_table_entry> entries;
+		
+	};
+	using function_symbol_table_entry = std::unordered_map<std::string_view, uint64_t>;
+
+	/**
 	 * @brief assemble nodes to form running code (does not format)
 	 * not the best name because it goes from nodes -> bytes, but anyway
 	 *
@@ -1146,11 +1160,11 @@ namespace Compiler
 		register_status registers[32] = {
 			register_status::used, register_status::used
 		}; //!< save status for all registers
-
 		std::vector<Parse::node_pointer> &parsed_nodes;
-		std::unordered_map<std::string_view, uint64_t> symbols; //!< symbols defined
+		std::unordered_map<std::string_view, function_symbol_table_entry> table; // symbols
 		byte_container instructions; //!< container for all instructions
 		uint64_t dot; //!< current instruction place in memory
+		uint64_t root_index; //!< used to get info about a function context
 
 		/**
 		 * @brief request a register to be used, kind of a `malloc()` function
@@ -1159,7 +1173,7 @@ namespace Compiler
 		 * 
 		 * @return index of register
 		 */
-		int request_register();
+		int request_register(bool descending = false);
 
 		/**
 		 * @brief says that its already done using the function
@@ -1178,6 +1192,10 @@ namespace Compiler
 		 */
 		void append_instruction(const VirtMac::instruction_t instruction);
 
+		Parse::LambdaNode * get_function(uint64_t index);
+
+		Parse::ExpressionNode * get_constant(uint64_t index);
+
 		/**
 		 * @brief put a immediate into a register
 		 *
@@ -1189,6 +1207,15 @@ namespace Compiler
 		 * @return registers used while compiling
 		 */
 		return_t assemble_number(Parse::NumberNode *node);
+
+		/**
+		 * @brief get a value (possibly a pointer or a register) from an identifier
+		 * 
+		 *
+		 * @param node 
+		 * @return register / pointer 
+		 */
+		return_t assemble_identifier(Parse::StringNode *node);
 
 		/**
 		 * @brief assemble an unary node 
@@ -1251,27 +1278,13 @@ namespace Compiler
 		return_t assemble(const Parse::node_pointer &node);
 
 		/**
-		 * @brief adds a function to the symbol table
-		 * 
-		 * @param name function name
-		 *
-		 * Complexity: Constant
-		 * 
-		 * @return current pointer location
-		 */
-		uint64_t add_function(std::string_view name);
-
-
-		/**
 		 * @brief construct the assembler
 		 * 
 		 * @param nodes node tree
 		 * 
 		 * Complexity: Constant
 		 */
-		Assembler(std::vector<Parse::node_pointer> &nodes) : parsed_nodes(nodes)
-		{
-		}
+		Assembler(std::vector<Parse::node_pointer> &nodes);
 
 		/**
 		 * @brief compiles all nodes

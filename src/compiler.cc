@@ -3,12 +3,29 @@
 using Assembler = Compiler::Assembler;
 using return_t = Compiler::return_t;
 
-int Assembler::request_register()
+Assembler::Assembler(std::vector<Parse::node_pointer> &nodes) : parsed_nodes(nodes),
+dot(0), root_index(0)
 {
-    for (int i = 0; i < 32; ++i)
-        if (this->registers[i] == register_status::trashed || this->registers[i] == register_status::clear)
-            return i;
+}
 
+int Assembler::request_register(bool descending)
+{
+    int i = -1;
+    if (!descending) {
+        for (i = 0; i < 32; ++i)
+            if (this->registers[i] == register_status::trashed || this->registers[i] == register_status::clear)
+                break;
+    } else {
+        for (i = 31; i >= 0; --i)
+            if (this->registers[i] == register_status::trashed || this->registers[i] == register_status::clear)
+                break;
+    }
+    
+    if (i != -1) {
+        this->registers[i] = register_status::used;
+        return i;
+    } 
+    
     //! TODO: use stack (if target supports it)
     Error("compiler", "ran out of registers");
 }
@@ -24,10 +41,21 @@ void Assembler::append_instruction(const VirtMac::instruction_t instruction)
     dot += 8;
 }
 
+Parse::LambdaNode * Assembler::get_function(uint64_t index){
+    if (index > this->parsed_nodes.size() || this->parsed_nodes.at(index)->type != Parse::Lambda)
+        return nullptr;
+    return this->parsed_nodes.at(index)->cget<Parse::LambdaNode>();
+}
+
+Parse::ExpressionNode * Assembler::get_constant(uint64_t index){
+    if (index > this->parsed_nodes.size() || this->parsed_nodes.at(index)->type != Parse::Expression)
+        return nullptr;
+    return this->parsed_nodes.at(index)->cget<Parse::ExpressionNode>();
+}
+
 return_t Assembler::assemble_number(Parse::NumberNode *node)
 {
     uint64_t reg_index = this->request_register();
-    std::cerr << node->number << '\n';
     // goes only if number actually needs it
     if (node->number > 0x400000000000)
     {
@@ -106,6 +134,7 @@ return_t Assembler::assemble_binary(Parse::BinaryNode *node, bool isJumping){
              */
             this->append_instruction(VirtMac::RInstruction(VirtMac::xorr_instrc, lfirst, lfirst, rfirst));
             this->append_instruction(VirtMac::RInstruction(VirtMac::setlur_instrc, 0, lfirst, lfirst));
+            break;
         case Parse::TT_CompareEqual:
             /*
              * r1 = r1 ^ r2
@@ -194,69 +223,62 @@ return_t Assembler::assemble_binary(Parse::BinaryNode *node, bool isJumping){
     return used_lchild;
 }
 
-return_t Assembler::assemble_ternary(Parse::TernaryNode *node) {
-    /**
-     * ternary assembly:
-     * 
-     * j{!condition} false_op_label
-     * true_op_label:
-     * ...
-     * jmp cond_end
-     * false_op_label:
-     * ...
-     * cond_end:
-     * code continues...
-     */
-    uint64_t jumps;
-    auto registers = node->condition->type == Parse::Binary ? this->assemble_binary(node->condition->cget<Parse::BinaryNode>(), true) : this->assemble(node->condition);
-    
-    if (node->condition->type != Parse::Binary) {
-        // makes a jump that tests for `{result} != 0`, which is basically what C like languages do
-        this->append_instruction(VirtMac::SInstruction(VirtMac::jne_instrc, registers[0], 0, 0));
-        
+return_t Assembler::assemble_identifier(Parse::StringNode * node) {
+
+    if (!this->table.count(node->value) || !this->table[this->get_function(this->root_index)->name].count(node->value)){
+        Error("compiler (identifier)", "variable not found");
     }
 
-    auto & jump_instr = this->instructions[this->instructions.size() - 1];
-    auto true_used_registers = this->assemble(node->trueop);
-    
-}
+    if (this->table.count(node->value) && this->table[this->get_function(this->root_index)->name].count(node->value)) {
+        Error("compiler (identifier)", "multiple *invalid* definitions of same variable");
+    }
 
+
+    if (this->table[this->get_function(this->root_index)->name].count(node->value)) {
+        return {this->table[this->get_function(this->root_index)->name][node->value]};
+    } else {
+        Error("compiler (identifier)", "unimplemented path: global identifier");
+    }    
+}
 
 return_t Assembler::assemble_lambda(Parse::LambdaNode *node)
 {
-    this->add_function(node->name);
+    return_t regs = {register_status::used, register_status::used};
+    regs.resize(32);
+    for (auto && arg : node->args) {
+        if (arg->type != Parse::Identifier) {
+            Error("Compiler (function arguments)", "expected argument to be a name");
+        }
+        auto reg_index = this->request_register(true);
+
+        std::cerr << "symbol " << node->name << "." << arg->cget<Parse::StringNode>()->value << " at register r" << reg_index << '\n';
+
+        this->table[node->name][arg->cget<Parse::StringNode>()->value] = reg_index;
+        regs.push_back(reg_index);
+    }
     this->assemble(node->expression);
-    return {};
+    return regs;
 }
+
 
 return_t Assembler::assemble(const Parse::node_pointer &node)
 {
     switch (node->type)
     {
     case Parse::Integer:
-        this->assemble_number(node->cget<Parse::NumberNode>());
-        break;
+        return this->assemble_number(node->cget<Parse::NumberNode>());
+    case Parse::Identifier:
+        return this->assemble_identifier(node->cget<Parse::StringNode>());
     case Parse::Unary:
-        this->assemble_unary(node->cget<Parse::UnaryNode>());
-        break;
+        return this->assemble_unary(node->cget<Parse::UnaryNode>());
+    case Parse::Binary:
+        return this->assemble_binary(node->cget<Parse::BinaryNode>(), false);
     case Parse::Lambda:
-        this->assemble_lambda(node->cget<Parse::LambdaNode>());
-        break;
+        return this->assemble_lambda(node->cget<Parse::LambdaNode>());
     default:
         Error("compiler", "unhandled node");
     }
     return {};
-}
-
-uint64_t Assembler::add_function(std::string_view name)
-{
-    if (this->symbols.count(name))
-    {
-        std::cerr << "symbol : " << name << '\n';
-        Error("compiler", "multiple definitions of ^");
-    }
-    this->symbols[name] = this->dot;
-    return this->dot;
 }
 
 Compiler::byte_container Assembler::compile()
@@ -264,6 +286,7 @@ Compiler::byte_container Assembler::compile()
     for (auto &&node : this->parsed_nodes)
     {
         this->assemble(node);
+        ++this->root_index;
     }
     auto file = std::ofstream("out.bin", std::ios_base::binary);
     file.write(reinterpret_cast<char *>(&this->instructions[0]), this->instructions.size() * sizeof(uint64_t));

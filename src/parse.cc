@@ -350,7 +350,12 @@ auto Parse::Parser::Term() -> Parse::node_pointer
 		} else {
 			left /= right;
 		}
-		lside = std::make_unique<Parse::NumberNode>(static_cast<double>(left));
+
+		if ((int64_t)left == left && (int64_t)right == right) {
+			lside = std::make_unique<Parse::NumberNode>(static_cast<uint64_t>(left));
+		} else {
+			lside = std::make_unique<Parse::NumberNode>(static_cast<double>(left));
+		}
 	}
 	return lside;
 }
@@ -378,7 +383,7 @@ auto Parse::Parser::Factor() -> Parse::node_pointer
 		}
 
 		if (lside->type == Parse::String || rside->type == Parse::String) {
-			this->Error("binary", "cannot '*' or '/' a string");
+			this->Error("binary", "cannot '+' or '-' a string");
 		}
 
 		long double left = 0.0L, right = 0.0L;
@@ -407,7 +412,11 @@ auto Parse::Parser::Factor() -> Parse::node_pointer
 		} else {
 			left -= right;
 		}
-		lside = std::make_unique<Parse::NumberNode>(static_cast<double>(left));
+		if ((int64_t)left == left && (int64_t)right == right) {
+			lside = std::make_unique<Parse::NumberNode>(static_cast<uint64_t>(left));
+		} else {
+			lside = std::make_unique<Parse::NumberNode>(static_cast<double>(left));
+		}
 	}
 	return lside;
 }
@@ -438,7 +447,7 @@ auto Parse::Parser::Comparisions() -> Parse::node_pointer
 		}
 
 		if (lside->type == Parse::String || rside->type == Parse::String) {
-			this->Error("binary", "cannot '*' or '/' a string");
+			this->Error("binary", "cannot '==', '!=', '>', '>=', '<', or '<=' a string");
 		}
 
 		long double left = 0.0L, right = 0.0L;
@@ -483,8 +492,7 @@ auto Parse::Parser::Comparisions() -> Parse::node_pointer
 				result = left >= right;
 				break;
 			default:
-				this->Error("binary",
-							"'impossible' error, as no token should get someone here :) ");
+				this->Error("binary","'impossible' error");
 		}
 		lside = std::make_unique<Parse::NumberNode>(static_cast<uint64_t>(result));
 	}

@@ -163,20 +163,20 @@ enum instruction_prefixes
     jles_instrc = 0x2F, //!< `jles r#, r#, imm` : S type
 
     /* other instructions, 0x30 - 0x32 */
-    setleur_instrc = 0x30,
-    setleui_instrc = 0x31,
-    setlesr_instrc = 0x32,
-    setlesi_instrc = 0x33,
+    setleur_instrc = 0x30, //!< `setleu r#, r#, r#`: R type
+    setleui_instrc = 0x31, //!< `setleu r#, r#, imm`: S type
+    setlesr_instrc = 0x32, //!< `setles r#, r#, r#`: R type
+    setlesi_instrc = 0x33, //!< `setles r#, r#, imm`: S type
 
-    setlur_instrc = 0x34,
-    setlui_instrc = 0x35,
-    setlsr_instrc = 0x36,
-    setlsi_instrc = 0x37,
+    setlur_instrc = 0x34, //!< `setlu r#, r#, r#`: R type
+    setlui_instrc = 0x35, //!< `setlu r#, r#, imm`: S type
+    setlsr_instrc = 0x36, //!< `setls r#, r#, r#`: R type
+    setlsi_instrc = 0x37, //!< `setls r#, r#, imm`: S type
 
     lui_instrc = 0x38,     //!< `lu r#, imm` : L type
     auipc_instrc = 0x39,  //!< `auipc r#, imm` : L type
     ecall_instrc = 0x3A,  //!< `ecall r#, imm` : L type
-    ebreak_instrc = 0x3B, //!< `ebreak` : L type
+    ebreak_instrc = 0x3B, //!< `ebreak 0` : L type
 
     Reserved = 0x3C,
     Reserved = 0x3D,
@@ -382,5 +382,11 @@ void print_status(struct thread_t *thread);
  */
 void run(const char *filename, int argc, char **argv);
 
+/**
+ * @brief function that shows diassembled code
+ * 
+ * @param filename 
+ */
+void disassemble(const char * filename);
 /** @} */ /* end of group Virtual Instrucion Set Emulation */
 #endif

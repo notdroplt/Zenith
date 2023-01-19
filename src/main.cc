@@ -26,6 +26,7 @@ int main(int argc, char **argv)
 	Compiler::Assembler comp(nodes);
 
 	comp.compile();
-	VirtMac::run("out.bin", argc, argv);
+	VirtMac::disassemble("out.bin");
+	//VirtMac::run("out.bin", argc, argv);
 	return nodes.empty();
 }
