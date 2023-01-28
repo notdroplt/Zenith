@@ -3,7 +3,7 @@
 my language project yo
 
 ## setup 
-you will need to have [`clang`](https://clang.llvm.org/) and [`make`](https://www.gnu.org/software/make/) installed, then run `make setup` and then run `make all` to compile
+you will need to have [`make`](https://www.gnu.org/software/make/) installed, then run `make setup` and then run `make all` to compile
 
 ## documentation
 to see the full documentation, run `make docs`

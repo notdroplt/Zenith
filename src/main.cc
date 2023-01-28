@@ -26,7 +26,12 @@ int main(int argc, char **argv)
 	Compiler::Assembler comp(nodes);
 
 	comp.compile();
-	VirtMac::disassemble("out.bin");
-	//VirtMac::run("out.bin", argc, argv);
-	return nodes.empty();
+
+	
+
+	VirtMac::disassemble_file("out.zvm");
+	if (argc > 2 && strcmp(argv[2], "debug") == 0) 
+		return VirtMac::run("out.zvm", argc, argv, VirtMac::debugger_func);
+	
+	return VirtMac::run("out.zvm", argc, argv, NULL);
 }

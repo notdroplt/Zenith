@@ -1,6 +1,7 @@
 #include "virtualmachine.h"
 
-union instruction_t RInstruction(const uint8_t opcode, const uint8_t r1, const uint8_t r2, const uint8_t rd) {
+union instruction_t RInstruction(const uint8_t opcode, const uint8_t r1, const uint8_t r2, const uint8_t rd)
+{
     union instruction_t instrc;
     instrc.rtype.opcode = opcode;
     instrc.rtype.r1 = r1;
@@ -10,7 +11,8 @@ union instruction_t RInstruction(const uint8_t opcode, const uint8_t r1, const u
     return instrc;
 }
 
-union instruction_t SInstruction(const uint8_t opcode, const uint8_t r1, const uint8_t rd, const uint64_t immediate){
+union instruction_t SInstruction(const uint8_t opcode, const uint8_t r1, const uint8_t rd, const uint64_t immediate)
+{
     union instruction_t instrc;
     instrc.stype.opcode = opcode;
     instrc.stype.r1 = r1;
@@ -19,7 +21,8 @@ union instruction_t SInstruction(const uint8_t opcode, const uint8_t r1, const u
     return instrc;
 }
 
-union instruction_t LInstruction(const uint8_t opcode, const uint8_t r1, const uint64_t immediate){
+union instruction_t LInstruction(const uint8_t opcode, const uint8_t r1, const uint64_t immediate)
+{
     union instruction_t instrc;
     instrc.ltype.opcode = opcode;
     instrc.ltype.r1 = r1;
@@ -27,57 +30,58 @@ union instruction_t LInstruction(const uint8_t opcode, const uint8_t r1, const u
     return instrc;
 }
 
-union instruction_t fetch_instruction(register struct thread_t * thread) {
-    assert(thread->program_counter + 8 < thread->memory_size);
+union instruction_t fetch_instruction(register struct thread_t *thread)
+{
     thread->program_counter += 8;
-    return *(union instruction_t*)(thread->memory + thread->program_counter - 8);
+    return *(union instruction_t *)(thread->memory + thread->program_counter - 8);
 }
 
-uint8_t fetch8(register struct thread_t * thread, register uint64_t address) {
-    assert(address + 1 < thread->memory_size);
-    return *(uint8_t*)(thread->memory + address);
+uint8_t fetch8(register struct thread_t *thread, register uint64_t address)
+{
+    return *(uint8_t *)(thread->memory + address);
 }
 
-uint16_t fetch16(register struct thread_t * thread, register uint64_t address) {
-    assert(address + 2< thread->memory_size);
-    return *(uint16_t*)(thread->memory + address);
+uint16_t fetch16(register struct thread_t *thread, register uint64_t address)
+{
+    return *(uint16_t *)(thread->memory + address);
 }
 
-uint32_t fetch32(register struct thread_t * thread, register uint64_t address) {
-    assert(address + 4< thread->memory_size);
-    return *(uint32_t*)(thread->memory + address);
+uint32_t fetch32(register struct thread_t *thread, register uint64_t address)
+{
+    return *(uint32_t *)(thread->memory + address);
 }
 
-uint64_t fetch64(register struct thread_t * thread, register uint64_t address) {
-    assert(address + 8< thread->memory_size);
-    return *(uint64_t*)(thread->memory + address);
+uint64_t fetch64(register struct thread_t *thread, register uint64_t address)
+{
+    return *(uint64_t *)(thread->memory + address);
 }
 
-
-void set_memory_8(register struct thread_t * thread, register uint64_t address, register uint8_t value) {
-    assert(address - 1 < thread->memory_size);
-    *(uint8_t*)(thread->memory + address) = value;
+void set_memory_8(register struct thread_t *thread, register uint64_t address, register uint8_t value)
+{
+    *(uint8_t *)(thread->memory + address) = value;
 }
 
-void set_memory_16(register struct thread_t * thread, register uint64_t address, register uint16_t value) {
-    assert(address - 2< thread->memory_size);
-    *(uint16_t*)(thread->memory + address) = value;
+void set_memory_16(register struct thread_t *thread, register uint64_t address, register uint16_t value)
+{
+    *(uint16_t *)(thread->memory + address) = value;
 }
 
-void set_memory_32(register struct thread_t * thread, register uint64_t address, register uint32_t value) {
-    assert(address - 4< thread->memory_size);
-    *(uint32_t*)(thread->memory + address) = value;
+void set_memory_32(register struct thread_t *thread, register uint64_t address, register uint32_t value)
+{
+    *(uint32_t *)(thread->memory + address) = value;
 }
 
-void set_memory_64(register struct thread_t * thread, register uint64_t address, register uint64_t value) {
-    assert(address - 8< thread->memory_size);
-    *(uint64_t*)(thread->memory + address) = value;
+void set_memory_64(register struct thread_t *thread, register uint64_t address, register uint64_t value)
+{
+    *(uint64_t *)(thread->memory + address) = value;
 }
 
-void exec_instruction(register struct thread_t * thread) {
-    register union instruction_t instruction = fetch_instruction(thread);
-    thread->registers[0] = 0;
-    thread->registers[0] = -1;
+void exec_instruction(register struct thread_t *thread)
+{
+    register union instruction_t instruction;
+    if (thread->halt_sig)
+        return;
+    instruction = fetch_instruction(thread);
     switch (instruction.rtype.opcode)
     {
     case andr_instrc:
@@ -115,7 +119,7 @@ void exec_instruction(register struct thread_t * thread) {
     case lrsi_instrc:
         thread->registers[instruction.stype.rd] = thread->registers[instruction.stype.r1] << instruction.stype.immediate;
         break;
-    /**/  
+    /**/
     case alsr_instrc:
         thread->registers[instruction.rtype.rd] = (int64_t)thread->registers[instruction.rtype.r1] >> (int64_t)thread->registers[instruction.rtype.r2];
         break;
@@ -154,7 +158,7 @@ void exec_instruction(register struct thread_t * thread) {
     case smuli_instrc:
         thread->registers[instruction.stype.rd] = (int64_t)thread->registers[instruction.stype.r1] * (int64_t)instruction.stype.immediate;
         break;
-    /**/
+    /* TODO: implement divide by zero exception*/
     case udivr_instrc:
         thread->registers[instruction.rtype.rd] = thread->registers[instruction.rtype.r1] / thread->registers[instruction.rtype.r2];
         break;
@@ -267,59 +271,75 @@ void exec_instruction(register struct thread_t * thread) {
         thread->registers[instruction.ltype.r1] = thread->program_counter + (instruction.ltype.immediate << 18);
         break;
     case ecall_instrc:
-        if (thread->registers[2] == 0x1) {
-            break; // no-op for now but a `exit(r3)` later
+        switch (instruction.ltype.immediate)
+        {
+        case 1:
+            thread->halt_sig = 1;
+            break;
+        default:
+            break;
         }
         break;
     case ebreak_instrc:
-        print_status(thread);
         break;
     default:
         break;
     }
+    thread->registers[0] = 0;
 }
 
-void print_status(register struct thread_t * thread) {
-    register int i = 0;
-    printf("registers:\n");
-
-    for (; i < 32; i += 4)
-    {
-        printf("| r%02d: 0x%016lX | r%02d: 0x%016lX | r%02d: 0x%016lX | r%02d: 0x%016lX |\n",
-        i, thread->registers[i], i + 1, thread->registers[i + 1], i + 2, thread->registers[i + 2], i + 3, thread->registers[i + 3]);
-    }
-}
-
-#define min(a, b) ((a) > (b) ? b : a)
-
-void run(const char * filename, int argc, char ** argv) {
-    FILE * fp;
+int run(const char *filename, int argc, char **argv, void (*debugger)(struct thread_t *thread))
+{
+    struct virtmacheader_t header;
     struct thread_t thread;
     register long size;
-    uint8_t *mem = (uint8_t*) malloc(1 << 10);
-    (void) argv;
-    if (!mem) return;    
+    FILE *fp;
+
+    (void)argv;
 
     fp = fopen(filename, "r");
-    if (!fp) {
-        free(mem);
-        return;
-    }
+    if (!fp)
+        return EXIT_FAILURE;
+
     fseek(fp, 0, SEEK_END);
-    size = ftell(fp);
+    size = ftell(fp) - sizeof(struct virtmacheader_t);
     fseek(fp, 0, SEEK_SET);
-    
-    if(!fread(mem, min(1 << 10, size), 1, fp)) {
-        free(mem);
-        fclose(fp);        
+    if (fread(&header, sizeof(struct virtmacheader_t), 1, fp) != 1)
+    {
+        fprintf(stderr, "could not read header of file '%s'", filename);
+        fclose(fp);
+        return EXIT_FAILURE;
     }
 
-    thread.program_counter = 0;
-    thread.memory = mem;
-    thread.registers[1] = argc;
-    
-    exec_instruction(&thread);
-    print_status(&thread);
-    exec_instruction(&thread);
-    print_status(&thread);
+    fseek(fp, sizeof(struct virtmacheader_t), SEEK_SET);
+
+    thread.program_counter = header.entry_point;
+    thread.memory = malloc((header.code_offset + header.code_size + header.data_offset + header.data_size) << 8); // give some working space (and align it too)
+    thread.memory_size = (header.code_offset + header.code_size + header.data_offset + header.data_size) << 8;
+    thread.registers[0] = 0;
+    thread.registers[31] = argc;
+    thread.halt_sig = 0;
+
+    if (!thread.memory)
+    {
+        fprintf(stderr, "could not allocate %ld bytes of memory\n", thread.memory_size);
+        fclose(fp);
+        return EXIT_FAILURE;
+    }
+
+    if (!fread(thread.memory, size, 1, fp))
+    {
+        fclose(fp);
+        free(thread.memory);
+        return EXIT_FAILURE;
+    }
+
+    // registers should NOT be initialized because code shouldn't rely on that
+
+    if (debugger)
+        debugger(&thread);
+    else while (!thread.halt_sig)
+        exec_instruction(&thread);
+
+    return (int)thread.registers[1];
 }

@@ -8,6 +8,8 @@
  * @copyright Copyright (c) 2023
  * 
  */
+#ifndef ZENITH_LEX_H
+#define ZENITH_LEX_H 1
 
 #include <stdint.h>
 #include <stddef.h>
@@ -116,7 +118,6 @@ struct lex_t
 	char current_char; /*!< current cursor char*/
 };
 
-#ifndef __cplusplus
 /**
  * @brief a c string_view object
  *
@@ -127,20 +128,6 @@ struct string_t
 	size_t size; //!< string size
 	char *string; //!< string pointer
 };
-
-/**
- * @brief allow c and c++ to use the same "type"
- * 
- */
-typedef struct string_t string_t;
-#else 
-
-/**
- * @brief defines a string_view with the same name in c and c++
- * 
- */
-typedef std::string_view string_t;
-#endif
 
 /**
  * @brief defines a struct that carries tokens
@@ -154,7 +141,7 @@ struct token_t
 		uint64_t integer;		   /*!< integer numbers */
 		enum KeywordTypes keyword; /*!< language keywords */
 	};
-	string_t string;		   /*!< strings or identifiers */
+	struct string_t string;		   /*!< strings or identifiers */
 
 	enum TokenTypes type; /*!< specify token type */
 };
@@ -167,3 +154,5 @@ struct token_t
  * @return the next tokenized object
  */
 struct token_t getNextToken(struct lex_t *lex);
+
+#endif

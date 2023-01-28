@@ -10,19 +10,19 @@ dot(0), root_index(0)
 
 int Assembler::request_register(bool descending)
 {
-    int i = -1;
+    int i;
     if (!descending) {
-        for (i = 0; i < 32; ++i)
-            if (this->registers[i] == register_status::trashed || this->registers[i] == register_status::clear)
+        for (i = 1; i < 32; ++i)
+            if (this->registers & (1 << i))
                 break;
     } else {
         for (i = 31; i >= 0; --i)
-            if (this->registers[i] == register_status::trashed || this->registers[i] == register_status::clear)
+            if (this->registers & (1 << i))
                 break;
     }
     
     if (i != -1) {
-        this->registers[i] = register_status::used;
+        this->registers &= ~(1 << i);
         return i;
     } 
     
@@ -32,12 +32,12 @@ int Assembler::request_register(bool descending)
 
 void Assembler::clear_register(int index)
 {
-    this->registers[index] = register_status::trashed;
+    this->registers ^= 1 << index;
 }
 
 void Assembler::append_instruction(const VirtMac::instruction_t instruction)
 {
-    this->instructions.push_back(instruction.value);
+    this->instructions.push_back(instruction);
     dot += 8;
 }
 
@@ -53,8 +53,11 @@ Parse::ExpressionNode * Assembler::get_constant(uint64_t index){
     return this->parsed_nodes.at(index)->cget<Parse::ExpressionNode>();
 }
 
-return_t Assembler::assemble_number(Parse::NumberNode *node)
+int Assembler::assemble_number(Parse::NumberNode *node)
 {
+    if (node->value == 0.0 && node->number == 0) {
+        return 0; // uses registers, becomes faster
+    }
     uint64_t reg_index = this->request_register();
     // goes only if number actually needs it
     if (node->number > 0x400000000000)
@@ -64,7 +67,7 @@ return_t Assembler::assemble_number(Parse::NumberNode *node)
     // set lower number as `lower_num + 0` -> rd
     this->append_instruction(VirtMac::SInstruction(VirtMac::addi_instrc, 0, reg_index, node->number & 0x3FFFFFFFFFFF));
 
-    return {reg_index};
+    return reg_index;
 }
 
 return_t Assembler::assemble_unary(Parse::UnaryNode *node)
@@ -96,7 +99,7 @@ return_t Assembler::assemble_unary(Parse::UnaryNode *node)
 
 return_t Assembler::assemble_binary(Parse::BinaryNode *node, bool isJumping){
     auto used_lchild = this->assemble(node->left);
-    auto used_rchild = this->assemble(node->left);
+    auto used_rchild = this->assemble(node->right);
 
     auto & lfirst = used_lchild[0];
     auto & rfirst = used_rchild[0];
@@ -107,32 +110,32 @@ return_t Assembler::assemble_binary(Parse::BinaryNode *node, bool isJumping){
             /*
              * r1 = r1 + r2
              */
-            this->append_instruction(VirtMac::RInstruction(VirtMac::addr_instrc, lfirst, lfirst, rfirst));
+            this->append_instruction(VirtMac::RInstruction(VirtMac::addr_instrc, lfirst, rfirst, lfirst));
             break;
         case Parse::TT_Minus:
             /* 
              * r1 = r1 - r2 
              */
-            this->append_instruction(VirtMac::RInstruction(VirtMac::subr_instrc, lfirst, lfirst, rfirst));
+            this->append_instruction(VirtMac::RInstruction(VirtMac::subr_instrc, lfirst, rfirst, lfirst));
             break;
         case Parse::TT_Multiply:
             /*
              * r1 = r1 * r2 (signed)
              */
-            this->append_instruction(VirtMac::RInstruction(VirtMac::smulr_instrc, lfirst, lfirst, rfirst));
+            this->append_instruction(VirtMac::RInstruction(VirtMac::smulr_instrc, lfirst, rfirst, lfirst));
             break;
         case Parse::TT_Divide:
             /*
              * r1 = r1 / r2 (signed)
              */
-            this->append_instruction(VirtMac::RInstruction(VirtMac::udivr_instrc, lfirst, lfirst, rfirst));
+            this->append_instruction(VirtMac::RInstruction(VirtMac::udivr_instrc, lfirst, rfirst, lfirst));
             break;
         case Parse::TT_NotEqual:
             /*
              * r1 = r1 ^ r2
              * r1 = 0 < r1 (unsigned)
              */
-            this->append_instruction(VirtMac::RInstruction(VirtMac::xorr_instrc, lfirst, lfirst, rfirst));
+            this->append_instruction(VirtMac::RInstruction(VirtMac::xorr_instrc, lfirst, rfirst, lfirst));
             this->append_instruction(VirtMac::RInstruction(VirtMac::setlur_instrc, 0, lfirst, lfirst));
             break;
         case Parse::TT_CompareEqual:
@@ -140,7 +143,7 @@ return_t Assembler::assemble_binary(Parse::BinaryNode *node, bool isJumping){
              * r1 = r1 ^ r2
              * r1 = r1 <= 0 (unsigned) 
              */
-            this->append_instruction(VirtMac::RInstruction(VirtMac::xorr_instrc, lfirst, lfirst, rfirst));
+            this->append_instruction(VirtMac::RInstruction(VirtMac::xorr_instrc, lfirst, rfirst, lfirst));
             this->append_instruction(VirtMac::SInstruction(VirtMac::setleur_instrc, lfirst, 0, lfirst));
             break;
         case Parse::TT_GreaterThan:
@@ -223,22 +226,17 @@ return_t Assembler::assemble_binary(Parse::BinaryNode *node, bool isJumping){
     return used_lchild;
 }
 
-return_t Assembler::assemble_identifier(Parse::StringNode * node) {
+int Assembler::assemble_identifier(Parse::StringNode * node) {
 
-    if (!this->table.count(node->value) || !this->table[this->get_function(this->root_index)->name].count(node->value)){
+    return_t registers;
+       if (!this->table.count(node->value) && !this->table[this->get_function(this->root_index)->name].count(node->value))
         Error("compiler (identifier)", "variable not found");
-    }
-
-    if (this->table.count(node->value) && this->table[this->get_function(this->root_index)->name].count(node->value)) {
+    else if (this->table.count(node->value) && this->table[this->get_function(this->root_index)->name].count(node->value))
         Error("compiler (identifier)", "multiple *invalid* definitions of same variable");
-    }
-
-
-    if (this->table[this->get_function(this->root_index)->name].count(node->value)) {
-        return {this->table[this->get_function(this->root_index)->name][node->value]};
-    } else {
-        Error("compiler (identifier)", "unimplemented path: global identifier");
-    }    
+    else if (this->table[this->get_function(this->root_index)->name].count(node->value)) 
+        return this->table[this->get_function(this->root_index)->name][node->value];
+    else
+        Error("compiler (identifier)", "unimplemented path: global identifier");  
 }
 
 return_t Assembler::assemble_lambda(Parse::LambdaNode *node)
@@ -251,28 +249,70 @@ return_t Assembler::assemble_lambda(Parse::LambdaNode *node)
         }
         auto reg_index = this->request_register(true);
 
-        std::cerr << "symbol " << node->name << "." << arg->cget<Parse::StringNode>()->value << " at register r" << reg_index << '\n';
-
         this->table[node->name][arg->cget<Parse::StringNode>()->value] = reg_index;
         regs.push_back(reg_index);
     }
-    this->assemble(node->expression);
+    
+    this->entry_point = this->dot;
+    auto used = this->assemble(node->expression);
+    if (node->name == "main") {
+        this->append_instruction(VirtMac::LInstruction(VirtMac::ecall_instrc, 0, 1));
+    } 
+
+    this->registers = -1 | 1;
     return regs;
 }
 
+return_t Assembler::assemble_ternary(Parse::TernaryNode * node){
+    return_t used_conditions;
 
+    if (node->condition->type == Parse::Binary) 
+        this->assemble_binary(node->condition->cget<Parse::BinaryNode>(), true);
+    else 
+        // checks `cond != 0`, which is what c-like languages do
+        this->append_instruction(VirtMac::SInstruction(VirtMac::jne_instrc, this->assemble(node->condition)[0], 0, 0));
+   
+    auto idx = this->instructions.size() - 1;
+    uint64_t dot_v = this->dot;  
+
+    uint64_t status_cond = this->registers;
+
+    auto used_true = this->assemble(node->trueop);
+    uint64_t status_true = this->registers;
+    this->registers = status_cond;
+
+    this->append_instruction(VirtMac::SInstruction(VirtMac::jal_instrc, 0, 0, 0));
+    this->instructions[idx].stype.immediate = this->dot - dot_v;
+
+    idx = this->instructions.size() - 1;
+    dot_v = this->dot;
+
+    auto used_false = this->assemble(node->falseop);
+
+    this->registers &= status_true; // because they are set on *unused*, `and`ing registers will always unset more
+                                    // also, because most functions are only a single line, they most of the time will use the same
+                                    // amount of registers, so this part of the code will not have effects
+
+    this->instructions[idx].ltype.immediate = this->dot - dot_v;
+
+    return used_true;
+
+    
+}
 return_t Assembler::assemble(const Parse::node_pointer &node)
 {
     switch (node->type)
     {
     case Parse::Integer:
-        return this->assemble_number(node->cget<Parse::NumberNode>());
+        return {this->assemble_number(node->cget<Parse::NumberNode>())};
     case Parse::Identifier:
-        return this->assemble_identifier(node->cget<Parse::StringNode>());
+        return {this->assemble_identifier(node->cget<Parse::StringNode>())};
     case Parse::Unary:
         return this->assemble_unary(node->cget<Parse::UnaryNode>());
     case Parse::Binary:
         return this->assemble_binary(node->cget<Parse::BinaryNode>(), false);
+    case Parse::Ternary:
+        return this->assemble_ternary(node->cget<Parse::TernaryNode>());
     case Parse::Lambda:
         return this->assemble_lambda(node->cget<Parse::LambdaNode>());
     default:
@@ -281,15 +321,37 @@ return_t Assembler::assemble(const Parse::node_pointer &node)
     return {};
 }
 
+void Assembler::format_output(const char * file_name) {
+    VirtMac::virtmacheader_t header;
+    header.magic = HEADER_MAG;
+    header.version = 0;
+
+    header.data_size = 0;
+    header.data_start = 0;
+    header.data_offset = 0;
+
+    header.code_size = this->instructions.size() * 8;
+    header.code_offset = 0;
+    header.code_start = 0;
+
+    header.entry_point = this->entry_point;
+
+    auto file = std::ofstream(file_name, std::ios_base::binary);
+    file.write(reinterpret_cast<char *>(&header), sizeof(VirtMac::virtmacheader_t));
+    file.write(reinterpret_cast<char *>(this->instructions.data()), this->instructions.size() * sizeof(uint64_t));
+    file.close();
+}
+
 Compiler::byte_container Assembler::compile()
 {
     for (auto &&node : this->parsed_nodes)
     {
         this->assemble(node);
+        
         ++this->root_index;
     }
-    auto file = std::ofstream("out.bin", std::ios_base::binary);
-    file.write(reinterpret_cast<char *>(&this->instructions[0]), this->instructions.size() * sizeof(uint64_t));
-    file.close();
+    
+    this->format_output("out.zvm");
+
     return this->instructions;
 }

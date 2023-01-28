@@ -16,5 +16,6 @@ DOT_IMAGE_FORMAT       = svg
 INTERACTIVE_SVG        = YES
 DOT_MULTI_TARGETS      = YES
 HTML_EXTRA_STYLESHEET  = /usr/local/share/doxygen-awesome-css/doxygen-awesome.css
-# doxygen should not see some of thse stuff out there
+# doxygen kinda dies with C attributes
+PREDEFINED             = __attribute__(x)=
 PREDEFINED             = doxygen 

@@ -13,22 +13,22 @@
 /**
  * \mainpage Zenith language
  * \section Introduction
- * 
- * Zenith is a functional-like language, developed by me alone as a project using [scientific methods](https://knowyourmeme.com/photos/2110821-fuck-around-and-find-out),
- * to achieve some math with programming, to make some research over it, and also use only a single programming language instead of many. 
  *
- * Even with the code as robust as it is, as cited in the code's license, there is no warranty that it will work as intended for now, 
+ * Zenith is a functional-like language, developed by me alone as a project using [scientific methods](https://knowyourmeme.com/photos/2110821-fuck-around-and-find-out),
+ * to achieve some math with programming, to make some research over it, and also use only a single programming language instead of many.
+ *
+ * Even with the code as robust as it is, as cited in the code's license, there is no warranty that it will work as intended for now,
  * but I hope in the long term it is at least stable.
- * 
+ *
  * The development of the language, even though it is from an entirely different paradigm, is
  * heavily inspired by [this BASIC interpreter](https://github.com/davidcallanan/py-myopl-code) [series](https://www.youtube.com/watch?v=Eythq9848Fg&list=PLZQftyCk7_SdoVexSmwy_tBgs7P0b97yD)
  * by [Code pulse](https://www.youtube.com/channel/UCUVahoidFA7F3Asfvamrm7w)
  *
- * Remember, this is a "vacation" project (as these last 3 months kinda were vacation), I have no idea if i will continue developing it while on high school specially 
- * 
+ * Remember, this is a "vacation" project (as these last 3 months kinda were vacation), I have no idea if i will continue developing it while on high school specially
+ *
  * \section reason Why did I make this
  * In short, no reason at all. but it was either this or descent into madness during 3 months where i was not caring much about grades.
- * 
+ *
  *
  *
  * \section Syntax Zenith Syntax
@@ -36,8 +36,6 @@
  *
  *
  */
-
-#include <elf.h>
 
 #include <algorithm>
 #include <cstdint>
@@ -747,7 +745,7 @@ namespace Parse
 		 * @param type selector for either string or identifier
 		 * @return node_pointer
 		 */
-		node_pointer String(uint8_t type);
+		node_pointer String(TokenTypes type);
 
 		/**
 		 * @brief parse a switch statement
@@ -844,20 +842,19 @@ namespace Parse
 		node_pointer Assign();
 
 	public:
-		std::unordered_map<std::string_view, std::pair<Node *, int>>
-			map{};				   //!< map of parsed top level nodes names, with reference count
-		token_t current_token;	   //!< last token returned by the lexer
-		pos_t current_position;	   //!< file position
-		std::string_view filename; //!< current translating unit name
-		lex_t lexer;			   //!< tokenizer object
-		uint32_t file_size{0};	   //!< index limit
-
+		token_t current_token;				   //!< last token returned by the lexer
+		pos_t current_position;				   //!< file position
+		const char *filename;				   //!< current translating unit name
+		lex_t lexer;						   //!< tokenizer object
+		std::vector<std::string_view> strings; //!< string table (goes to .data)
+		std::vector<std::string_view> symbols; //!< identifier table (goes to .shstrtab)
+		uint32_t file_size{0};				   //!< index limit
 		/**
 		 * @brief Construct a new Parser object
 		 *
 		 * @param name file name
 		 */
-		explicit Parser(std::string_view name);
+		explicit Parser(const char *name);
 
 		/**
 		 * @brief parse a file
@@ -869,27 +866,35 @@ namespace Parse
 		/**
 		 * @brief makes the compiler print a note to the output stream (which is probably stderr)
 		 *
-		 * @param note note title
-		 * @param desc note description
+		 * @param [in] note note title
+		 * @param [in] desc note description
 		 */
-		void Note(std::string_view note, std::string_view desc) const;
+		void Note(const char *note, const char *desc) const;
 
 		/**
 		 * @brief makes the compiler print a warning to the output stream (stderr)
 		 *
-		 * @param warn warn title
-		 * @param desc warn description
+		 * @param [in] warn warn title
+		 * @param [in] desc warn description
 		 */
-		void Warning(std::string_view warn, std::string_view desc) const;
+		void Warning(const char *warn, const char *desc) const;
 
 		/**
 		 * @brief makes the compiler print an error message to the output stream (stderr) and throw
 		 * a parse exception, which is catched by the \ref File "file function", and makes ends parsing
 		 *
-		 * @param error error title
-		 * @param desc error description
+		 * @param [in] error error title
+		 * @param [in] desc error description
 		 */
-		[[noreturn]] void Error(std::string_view error, std::string_view desc) const;
+		[[noreturn]] void Error(const char *error, const char *desc) const;
+
+		/**
+		 * @brief adds a string to the current symbols, and returns the index
+		 *
+		 * @param string current string
+		 * @return index of the current string
+		 */
+		uint64_t add_string(std::string_view string);
 	};
 
 	/**
@@ -902,11 +907,11 @@ namespace Parse
 
 } // namespace Parse
 
-
 namespace VirtMac
 {
-	extern "C" {
-		#include "virtualmachine.h"
+	extern "C"
+	{
+#include "virtualmachine.h"
 	};
 } // namespace VirtMac
 
@@ -914,7 +919,7 @@ namespace Compiler
 {
 	/**
 	 * @brief type for instruction prefixes
-	 * 
+	 *
 	 */
 	using prefixes = VirtMac::instruction_prefixes;
 	/**
@@ -990,7 +995,7 @@ namespace Compiler
 	 * @brief actual instruction bytes tht should be put into running code
 	 *
 	 */
-	using byte_container = std::vector<uint64_t>;
+	using byte_container = std::vector<VirtMac::instruction_t>;
 
 	/**
 	 * @enum TargetCallingConvention
@@ -1116,22 +1121,22 @@ namespace Compiler
 
 	/**
 	 * @brief defines a type for all `assemble_(node)` functions
-	 * 
+	 *
 	 */
-	using return_t = std::vector<uint64_t>;
+	using return_t = std::vector<int>;
 
 	/**
 	 * @brief defines a type for a symbol table entry
-	 * 
+	 *
 	 */
-	struct symbol_table_entry {
-		uint64_t dot; 
-
-		uint64_t value;
-		uint16_t reg_idx;
-		std::unordered_map<std::string_view, struct symbol_table_entry> entries;
-		
+	struct symbol_table_entry
+	{
+		uint64_t dot;															 //!< current place at file
+		uint64_t value;															 //!< value, if immediate
+		uint16_t reg_idx;														 //!< value, if register
+		std::unordered_map<std::string_view, struct symbol_table_entry> entries; //!< value, if function
 	};
+
 	using function_symbol_table_entry = std::unordered_map<std::string_view, uint64_t>;
 
 	/**
@@ -1148,29 +1153,24 @@ namespace Compiler
 		 * @brief enum for probable status of registers
 		 *
 		 */
-		enum register_status
+		enum register_status : bool
 		{
-			clear = 0,		  //!< register has **for sure** 0x0000 on its value
-			trashed = 1,	  //!< bogus values on register, might need to do a cleanup
-			used = 2,		  //!< the current function is using this register
-			callee_saved = 3, //!< current function cannot use this register for any kind of reason
-			caller_saved = 4  //!< current function cannot use this register because the caller is using it
+			trashed = 0, //!< bogus values on register, need to do a cleanup
+			used = 1,	 //!< the compiler is using this register
 		};
 
-		register_status registers[32] = {
-			register_status::used, register_status::used
-		}; //!< save status for all registers
-		std::vector<Parse::node_pointer> &parsed_nodes;
-		std::unordered_map<std::string_view, function_symbol_table_entry> table; // symbols
-		byte_container instructions; //!< container for all instructions
-		uint64_t dot; //!< current instruction place in memory
-		uint64_t root_index; //!< used to get info about a function context
-
+		uint64_t registers = ~1;												 //!< save status for all registers (set if available)
+		std::vector<Parse::node_pointer> &parsed_nodes;							 //!< array of nodes to compile
+		std::unordered_map<std::string_view, function_symbol_table_entry> table; //!< symbols
+		byte_container instructions;											 //!< container for all instructions
+		uint64_t dot;															 //!< current instruction place in memory
+		uint64_t root_index;													 //!< used to get info about a function context
+		uint64_t entry_point;													 //!< value of `dot` on main
 		/**
 		 * @brief request a register to be used, kind of a `malloc()` function
 		 *
 		 * Complexity: Linear, depends on which registers are used or not
-		 * 
+		 *
 		 * @return index of register
 		 */
 		int request_register(bool descending = false);
@@ -1187,44 +1187,55 @@ namespace Compiler
 		 * @brief adds another instruction to the instruction vector
 		 *
 		 * Complexity: Constant (when there is enough space)
-		 * 
+		 *
 		 * @param instruction
 		 */
 		void append_instruction(const VirtMac::instruction_t instruction);
 
-		Parse::LambdaNode * get_function(uint64_t index);
+		/**
+		 * @brief checks if there is a function in the root node
+		 *
+		 * @param index index to check defined function
+		 * @return the pointer to the function
+		 */
+		Parse::LambdaNode *get_function(uint64_t index);
 
-		Parse::ExpressionNode * get_constant(uint64_t index);
+		/**
+		 * @brief chekcs if there is a node in
+		 *
+		 * @param index
+		 * @return
+		 */
+		Parse::ExpressionNode *get_constant(uint64_t index);
 
 		/**
 		 * @brief put a immediate into a register
 		 *
 		 * @param node number node
 		 *
-		 * 
+		 *
 		 * Complexity: Linear (depends on how much registers are used)
-		 * 
-		 * @return registers used while compiling
+		 *
+		 * @return register used while compiling
 		 */
-		return_t assemble_number(Parse::NumberNode *node);
+		int assemble_number(Parse::NumberNode *node);
 
 		/**
 		 * @brief get a value (possibly a pointer or a register) from an identifier
-		 * 
 		 *
-		 * @param node 
-		 * @return register / pointer 
+		 *
+		 * @param node
+		 * @return register / pointer
 		 */
-		return_t assemble_identifier(Parse::StringNode *node);
+		int assemble_identifier(Parse::StringNode *node);
 
 		/**
-		 * @brief assemble an unary node 
+		 * @brief assemble an unary node
 		 *
 		 * @param node current unary node
-		 * 
-		 * 
+		 *
 		 * Complexity: Constant + child node complexity
-		 * 
+		 *
 		 * @return registers used while compiling
 		 */
 		return_t assemble_unary(Parse::UnaryNode *node);
@@ -1233,62 +1244,69 @@ namespace Compiler
 		 * @brief assemble a binary node
 		 *
 		 * @param node current binary node
-		 * 
-		 * @param isJumping set to `true` when the current node is a child of a 
-		 * 
+		 *
+		 * @param isJumping set to `true` when the current node is a child of a
+		 *
 		 * Complexity: Constant + child nodes complexities
-		 * 
+		 *
 		 * @return registers used while compiling
 		 */
-		return_t assemble_binary(Parse::BinaryNode * node, bool isJumping);
+		return_t assemble_binary(Parse::BinaryNode *node, bool isJumping);
 
 		/**
 		 * @brief assemble a ternary node
-		 * 
+		 *
 		 * @param node current ternary node
-		 * 
+		 *
 		 * Comlpexity: Constant + child node complexities
-		 * 
+		 *
 		 * @return registers used while compiling
 		 */
-		return_t assemble_ternary(Parse::TernaryNode * node);
+		return_t assemble_ternary(Parse::TernaryNode *node);
 
 		/**
-		 * @brief assemble a function 
+		 * @brief assemble a function
 		 *
 		 * @param node current lambda node
-		 * 
+		 *
 		 * Complexity: Constant
-		 * 
+		 *
 		 * @return registers used when compiling
-		 * 
+		 *
 		 * @todo add used registers to symbol table
 		 */
 		return_t assemble_lambda(Parse::LambdaNode *node);
 
 		/**
 		 * @brief assembly a node
-		 * 
+		 *
 		 * @param node current node to compile
-		 * 
+		 *
 		 * Complexity: Varies
-		 * 
-		 * @return registers used 
+		 *
+		 * @return registers used
 		 */
 		return_t assemble(const Parse::node_pointer &node);
 
 		/**
 		 * @brief construct the assembler
-		 * 
+		 *
 		 * @param nodes node tree
-		 * 
+		 *
 		 * Complexity: Constant
 		 */
 		Assembler(std::vector<Parse::node_pointer> &nodes);
 
 		/**
+		 * @brief format code to a runnable file
+		 *
+		 * @param out_name output file name (defaults to out.zvm)
+		 */
+		void format_output(const char *out_name);
+
+		/**
 		 * @brief compiles all nodes
-		 * 
+		 *
 		 * Complexity: Linear (depends on `this->parsed_nodes`' size)
 		 * @return vector of machine instructions
 		 */

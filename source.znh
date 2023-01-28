@@ -1,3 +1,2 @@
 #!/bin/zenith
-
-main(argc) => 4 * argc + 3
+main(argc) => argc == 3 ? 0 : 1

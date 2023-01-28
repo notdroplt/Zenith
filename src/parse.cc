@@ -15,9 +15,9 @@
 
 #include "zenith.hpp"
 
-Parse::Parser::Parser(std::string_view fname) : filename(fname)
+Parse::Parser::Parser(const char * fname) : filename(fname)
 {
-	std::ifstream file(fname.data());
+	std::ifstream file(fname);
 	std::stringstream buf;
 	buf << file.rdbuf();
 	this->lexer.content = strdup(buf.str().c_str()); 
@@ -27,29 +27,24 @@ Parse::Parser::Parser(std::string_view fname) : filename(fname)
 	this->lexer.position.index = 0;
 	this->lexer.position.last_line_pos = 0;
 	this->lexer.position.line = 1;
+
 	this->next();
 }
 
 
-void Parse::Parser::Note(std::string_view note, std::string_view desc) const
+void Parse::Parser::Note(const char * note, const char * desc) const
 {
-	std::cerr << this->filename << ':' << this->current_position.line << ':'
-			  << this->current_position.column << ": " << AnsiFormat::Cyan << note << ": "
-			  << AnsiFormat::Reset << desc << '\n';
+	fprintf(stderr, "%s:%d:%d: \033[36m%s:\033[0m %s\n", this->filename, this->lexer.position.line, this->lexer.position.column, note, desc);
 }
 
-void Parse::Parser::Warning(std::string_view warn, std::string_view desc) const
+void Parse::Parser::Warning(const char * warn, const char * desc) const
 {
-	std::cerr << AnsiFormat::Bold << this->filename << ':' << this->current_position.line << ':'
-			  << this->current_position.column << ": " << AnsiFormat::Yellow << warn << ": "
-			  << AnsiFormat::Reset << desc << '\n';
+	fprintf(stderr, "%s:%d:%d: \033[33m%s:\033[0m %s\n", this->filename, this->lexer.position.line, this->lexer.position.column, warn, desc);
 }
 
-void Parse::Parser::Error(std::string_view error, std::string_view desc) const
+void Parse::Parser::Error(const char * error, const char * desc) const
 {
-	std::cerr << this->filename << ':' << this->lexer.position.line << ":"
-			  << this->lexer.position.column << ": " << AnsiFormat::Red <<"Parser (" << error
-			  << "): error: " << AnsiFormat::Reset << desc << '\n';
+	fprintf(stderr, "%s:%d:%d:\033[31m Parser (%s) error:\033[0m %s\n", this->filename, this->lexer.position.line, this->lexer.position.column, error, desc);
 	throw Parse::parse_exception();
 }
 
@@ -115,12 +110,18 @@ auto Parse::Parser::Number() -> Parse::node_pointer
 	return std::make_unique<Parse::NumberNode>(tok.number);
 }
 
-auto Parse::Parser::String(uint8_t type) -> Parse::node_pointer
+auto Parse::Parser::String(Parse::TokenTypes type) -> Parse::node_pointer
 {
 	const auto tok = this->current_token;
 	this->next();
 	if (tok.type == Parse::TT_Unknown) return nullptr;
-	return std::make_unique<Parse::StringNode>(tok.string, static_cast<Parse::NodeTypes>(type));
+
+	if (type == Parse::TT_String) {
+		this->strings.push_back(std::string_view(tok.string.string, tok.string.size));
+		return std::make_unique<Parse::StringNode>(std::string_view(tok.string.string, tok.string.size), Parse::String);
+	}
+	this->symbols.push_back(std::string_view(tok.string.string, tok.string.size));
+	return std::make_unique<Parse::StringNode>(std::string_view(tok.string.string, tok.string.size), Parse::Identifier);
 }
 
 auto Parse::Parser::Switch() -> Parse::node_pointer
@@ -407,11 +408,11 @@ auto Parse::Parser::Factor() -> Parse::node_pointer
 		}
 		lside.reset();
 		rside.reset();
-		if (tok == TT_Plus) {
+		if (tok == TT_Plus)
 			left += right;
-		} else {
+		else 
 			left -= right;
-		}
+		
 		if ((int64_t)left == left && (int64_t)right == right) {
 			lside = std::make_unique<Parse::NumberNode>(static_cast<uint64_t>(left));
 		} else {
@@ -542,7 +543,7 @@ auto Parse::Parser::Name() -> std::string_view
 	if (this->current_token.type != Parse::TT_Identifier) {
 		this->Error("name", "token cannot be a name");
 	}
-	return this->current_token.string;
+	return std::string_view(this->current_token.string.string, this->current_token.string.size);
 }
 
 auto Parse::Parser::Lambda(std::string_view name, bool arrowed) -> Parse::node_pointer
@@ -562,7 +563,7 @@ auto Parse::Parser::Lambda(std::string_view name, bool arrowed) -> Parse::node_p
 		auto arg = this->current_token.string;
 
 		this->next();
-		args.push_back(std::make_unique<Parse::StringNode>(arg, Identifier));
+		args.push_back(std::make_unique<Parse::StringNode>(std::string_view(arg.string, arg.size), Identifier));
 	} while (this->current_token.type);
 
 	if (!arrowed && this->current_token.type != Parse::TT_RightParentesis) {
@@ -594,7 +595,7 @@ auto Parse::Parser::Assign() -> Parse::node_pointer
 		this->next();
 		auto str = this->current_token.string;
 		this->next();
-		return std::make_unique<Parse::IncludeNode>(str);
+		return std::make_unique<Parse::IncludeNode>(std::string_view(str.string, str.size));
 	}
 	auto name = this->Name();
 	this->next();
@@ -617,20 +618,20 @@ auto Parse::Parser::Assign() -> Parse::node_pointer
 		this->Error("assign", "expected either '(' or '=>', \"as\" or ':', or '='");
 	}
 
-	this->map[name] = std::make_pair(ptr.get(), 0);
 	return ptr;
 }
 
-auto Parse::Parser::File() -> std::vector<Parse::node_pointer> try 
+auto Parse::Parser::File() -> std::vector<Parse::node_pointer> 
 {
 	std::vector<Parse::node_pointer> value;
-
-	while (this->current_token.type) {
-		auto node = this->Assign();
-		if (!node) break;
-		value.emplace_back(std::move(node));
-	}
+	try {
+		while (this->current_token.type) {
+			auto node = this->Assign();
+			if (!node) break;
+			value.emplace_back(std::move(node));
+		}
+	} catch(Parse::parse_exception &e) {
+		return {};
+	} 
 	return value;
-} catch(Parse::parse_exception &e) {
-	return {};
-}
+} 
