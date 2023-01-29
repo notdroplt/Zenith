@@ -1,5 +1,4 @@
-
-#include "lex.h"
+#include <lex.h>
 
 static char lexNext(struct lex_t *lex)
 {

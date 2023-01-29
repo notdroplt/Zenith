@@ -13,7 +13,7 @@
 
 [[noreturn]] void Error(std::string_view error, std::string_view desc)
 {
-	std::cerr << AnsiFormat::Red << error << AnsiFormat::Reset << ": " << desc << '\n';
+	std::cerr << Color_Red << error << Color_Reset << ": " << desc << '\n';
 	exit(EXIT_FAILURE);
 } 
 

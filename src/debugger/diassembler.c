@@ -1,4 +1,4 @@
-#include "virtualmachine.h"
+#include <zenithvm.h>
 
 #define get_instruction(instruction) instructions[instruction]
 static const char *instructions[] = {
@@ -30,25 +30,18 @@ void disassemble_instruction(union instruction_t inst)
 
 void disassemble_file(const char *filename)
 {
-    struct virtmacheader_t header;
     union instruction_t inst;
     uint64_t dot = 0, maxsize = 0;
     FILE *fp = fopen(filename, "r");
     if (!fp)
         return;
     fseek(fp, 0, SEEK_END);
-    maxsize = ftell(fp) - sizeof(struct virtmacheader_t);
+    maxsize = ftell(fp);
     fseek(fp, 0, SEEK_SET);
 
     if (!maxsize || maxsize % 8)
     {
         fprintf(stderr, "file has an invalid size %ld (either < 1 or %% 8 > 0) \n", maxsize);
-        fclose(fp);
-        return;
-    }
-
-    if(fread(&header, sizeof(struct virtmacheader_t), 1, fp) != 1) {
-        fprintf(stderr, "could not read header");
         fclose(fp);
         return;
     }

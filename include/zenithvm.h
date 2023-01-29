@@ -12,22 +12,9 @@
 #ifndef _virtual_machine_h
 #define _virtual_machine_h 1
 
-#ifdef __cplusplus
-/**
- * @brief defines C linkage
- *
- */
-#define extc extern "C"
-#include <cstdint>
-#else
-/**
- * @brief defines C linkage
- *
- */
-#define extc
-#include <stdint.h>
-#endif
 
+
+#include "platform.h"
 #include <stdio.h>
 #include <assert.h>
 #include <stdlib.h>

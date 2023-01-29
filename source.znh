@@ -1,2 +1,4 @@
 #!/bin/zenith
-main(argc) => argc == 3 ? 0 : 1
+
+
+main(argc) => argc < 0 ? 3 : 4

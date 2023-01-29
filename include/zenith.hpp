@@ -49,7 +49,7 @@
 #include <string_view>
 #include <unordered_map>
 #include <vector>
-
+#include <bitset>
 /**
  * @namespace AnsiFormat
  * @brief provides [ANSI](https://en.wikipedia.org/wiki/ANSI_escape_code) color encoding
@@ -167,6 +167,12 @@ namespace Parse
 			static_assert(std::is_base_of<Node, T>::value, "type is not <Node> derived");
 			return static_cast<T *>(this);
 		}
+
+		/**
+		 * @brief optimizes current node
+		 *
+		 */
+		void optimize();
 	};
 
 	/**
@@ -480,7 +486,7 @@ namespace Parse
 	 *
 	 * Size: 40 bytes
 	 *
-	 * a switch statement is a (sometimes) better way to express multiple conditions
+	 * a switch expression is a (sometimes) better way to express multiple conditions
 	 *
 	 * syntax representation (quite big this time):
 	 * @code
@@ -748,14 +754,14 @@ namespace Parse
 		node_pointer String(TokenTypes type);
 
 		/**
-		 * @brief parse a switch statement
+		 * @brief parse a switch expression
 		 *
 		 * @return node_pointer
 		 */
 		node_pointer Switch();
 
 		/**
-		 * @brief parse a task statement
+		 * @brief parse a task expression
 		 *
 		 * @return node_pointer
 		 */
@@ -804,7 +810,7 @@ namespace Parse
 		node_pointer Comparisions();
 
 		/**
-		 * @brief parse a ternary expression (basically if statements but smaller)
+		 * @brief parse a ternary expression (basically if expressions but smaller)
 		 *
 		 * @return node_pointer
 		 */
@@ -827,7 +833,7 @@ namespace Parse
 		node_pointer Lambda(std::string_view name, bool arrowed);
 
 		/**
-		 * @brief parse a define statement
+		 * @brief parse a define expression
 		 *
 		 * @param name define name
 		 * @return node_pointer
@@ -887,23 +893,7 @@ namespace Parse
 		 * @param [in] desc error description
 		 */
 		[[noreturn]] void Error(const char *error, const char *desc) const;
-
-		/**
-		 * @brief adds a string to the current symbols, and returns the index
-		 *
-		 * @param string current string
-		 * @return index of the current string
-		 */
-		uint64_t add_string(std::string_view string);
 	};
-
-	/**
-	 * @brief returns a string representation of a token
-	 *
-	 * @param tok token value
-	 * @return const char* the c-string representing that token
-	 */
-	const char *print_token(int tok);
 
 } // namespace Parse
 
@@ -911,7 +901,7 @@ namespace VirtMac
 {
 	extern "C"
 	{
-#include "virtualmachine.h"
+#include "zenithvm.h"
 	};
 } // namespace VirtMac
 
@@ -1123,7 +1113,7 @@ namespace Compiler
 	 * @brief defines a type for all `assemble_(node)` functions
 	 *
 	 */
-	using return_t = std::vector<int>;
+	using return_t = std::vector<uint64_t>;
 
 	/**
 	 * @brief defines a type for a symbol table entry
@@ -1131,9 +1121,11 @@ namespace Compiler
 	 */
 	struct symbol_table_entry
 	{
-		uint64_t dot;															 //!< current place at file
-		uint64_t value;															 //!< value, if immediate
-		uint16_t reg_idx;														 //!< value, if register
+		bool is_expression = false;
+		uint64_t dot = 0;														 //!< current place at file
+		uint64_t value = -1;													 //!< value, if immediate
+		uint16_t reg_idx = -1;													 //!< value, if register
+		uint8_t arg_count;
 		std::unordered_map<std::string_view, struct symbol_table_entry> entries; //!< value, if function
 	};
 
@@ -1159,21 +1151,24 @@ namespace Compiler
 			used = 1,	 //!< the compiler is using this register
 		};
 
-		uint64_t registers = ~1;												 //!< save status for all registers (set if available)
-		std::vector<Parse::node_pointer> &parsed_nodes;							 //!< array of nodes to compile
-		std::unordered_map<std::string_view, function_symbol_table_entry> table; //!< symbols
-		byte_container instructions;											 //!< container for all instructions
-		uint64_t dot;															 //!< current instruction place in memory
-		uint64_t root_index;													 //!< used to get info about a function context
-		uint64_t entry_point;													 //!< value of `dot` on main
+		std::bitset<32> registers = ~1;									//!< save status for all registers (set if available)
+		std::vector<Parse::node_pointer> &parsed_nodes;					//!< array of nodes to compile
+		std::unordered_map<std::string_view, symbol_table_entry> table; //!< symbols
+		byte_container instructions;									//!< container for all instructions
+		uint64_t dot;													//!< current instruction place in memory
+		uint64_t root_index;											//!< used to get info about a function context
+		uint64_t entry_point;											//!< value of `dot` on main
 		/**
 		 * @brief request a register to be used, kind of a `malloc()` function
+		 *
+		 * @param ascending request register from r31 -> r1 instead of r1 -> r31
+		 * @param set_next tries to set the next register index
 		 *
 		 * Complexity: Linear, depends on which registers are used or not
 		 *
 		 * @return index of register
 		 */
-		int request_register(bool descending = false);
+		int request_register(bool ascending = false, int set_next = -1);
 
 		/**
 		 * @brief says that its already done using the function
@@ -1218,7 +1213,7 @@ namespace Compiler
 		 *
 		 * @return register used while compiling
 		 */
-		int assemble_number(Parse::NumberNode *node);
+		uint64_t assemble_number(Parse::NumberNode *node);
 
 		/**
 		 * @brief get a value (possibly a pointer or a register) from an identifier
@@ -1227,7 +1222,7 @@ namespace Compiler
 		 * @param node
 		 * @return register / pointer
 		 */
-		int assemble_identifier(Parse::StringNode *node);
+		uint64_t assemble_identifier(Parse::StringNode *node);
 
 		/**
 		 * @brief assemble an unary node
@@ -1269,13 +1264,24 @@ namespace Compiler
 		 *
 		 * @param node current lambda node
 		 *
-		 * Complexity: Constant
+		 * Complexity: Linear
+		 *
+		 * @return registers used when compiling
+		 */
+		return_t assemble_lambda(Parse::LambdaNode *node);
+
+		/**
+		 * @brief assemble a function call
+		 *
+		 * @param node current call node
+		 *
+		 * Complexity: Linear (argument evaluation)
 		 *
 		 * @return registers used when compiling
 		 *
-		 * @todo add used registers to symbol table
+		 *
 		 */
-		return_t assemble_lambda(Parse::LambdaNode *node);
+		return_t assemble_call(Parse::CallNode *node);
 
 		/**
 		 * @brief assembly a node

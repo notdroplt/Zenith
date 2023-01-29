@@ -1,4 +1,4 @@
-#include "virtualmachine.h"
+#include "zenithvm.h"
 
 union instruction_t RInstruction(const uint8_t opcode, const uint8_t r1, const uint8_t r2, const uint8_t rd)
 {
@@ -152,7 +152,7 @@ void exec_instruction(register struct thread_t *thread)
     case umuli_instrc:
         thread->registers[instruction.stype.rd] = thread->registers[instruction.stype.r1] * instruction.stype.immediate;
         break;
-    case smulr_instrc:
+    case smulr_instrc: 
         thread->registers[instruction.rtype.rd] = (int64_t)thread->registers[instruction.rtype.r1] * (int64_t)thread->registers[instruction.rtype.r2];
         break;
     case smuli_instrc:
@@ -290,7 +290,6 @@ void exec_instruction(register struct thread_t *thread)
 
 int run(const char *filename, int argc, char **argv, void (*debugger)(struct thread_t *thread))
 {
-    struct virtmacheader_t header;
     struct thread_t thread;
     register long size;
     FILE *fp;
@@ -302,20 +301,14 @@ int run(const char *filename, int argc, char **argv, void (*debugger)(struct thr
         return EXIT_FAILURE;
 
     fseek(fp, 0, SEEK_END);
-    size = ftell(fp) - sizeof(struct virtmacheader_t);
+    size = ftell(fp);
     fseek(fp, 0, SEEK_SET);
-    if (fread(&header, sizeof(struct virtmacheader_t), 1, fp) != 1)
-    {
-        fprintf(stderr, "could not read header of file '%s'", filename);
-        fclose(fp);
-        return EXIT_FAILURE;
-    }
 
-    fseek(fp, sizeof(struct virtmacheader_t), SEEK_SET);
+    fseek(fp, 0, SEEK_SET);
 
-    thread.program_counter = header.entry_point;
-    thread.memory = malloc((header.code_offset + header.code_size + header.data_offset + header.data_size) << 8); // give some working space (and align it too)
-    thread.memory_size = (header.code_offset + header.code_size + header.data_offset + header.data_size) << 8;
+    thread.program_counter = 0;
+    thread.memory = malloc(3 << 8); // give some working space (and align it too)
+    thread.memory_size = 3 << 8;
     thread.registers[0] = 0;
     thread.registers[31] = argc;
     thread.halt_sig = 0;

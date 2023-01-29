@@ -13,7 +13,7 @@
  * multiple passes
  */
 
-#include "zenith.hpp"
+#include <zenith.hpp>
 
 Parse::Parser::Parser(const char * fname) : filename(fname)
 {
