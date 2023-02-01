@@ -50,8 +50,10 @@ static uint64_t strtoi(struct string_t string)
 	uint64_t value = 0;
 	int i = 1;
 
-	while (string.size--)
-		value += (string.string[string.size] - '0') * i++;
+	while (string.size--){
+		value += (string.string[string.size] - '0') * i;
+		i *= 10;
+	}
 	
 	return value;
 }
@@ -132,7 +134,8 @@ static struct token_t lexIdentifier(struct lex_t *lex)
 	uint64_t start = lex->position.index;
 	int i = 0;
 
-	const char *keywords[] = {"var", "function", "as", "do", "switch", "default", "if", "then", "else", "end", "return", "include", ""};
+	static const char *keywords[] = {"var", "function", "as", "do", "switch", "default", "if", "then", "else", "end", "return", "include", ""};
+	static const char *domains[] = {"byte", "hword", "word", "dword", "char", "short", "int", "long"};
 
 	do
 		lexNext(lex);
@@ -149,8 +152,17 @@ static struct token_t lexIdentifier(struct lex_t *lex)
 		{
 			tok.type = TT_Keyword;
 			tok.keyword = i;
+			return tok;
+		}
+
+	for (i = 0; i < DM_unknown; ++i)
+		if (strvcmp(tok.string, domains[i]) == 0)
+		{
+			tok.type = TT_Domain;
+			tok.keyword = i;
 			break;
 		}
+	
 
 	return tok;
 }

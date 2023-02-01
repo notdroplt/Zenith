@@ -618,6 +618,10 @@ auto Parse::Parser::Assign() -> Parse::node_pointer
 		this->Error("assign", "expected either '(' or '=>', \"as\" or ':', or '='");
 	}
 
+	if (ptr->type != Parse::Define)
+		this->table[std::string(name)] = ptr.get();
+	else 
+		this->table['<' + std::string(name) + ":type>"] = ptr.get();
 	return ptr;
 }
 

@@ -67,6 +67,14 @@ namespace AnsiFormat
 	static constexpr const char *const Reset = "\x1b[0m";	 //!< clears styled output
 } // namespace AnsiFormat
 
+/**
+ * @brief prints an error message to output (stderr)
+ *
+ * @param error error name
+ * @param desc error description
+ *
+ * @note all errors are fatal (at least on real life thats not true)
+ */
 [[noreturn]] void Error(std::string_view error, std::string_view desc);
 
 namespace Parse
@@ -406,7 +414,7 @@ namespace Parse
 		 * @param name_ expression name
 		 * @param value_ expression value
 		 */
-		ExpressionNode(std::string_view name_, node_pointer value_) noexcept : Node(Expression), name(name_), value(std::move(value_))
+		ExpressionNode(std::string_view name_, node_pointer value_) noexcept : Node(Expression, value_->isConst), name(name_), value(std::move(value_))
 		{
 		}
 	};
@@ -561,7 +569,7 @@ namespace Parse
 
 	/**
 	 * @struct DefineNode
-	 * @brief a struct that holds type definitions
+	 * @brief a struct that holds domain definitions
 	 *
 	 * Size: 32 bytes
 	 *
@@ -574,8 +582,8 @@ namespace Parse
 	 *
 	 * syntax:
 	 * @code
-	 * [type_name] : [type_definition]
-	 * [type_name] := [other_type]
+	 * [type_name] : [domain definition]
+	 * [type_name] := [other domain]
 	 * @endcode
 	 *
 	 * the concept of how types will actually be defined is yet to be
@@ -848,13 +856,14 @@ namespace Parse
 		node_pointer Assign();
 
 	public:
-		token_t current_token;				   //!< last token returned by the lexer
-		pos_t current_position;				   //!< file position
-		const char *filename;				   //!< current translating unit name
-		lex_t lexer;						   //!< tokenizer object
-		std::vector<std::string_view> strings; //!< string table (goes to .data)
-		std::vector<std::string_view> symbols; //!< identifier table (goes to .shstrtab)
-		uint32_t file_size{0};				   //!< index limit
+		token_t current_token;						   //!< last token returned by the lexer
+		pos_t current_position;						   //!< file position
+		const char *filename;						   //!< current translating unit name
+		lex_t lexer;								   //!< tokenizer object
+		std::vector<std::string_view> strings;		   //!< string table (goes to .data)
+		std::vector<std::string_view> symbols;		   //!< identifier table (goes to .shstrtab)
+		std::unordered_map<std::string, Node *> table; //!< symbols table (for compile time reduction)
+		uint32_t file_size{0};						   //!< index limit
 		/**
 		 * @brief Construct a new Parser object
 		 *
@@ -1121,15 +1130,13 @@ namespace Compiler
 	 */
 	struct symbol_table_entry
 	{
-		bool is_expression = false;
+		bool is_expression = false;												 //!< set if current entry is an expression rather than a function
 		uint64_t dot = 0;														 //!< current place at file
 		uint64_t value = -1;													 //!< value, if immediate
 		uint16_t reg_idx = -1;													 //!< value, if register
-		uint8_t arg_count;
+		uint8_t arg_count;														 //!< amount of arguments, if function
 		std::unordered_map<std::string_view, struct symbol_table_entry> entries; //!< value, if function
 	};
-
-	using function_symbol_table_entry = std::unordered_map<std::string_view, uint64_t>;
 
 	/**
 	 * @brief assemble nodes to form running code (does not format)
@@ -1151,13 +1158,13 @@ namespace Compiler
 			used = 1,	 //!< the compiler is using this register
 		};
 
-		std::bitset<32> registers = ~1;									//!< save status for all registers (set if available)
 		std::vector<Parse::node_pointer> &parsed_nodes;					//!< array of nodes to compile
 		std::unordered_map<std::string_view, symbol_table_entry> table; //!< symbols
 		byte_container instructions;									//!< container for all instructions
 		uint64_t dot;													//!< current instruction place in memory
 		uint64_t root_index;											//!< used to get info about a function context
 		uint64_t entry_point;											//!< value of `dot` on main
+		std::bitset<32> registers;										//!< save status for all registers (set if used)
 		/**
 		 * @brief request a register to be used, kind of a `malloc()` function
 		 *

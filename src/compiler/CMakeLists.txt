@@ -1,9 +1,10 @@
-project(libzvm VERSION 0.1.0)
+project(libcompiler VERSION 0.1.0)
+
 
 include(CTest)
 enable_testing()
 
-add_library(zcompiler compiler.cc)
+add_library(compiler compiler.cc registers.cc)
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})
 set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})
 include(CPack)

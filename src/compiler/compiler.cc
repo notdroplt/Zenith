@@ -3,49 +3,9 @@ using Assembler = Compiler::Assembler;
 using return_t = Compiler::return_t;
 
 Assembler::Assembler(std::vector<Parse::node_pointer> &nodes) : parsed_nodes(nodes),
-dot(0), root_index(0)
+dot(0), root_index(0), registers()
 {
-}
-
-int Assembler::request_register(bool descending, int set_next)
-{
-    static int next_reg = -1;
-    int i;
-
-    if (set_next != -1) {
-        next_reg = set_next;
-        // compiler can then check if register is free
-        std::cout << "registers: " << this->registers << '\n';
-        return this->registers[set_next];
-    }
-
-    if (next_reg != -1 && this->registers[next_reg]) {
-        this->registers[set_next] = 0;
-        return set_next;
-    }
-
-    if (!descending) {
-        for (i = 1; i < 32; ++i)
-            if (this->registers[i])
-                break;
-    } else {
-        for (i = 31; i >= 0; --i)
-            if (this->registers[i])
-                break;
-    }
-    
-    if (i != -1) {
-        this->registers[i] = 0;
-        return i;
-    } 
-    
-    //! TODO: use stack (if target supports it)
-    Error("compiler", "ran out of registers");
-}
-
-void Assembler::clear_register(int index)
-{
-    this->registers[index] = 1;
+    registers[31] = 0;
 }
 
 void Assembler::append_instruction(const VirtMac::instruction_t instruction)
@@ -75,10 +35,10 @@ uint64_t Assembler::assemble_number(Parse::NumberNode *node)
     // goes only if number actually needs it
     if (node->number > 0x400000000000)
     {
-        this->append_instruction(VirtMac::LInstruction(VirtMac::lui_instrc, reg_index, (node->number & 0xFFFFC00000000000) >> 18));
+        this->append_instruction(VirtMac::LInstruction(VirtMac::lui_instrc, reg_index, (node->number & (uint64_t)-1LL) >> 18));
     }
     // set lower number as `lower_num + 0` -> rd
-    this->append_instruction(VirtMac::SInstruction(VirtMac::addi_instrc, 0, reg_index, node->number & 0x3FFFFFFFFFFF));
+    this->append_instruction(VirtMac::SInstruction(VirtMac::addi_instrc, 0, reg_index, node->number & ((1LLU << 46) - 1)));
 
     return reg_index;
 }
@@ -262,7 +222,6 @@ return_t Assembler::assemble_lambda(Parse::LambdaNode *node)
             Error("Compiler (function arguments)", "expected argument to be a name");
         }
         auto reg_index = this->request_register(true);
-
         this->table[node->name].entries[arg->cget<Parse::StringNode>()->value].reg_idx = reg_index;
         regs.push_back(reg_index);
     }
@@ -349,9 +308,9 @@ return_t Assembler::assemble_ternary(Parse::TernaryNode * node){
 
     auto used_false = this->assemble(node->falseop);
 
-    this->registers &= status_true; // because they are set on *unused*, `and`ing registers will always unset more
-                                    // also, because most functions are only a single line, they most of the time will use the same
-                                    // amount of registers, so this part of the code will not have effects
+    this->registers |= status_true; // because they are set on *used*, `or`ing registers will always set more
+                                    // also, because most functions are only one-liners, they most of the time will use the same
+                                    // amount of registers on either paths, so this part of the code will not have effects most of the times
 
     this->instructions[idx].ltype.immediate = this->dot - dot_v;
 

@@ -27,8 +27,6 @@ int main(int argc, char **argv)
 
 	comp.compile();
 
-	
-
 	VirtMac::disassemble_file("out.zvm");
 	if (argc > 2 && strcmp(argv[2], "debug") == 0) 
 		return VirtMac::run("out.zvm", argc, argv, VirtMac::debugger_func);

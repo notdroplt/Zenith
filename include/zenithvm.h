@@ -1,5 +1,5 @@
 /**
- * @file virtualmachine.h
+ * @file zenithvm.h
  * @author notdroplt (117052412+notdroplt@users.noreply.github.com)
  * @brief all virtual machine components (in C!)
  * @version 0.0.1
@@ -15,17 +15,18 @@
 
 
 #include "platform.h"
+#include <stdint.h>
 #include <stdio.h>
 #include <assert.h>
 #include <stdlib.h>
 #include <stddef.h>
 #include <string.h>
 
-#ifndef doxygen
-/* no need to document these at it */
-#define CONCAT_IMPL(x, y) x##y
+//! @cond Doxygen_Suppress
+#define CONCAT_IMPL(x, y) x##y // this is just for macro concatenation, its nothing too much    
 #define MACRO_CONCAT(x, y) CONCAT_IMPL(x, y)
-#endif
+//! @endcond
+
 
 /**
  * \defgroup virtset Virtual Instruction Set Emulation
@@ -60,9 +61,6 @@ struct virtmacheader_t
     uint64_t entry_point; //!< code entry point
     uint64_t pad;         //!< padding value
 };
-
-
-#define HEADER_MAG 0x6D766874696E655A /*!< defines header magic */
 
 /**
  * \brief prefixes for every instruction
@@ -257,7 +255,7 @@ union instruction_t
  *
  * @return formatted instruction
  */
-union instruction_t RInstruction(const uint8_t opcode, const uint8_t r1, const uint8_t r2, const uint8_t rd);
+CLink union instruction_t RInstruction(const uint8_t opcode, const uint8_t r1, const uint8_t r2, const uint8_t rd);
 
 /**
  * @brief S-type instruction constructor
@@ -268,7 +266,7 @@ union instruction_t RInstruction(const uint8_t opcode, const uint8_t r1, const u
  * @param immediate immediate argument
  * @return formatted instruction
  */
-union instruction_t SInstruction(const uint8_t opcode, const uint8_t r1, const uint8_t rd, const uint64_t immediate);
+CLink union instruction_t SInstruction(const uint8_t opcode, const uint8_t r1, const uint8_t rd, const uint64_t immediate);
 
 /**
  * @brief L-type instruction constructor
@@ -278,11 +276,25 @@ union instruction_t SInstruction(const uint8_t opcode, const uint8_t r1, const u
  * @param immediate immediate argument
  * @return formatted instruction
  */
-union instruction_t LInstruction(const uint8_t opcode, const uint8_t r1, const uint64_t immediate);
+CLink union instruction_t LInstruction(const uint8_t opcode, const uint8_t r1, const uint64_t immediate);
 
 /**
  * @brief defines a thread that will run vm code
- *
+ * 
+ * threads have 32 registers, but 31 are actually usable (r0 is reset to zero every cycle).
+ * besides that, the architecture design shouldn't actually worry about how those registers
+ * are used, but the compiler set some conventions, being:
+ * 
+ * r1: 1st return register
+ * r2: base pointer
+ * r3: stack pointer
+ * r4: 2nd return register
+ * 
+ * r31 going upwards: function arguments
+ * 
+ * though, the virtual machine uses the `ecall` instruction as if it was a function call, because
+ * there is no need to setup extra code while the virtual machine can do that itself. 
+ * 
  * Size: 320 bytes (aligned)
  */
 struct thread_t
@@ -297,123 +309,123 @@ struct thread_t
 /**
  * @brief fetches one byte from a memory address
  *
- * @param thread current thread
+ * @param [in, out] thread current thread
  * @param address address to fetch
  * @return fetched value
  */
-uint8_t fetch8(struct thread_t *thread, uint64_t address) __attribute__((hot));
+CLink uint8_t fetch8(struct thread_t *thread, uint64_t address) __attribute__((hot));
 
 /**
  * @brief fetches two bytes from a memory address
  *
  *
- * @param thread current thread
+ * @param [in, out] thread current thread
  * @param address address to fetch
  * @return fetched value
  */
-uint16_t fetch16(struct thread_t *thread, uint64_t address) __attribute__((hot));
+CLink uint16_t fetch16(struct thread_t *thread, uint64_t address) __attribute__((hot));
 
 /**
  * @brief fetches four bytes from a memory address
  *
  *
- * @param thread current thread
+ * @param [in, out] thread current thread
  * @param address address to fetch
  * @return fetched value
  */
-uint32_t fetch32(struct thread_t *thread, uint64_t address) __attribute__((hot));
+CLink uint32_t fetch32(struct thread_t *thread, uint64_t address) __attribute__((hot));
 
 /**
  * @brief fetches eight bytes from a memory address
  *
  *
- * @param thread current thread
+ * @param [in, out] thread current thread
  * @param address address to fetch
  * @return fetched value
  */
-uint64_t fetch64(struct thread_t *thread, uint64_t address) __attribute((hot));
+CLink uint64_t fetch64(struct thread_t *thread, uint64_t address) __attribute((hot));
 
 /**
  * @brief sets one byte of memory at a specified address
  *
- * @param thread current thread
+ * @param [in, out] thread current thread
  * @param address address to set
  * @param value value to set at address
  */
-void set_memory_8(struct thread_t *thread, uint64_t address, uint8_t value);
+CLink void set_memory_8(struct thread_t *thread, uint64_t address, uint8_t value);
 
 /**
  * @brief sets two bytes of memory at a specified address
  *
- * @param thread current thread
+ * @param [in, out] thread current thread
  * @param address address to set
  * @param value value to set at address
  */
-void set_memory_16(struct thread_t *thread, uint64_t address, uint16_t value);
+CLink void set_memory_16(struct thread_t *thread, uint64_t address, uint16_t value);
 
 /**
  * @brief sets four bytes of memory at a specified address
  *
- * @param thread current thread
+ * @param [in, out] thread current thread
  * @param address address to set
  * @param value value to set at address
  */
-void set_memory_32(struct thread_t *thread, uint64_t address, uint32_t value);
+CLink void set_memory_32(struct thread_t *thread, uint64_t address, uint32_t value);
 
 /**
  * @brief sets eight bytes of memory at a specified address
  *
- * @param thread current thread
+ * @param [in, out] thread current thread
  * @param address address to set
  * @param value value to set at address
  */
-void set_memory_64(struct thread_t *thread, uint64_t address, uint64_t value);
+CLink void set_memory_64(struct thread_t *thread, uint64_t address, uint64_t value);
 
 /**
  * @brief execute one instruction while in a thread
  *
- * @param thread current thread object to emulate
+ * @param [in, out] thread current thread object to emulate
  */
-void exec_instruction(struct thread_t *thread) __attribute__((hot));
+CLink void exec_instruction(struct thread_t *thread) __attribute__((hot));
 
 /**
  * @brief prints the status of a thread to `stdout`
  *
- * @param thread thread to print status from
+ * @param [in, out] thread thread to print status from
  */
-void print_status(struct thread_t *thread);
+CLink void print_status(struct thread_t *thread);
 
 /**
  * @brief run code from a file
  *
- * @param filename file name to run
+ * @param [in] filename file name to run
  * @param argc main's argc
- * @param argv main's argv
+ * @param [in] argv main's argv
  * @param debugger the debugger function
  *
  * @return exit code
  */
-int run(const char *filename, int argc, char **argv, void (*debugger)(struct thread_t *));
+CLink int run(const char *filename, int argc, char **argv, void (*debugger)(struct thread_t *));
 
 /**
  * @brief defines a debugger to the virtual machine
  *
- * @param thread
+ * @param [in] thread
  */
-void debugger_func(struct thread_t *thread);
+CLink void debugger_func(struct thread_t *thread);
 
 /**
  * @brief disassembles a single instruction
  *
  * @param inst instruction value union
  */
-void disassemble_instruction(union instruction_t inst);
+CLink void disassemble_instruction(union instruction_t inst);
 
 /**
  * @brief function that shows diassembled code
  *
- * @param filename
+ * @param [in] filename
  */
-void disassemble_file(const char *filename);
+CLink void disassemble_file(const char *filename);
 /** @} */ /* end of group Virtual Instrucion Set Emulation */
 #endif

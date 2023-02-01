@@ -1,4 +1,5 @@
 #include "zenithvm.h"
+#include "loadelf.h"
 
 union instruction_t RInstruction(const uint8_t opcode, const uint8_t r1, const uint8_t r2, const uint8_t rd)
 {
@@ -30,58 +31,13 @@ union instruction_t LInstruction(const uint8_t opcode, const uint8_t r1, const u
     return instrc;
 }
 
-union instruction_t fetch_instruction(register struct thread_t *thread)
-{
-    thread->program_counter += 8;
-    return *(union instruction_t *)(thread->memory + thread->program_counter - 8);
-}
-
-uint8_t fetch8(register struct thread_t *thread, register uint64_t address)
-{
-    return *(uint8_t *)(thread->memory + address);
-}
-
-uint16_t fetch16(register struct thread_t *thread, register uint64_t address)
-{
-    return *(uint16_t *)(thread->memory + address);
-}
-
-uint32_t fetch32(register struct thread_t *thread, register uint64_t address)
-{
-    return *(uint32_t *)(thread->memory + address);
-}
-
-uint64_t fetch64(register struct thread_t *thread, register uint64_t address)
-{
-    return *(uint64_t *)(thread->memory + address);
-}
-
-void set_memory_8(register struct thread_t *thread, register uint64_t address, register uint8_t value)
-{
-    *(uint8_t *)(thread->memory + address) = value;
-}
-
-void set_memory_16(register struct thread_t *thread, register uint64_t address, register uint16_t value)
-{
-    *(uint16_t *)(thread->memory + address) = value;
-}
-
-void set_memory_32(register struct thread_t *thread, register uint64_t address, register uint32_t value)
-{
-    *(uint32_t *)(thread->memory + address) = value;
-}
-
-void set_memory_64(register struct thread_t *thread, register uint64_t address, register uint64_t value)
-{
-    *(uint64_t *)(thread->memory + address) = value;
-}
-
 void exec_instruction(register struct thread_t *thread)
 {
     register union instruction_t instruction;
     if (thread->halt_sig)
         return;
-    instruction = fetch_instruction(thread);
+    instruction.value = fetch64(thread, thread->program_counter);
+    thread->program_counter += 8;
     switch (instruction.rtype.opcode)
     {
     case andr_instrc:
@@ -295,6 +251,8 @@ int run(const char *filename, int argc, char **argv, void (*debugger)(struct thr
     FILE *fp;
 
     (void)argv;
+    
+    load_elf("./build/src/virtualmachine/CMakeFiles/vm.dir/fetch_memory.c.o");
 
     fp = fopen(filename, "r");
     if (!fp)

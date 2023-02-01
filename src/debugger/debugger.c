@@ -1,31 +1,8 @@
 #include <zenithvm.h>
 
 
-static char *color_old(uint64_t old, uint64_t new)
-{
-    if (old > new)
-    {
-        return Color_Green;
-    }
-    else if (new > old)
-    {
-        return Color_Red;
-    }
-    return "";
-}
-
-static char *color_new(uint64_t old, uint64_t new)
-{
-    if (old < new)
-    {
-        return Color_Green;
-    }
-    else if (new < old)
-    {
-        return Color_Red;
-    }
-    return "";
-}
+#define color_old(old, new) ((old) > (new) ? Color_Green : ((new) > (old) ? Color_Red : ""))
+#define color_new(old, new) ((old) < (new) ? Color_Green : ((new) < (old) ? Color_Red : ""))
 
 void print_status(register struct thread_t *thread)
 {

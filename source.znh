@@ -1,4 +1,3 @@
 #!/bin/zenith
 
-
-main(argc) => argc < 0 ? 3 : 4
+main(argc) => argc * 11111111111

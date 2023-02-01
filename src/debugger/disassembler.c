@@ -20,7 +20,7 @@ static const char *instructions[] = {
 
 void disassemble_instruction(union instruction_t inst)
 {
-    if (inst.ltype.opcode == 0x28 || inst.ltype.opcode > 0x37)
+    if (inst.ltype.opcode == 0x28 || inst.ltype.opcode > 0x37) 
         printf("%s r%d, %ld\n", get_instruction(inst.ltype.opcode), inst.ltype.r1, (uint64_t)inst.ltype.immediate);
     else if (inst.rtype.opcode % 2 == 0 && !(inst.rtype.opcode >= 0x20 && inst.rtype.opcode <= 0x2F))
         printf("%s r%d, r%d, r%d\n", get_instruction(inst.ltype.opcode), inst.rtype.rd, inst.rtype.r1, inst.rtype.r2);
@@ -49,12 +49,10 @@ void disassemble_file(const char *filename)
     for (; dot < maxsize; dot += 8)
         if (!fread(&inst, sizeof(union instruction_t), 1, fp) || inst.ltype.opcode > 0x3B)
             fprintf(stderr, "invalid read at block 0x%lx\n", dot);
-        else if (inst.ltype.opcode == 0x28 || inst.ltype.opcode > 0x37)
-            printf("0x%08lx | %016lX | %s r%d, %ld\n", dot, inst.value, get_instruction(inst.ltype.opcode), inst.ltype.r1, (uint64_t)inst.ltype.immediate);
-        else if (inst.rtype.opcode % 2 == 0 && !(inst.rtype.opcode >= 0x20 && inst.rtype.opcode <= 0x2F))
-            printf("0x%08lx | %016lX | %s r%d, r%d, r%d\n", dot, inst.value, get_instruction(inst.ltype.opcode), inst.rtype.rd, inst.rtype.r1, inst.rtype.r2);
-        else
-            printf("0x%08lx | %016lX | %s r%d, r%d, %ld\n", dot, inst.value, get_instruction(inst.ltype.opcode), inst.stype.rd, inst.stype.r1, (uint64_t)inst.stype.immediate);
+        else {
+            printf("0x%08lx | %016lX | ", dot, inst.value);
+            disassemble_instruction(inst);
+        }
     
     fclose(fp);
 }

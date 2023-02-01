@@ -4,9 +4,9 @@
  * @brief definitions for the tokenizer
  * @version 0.0.1
  * @date 2023-01-15
- * 
+ *
  * @copyright Copyright (c) 2023
- * 
+ *
  */
 #ifndef ZENITH_LEX_H
 #define ZENITH_LEX_H 1
@@ -31,6 +31,7 @@ enum TokenTypes
 	TT_String,			   /*!< character strings */
 	TT_Identifier,		   /*!< unmanaged names */
 	TT_Keyword,			   /*!< language-specific names */
+	TT_Domain,			   /*!< language domains */
 	TT_Plus,			   /*!< "+" */
 	TT_Increment,		   /*!< "++" */
 	TT_Minus,			   /*!< "-" */
@@ -72,7 +73,8 @@ enum TokenTypes
 /**
  * @enum KeywordTypes
  * @brief Saves space by deallocating space for keywords
- * <br>
+ * 
+ * 
  * size: 1 byte
  */
 enum KeywordTypes
@@ -93,6 +95,21 @@ enum KeywordTypes
 	KW_Unknown /*!< error code for keywords */
 };
 
+enum DomainTypes
+{
+	DM_byte,  /*!< 1 byte:  N ∩ [0, 2⁸)  */
+	DM_hword, /*!< 2 bytes: N ∩ [0, 2¹⁶) */
+	DM_word,  /*!< 4 bytes: N ∩ [0, 2³²) */
+	DM_dword, /*!< 8 bytes: N ∩ [0, 2⁶⁴) */
+
+	DM_char,  /*!< 1 byte: N ∩ [-2⁷, 2⁷) */
+	DM_short, /*!< 2 bytes: N ∩ [-2¹⁵, 2¹⁵) */
+	DM_int,	  /*!< 4 bytes: N ∩ [-2³¹, 2³¹) */
+	DM_long,  /*!< 8 bytes: N ∩ [-2⁶³, 2⁶³) */
+
+	DM_unknown /*!< error code for domains*/
+};
+
 /**
  * @brief a struct that forms a "cursor" for the lexer
  *
@@ -107,15 +124,15 @@ struct pos_t
 };
 
 /**
- * @brief defines a tokenizer object 
- * 
+ * @brief defines a tokenizer object
+ *
  */
 struct lex_t
 {
 	struct pos_t position; /*!< current tokenizer cursor position*/
-	uint64_t file_size; /*!< total file size */
-	char *content; /*!< file content */
-	char current_char; /*!< current cursor char*/
+	uint64_t file_size;	   /*!< total file size */
+	char *content;		   /*!< file content */
+	char current_char;	   /*!< current cursor char*/
 };
 
 /**
@@ -125,13 +142,13 @@ struct lex_t
  */
 struct string_t
 {
-	size_t size; //!< string size
-	char *string; //!< string pointer
+	size_t size;  //!< string size */
+	char *string; /*!< string pointer */
 };
 
 /**
  * @brief defines a struct that carries tokens
- * 
+ *
  */
 struct token_t
 {
@@ -141,9 +158,9 @@ struct token_t
 		uint64_t integer;		   /*!< integer numbers */
 		enum KeywordTypes keyword; /*!< language keywords */
 	};
-	struct string_t string;		   /*!< strings or identifiers */
-
+	struct string_t string; /*!< strings or identifiers */
 	enum TokenTypes type; /*!< specify token type */
+
 };
 
 /**
