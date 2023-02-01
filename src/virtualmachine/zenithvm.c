@@ -1,5 +1,4 @@
 #include "zenithvm.h"
-#include "loadelf.h"
 
 union instruction_t RInstruction(const uint8_t opcode, const uint8_t r1, const uint8_t r2, const uint8_t rd)
 {
@@ -252,8 +251,6 @@ int run(const char *filename, int argc, char **argv, void (*debugger)(struct thr
 
     (void)argv;
     
-    load_elf("./build/src/virtualmachine/CMakeFiles/vm.dir/fetch_memory.c.o");
-
     fp = fopen(filename, "r");
     if (!fp)
         return EXIT_FAILURE;
