@@ -20,7 +20,6 @@ int Assembler::request_register(bool descending, int set_next)
     if (set_next != -1) {
         next_reg = set_next;
         // compiler can then check if register is free
-        std::cout << "registers: " << this->registers << '\n';
         return this->registers[set_next];
     }
     

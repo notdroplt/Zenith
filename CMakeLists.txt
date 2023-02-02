@@ -11,6 +11,9 @@ endif()
 include_directories(src)
 include_directories(include)
 
+set_property(GLOBAL PROPERTY C_STANDARD 17)
+set_property(GLOBAL PROPERTY CXX_STANDARD 14)
+
 add_subdirectory(src/debugger)
 add_subdirectory(src/parsing)
 add_subdirectory(src/virtualmachine)
@@ -19,8 +22,6 @@ add_subdirectory(src/elf_formatter)
 
 add_executable(zenith src/main.cc)
 
-set_property(GLOBAL PROPERTY C_STANDARD 17)
-set_property(GLOBAL PROPERTY CXX_STANDARD 14)
 
 target_link_libraries(zenith PRIVATE vm)
 target_link_libraries(zenith PRIVATE debugger)

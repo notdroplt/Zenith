@@ -207,7 +207,7 @@ uint64_t Assembler::assemble_identifier(Parse::StringNode * node) {
     else if (this->table.count(node->value) && this->table[this->get_function(this->root_index)->name].entries.count(node->value))
         Error("compiler (identifier)", "multiple *invalid* definitions of same variable");
     else if (this->table[this->get_function(this->root_index)->name].entries.count(node->value))
-        return this->table[this->get_function(this->root_index)->name].entries[node->value].reg_idx;
+        return this->table[this->get_function(this->root_index)->name].entries[node->value];
     else if (this->table.count(node->value))
         return this->table[node->value].dot;
     else 
@@ -222,7 +222,7 @@ return_t Assembler::assemble_lambda(Parse::LambdaNode *node)
             Error("Compiler (function arguments)", "expected argument to be a name");
         }
         auto reg_index = this->request_register(true);
-        this->table[node->name].entries[arg->cget<Parse::StringNode>()->value].reg_idx = reg_index;
+        this->table[node->name].entries[arg->cget<Parse::StringNode>()->value] = reg_index;
         regs.push_back(reg_index);
     }
     
@@ -237,7 +237,7 @@ return_t Assembler::assemble_lambda(Parse::LambdaNode *node)
     } 
 
     for (auto && entry : this->table[node->name].entries) {
-        this->clear_register(entry.second.reg_idx);
+        this->clear_register(entry.second);
     }
 
     return regs;
@@ -262,9 +262,11 @@ return_t Assembler::assemble_call(Parse::CallNode * node) {
         Error("compiler (call node)", "argument size mismatch");
     
     uint8_t arg_counter = 30;
-    uint8_t tes;
+    uint8_t reg;
     for (auto && argument : node->args) {
-        if (!(tes = this->request_register(false, arg_counter))) {
+        reg = this->request_register(false, arg_counter);
+        if (reg) {
+            std::cout << this->registers;
             Error("compiler (call node)", "could not request register for argument");
         }
         arg_counter--;

@@ -1135,7 +1135,7 @@ namespace Compiler
 		uint64_t value = -1;													 //!< value, if immediate
 		uint16_t reg_idx = -1;													 //!< value, if register
 		uint8_t arg_count;														 //!< amount of arguments, if function
-		std::unordered_map<std::string_view, struct symbol_table_entry> entries; //!< value, if function
+		std::unordered_map<std::string_view, uint64_t> entries; //!< registers used in arguments, if function
 	};
 
 	/**
