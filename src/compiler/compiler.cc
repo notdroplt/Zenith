@@ -295,6 +295,11 @@ return_t Assembler::assemble_ternary(Parse::TernaryNode * node){
     auto status_cond = this->registers;
 
     auto used_true = this->assemble(node->trueop);
+
+    if (dot_v == this->dot) {
+        // if the node is just a variable
+        this->append_instruction(VirtMac::RInstruction(VirtMac::addr_instrc, used_true[0], 0, used_true[0]));
+    }
     auto status_true = this->registers;
 
     this->registers = status_cond;
@@ -307,7 +312,8 @@ return_t Assembler::assemble_ternary(Parse::TernaryNode * node){
 
     auto used_false = this->assemble(node->falseop);
     if (dot_v == this->dot) {
-        this->append_instruction(VirtMac::RInstruction(VirtMac::addr_instrc, ues))
+        // if the node is just a variable
+        this->append_instruction(VirtMac::RInstruction(VirtMac::addr_instrc, used_false[0], 0, used_false[0]));
     }
     this->registers |= status_true; // because they are set on *used*, `or`ing registers will always set more
                                     // also, because most functions are only one-liners, they most of the time will use the same
