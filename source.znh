@@ -1,3 +1,5 @@
 #!/bin/zenith
 
-main(argc) => argc * 11111111111
+abs(a) => a < 0 ? -a : a 
+
+main(argc) => argc

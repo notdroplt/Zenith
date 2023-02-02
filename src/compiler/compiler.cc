@@ -51,7 +51,7 @@ return_t Assembler::assemble_unary(Parse::UnaryNode *node)
     {
     case Parse::TT_Minus:
         // r1 = 0 - r1
-        this->append_instruction(VirtMac::SInstruction(VirtMac::subi_instrc, used_regs[0], 0, used_regs[0]));
+        this->append_instruction(VirtMac::SInstruction(VirtMac::subi_instrc, used_regs[0], used_regs[0], 0));
         break;
     case Parse::TT_Not:
         // xor is basically a "conditional not", so when all bits are set, the other ones are flipped
@@ -265,7 +265,6 @@ return_t Assembler::assemble_call(Parse::CallNode * node) {
     uint8_t tes;
     for (auto && argument : node->args) {
         if (!(tes = this->request_register(false, arg_counter))) {
-            
             Error("compiler (call node)", "could not request register for argument");
         }
         arg_counter--;
@@ -307,7 +306,9 @@ return_t Assembler::assemble_ternary(Parse::TernaryNode * node){
     dot_v = this->dot;
 
     auto used_false = this->assemble(node->falseop);
-
+    if (dot_v == this->dot) {
+        this->append_instruction(VirtMac::RInstruction(VirtMac::addr_instrc, ues))
+    }
     this->registers |= status_true; // because they are set on *used*, `or`ing registers will always set more
                                     // also, because most functions are only one-liners, they most of the time will use the same
                                     // amount of registers on either paths, so this part of the code will not have effects most of the times
