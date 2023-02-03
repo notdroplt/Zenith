@@ -19,6 +19,9 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
+      with:
+        submodules: true
+        
     - uses: mattnotmitt/doxygen-action@v1.9.5
     
     - name: Configure CMake
@@ -29,4 +32,14 @@ jobs:
     - name: Build
       # Build your program with the given configuration
       run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
+      
+    - name: Deploy
+      uses: peaceiris/actions-gh-pages@v3
+      # If you're changing the branch from main,
+      # also change the `main` in `refs/heads/main`
+      # below accordingly.
+      if: ${{ github.ref == 'refs/heads/main' }}
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ${{github.workspace}}/docs
 
