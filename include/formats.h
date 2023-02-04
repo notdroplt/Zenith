@@ -9,6 +9,9 @@
 #include <platform.h>
 #include <stdint.h>
 
+
+
+
 /**
  * @brief struct that holds an ELF file layout
  * 
@@ -68,5 +71,15 @@ CLink int append_content_to_section(struct elf_layout_t * layout, char * section
  * @returns 1 on failure
  */
 CLink int write_to_file(struct elf_layout_t * layout, const char * filename);
+
+/**
+ * @brief writes raw data into  .ihex file
+ * 
+ * @param [in] data pointer pointing to data array
+ * @param data_size size of data elements
+ * @param [in] filename output file name
+ * @return int error code
+ */
+CLink int ihex_create_file(void * data, uint64_t data_size, const char * filename);
 
 #endif 

@@ -1,0 +1,1 @@
+add_library(output elf.c ihex.c)

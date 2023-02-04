@@ -427,5 +427,13 @@ CLink void disassemble_instruction(union instruction_t inst);
  * @param [in] filename
  */
 CLink void disassemble_file(const char *filename);
+
+/**
+ * @brief destroys a thread object
+ * 
+ * @param thread thread to be destroyed
+ */
+CLink void destroy_thread(struct thread_t * thread);
+
 /** @} */ /* end of group Virtual Instrucion Set Emulation */
 #endif

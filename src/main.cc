@@ -10,6 +10,9 @@
  */
 
 #include "zenith.hpp"
+#include <iostream>
+#include <string.h>
+#include "formats.h"
 
 [[noreturn]] void Error(std::string_view error, std::string_view desc)
 {
@@ -27,9 +30,8 @@ int main(int argc, char **argv)
 
 	comp.compile();
 
+	ihex_create_file(comp.instructions.data(), comp.instructions.size() * 8, "out.hex");
 	VirtMac::disassemble_file("out.zvm");
-	if (argc > 2 && strcmp(argv[2], "debug") == 0) 
-		return VirtMac::run("out.zvm", argc, argv, VirtMac::debugger_func);
 	
 	return VirtMac::run("out.zvm", argc, argv, NULL);
 }

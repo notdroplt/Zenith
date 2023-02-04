@@ -18,23 +18,19 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    - name: Install doxygen
+      run: sudo apt-get install doxygen graphviz -y
+      
     - uses: actions/checkout@v3
       with:
         submodules: true
       
-    - name: Configure CMake
+    - name: Configure 
       run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
 
     - name: Build
       run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
 
-    - name: Generate docs
-      run: doxygen ${{github.workspace}}/Doxyfile
-
-    - name: push to gh pages
-      uses: ad-m/github-push-action@v0.5.0
-      with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        branch: gh-pages
-        force: true
-        directory: ${{github.workspace}}/docs/
+    - name: Test
+      working-directory: ${{github.workspace}}/build
+      run: ctest -C Release

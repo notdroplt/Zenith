@@ -266,7 +266,6 @@ return_t Assembler::assemble_call(Parse::CallNode * node) {
     for (auto && argument : node->args) {
         reg = this->request_register(false, arg_counter);
         if (reg) {
-            std::cout << this->registers;
             Error("compiler (call node)", "could not request register for argument");
         }
         arg_counter--;

@@ -259,11 +259,9 @@ int run(const char *filename, int argc, char **argv, void (*debugger)(struct thr
     size = ftell(fp);
     fseek(fp, 0, SEEK_SET);
 
-    fseek(fp, 0, SEEK_SET);
-
     thread.program_counter = 0;
-    thread.memory = malloc(3 << 8); // give some working space (and align it too)
-    thread.memory_size = 3 << 8;
+    thread.memory = malloc(7 << 8); // give some working space (and align it too)
+    thread.memory_size = 7 << 8;
     thread.registers[0] = 0;
     thread.registers[31] = argc;
     thread.halt_sig = 0;

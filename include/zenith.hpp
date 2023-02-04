@@ -36,14 +36,12 @@
  *
  *
  */
-
-#include <algorithm>
-#include <cstdint>
+#ifndef ZENITH_HEADER_H
+#define ZENITH_HEADER_H 1
 #include <cstdlib>
-#include <cstring>
 #include <exception>
 #include <fstream>
-#include <iostream>
+#include <iosfwd>
 #include <memory>
 #include <sstream>
 #include <string_view>
@@ -175,12 +173,6 @@ namespace Parse
 			static_assert(std::is_base_of<Node, T>::value, "type is not <Node> derived");
 			return static_cast<T *>(this);
 		}
-
-		/**
-		 * @brief optimizes current node
-		 *
-		 */
-		void optimize();
 	};
 
 	/**
@@ -1326,3 +1318,5 @@ namespace Compiler
 		byte_container compile();
 	};
 } // namespace Compiler
+
+#endif
