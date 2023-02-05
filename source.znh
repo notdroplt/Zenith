@@ -1,5 +1,5 @@
 #!/bin/zenith
 
-abs(a) => a - 3 * 5 
+abs(a) => a < 0 ? -a : a
 
 main(argc) => abs(argc)

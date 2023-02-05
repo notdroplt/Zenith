@@ -38,5 +38,5 @@ int main(int argc, char **argv)
 	ihex_create_file(vec.data(), vec.size() * 8, "out.hex");
 	VirtMac::disassemble_file("out.zvm");
 	
-	return VirtMac::run("out.zvm", argc, argv, NULL);
+	return VirtMac::run("out.zvm", argc, argv, VirtMac::debugger_func);
 }

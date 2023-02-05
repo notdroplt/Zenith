@@ -8,10 +8,6 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE "Release")
 endif()
 
-if(CMAKE_BUILD_TYPE STREQUAL "Release")
-  add_compile_options(-D_FORTIFY_SOURCE=1)
-endif()
-
 # optimize debugging
 set(CMAKE_C_FLAGS_DEBUG "-O0 -g3")
 set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g3")

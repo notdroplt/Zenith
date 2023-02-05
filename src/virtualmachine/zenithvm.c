@@ -30,6 +30,10 @@ union instruction_t LInstruction(const uint8_t opcode, const uint8_t r1, const u
     return instrc;
 }
 
+static int64_t ssextend(uint64_t number) {
+    return (int64_t)number &  1L << 46 ? number | 0xffff800000000000 : number;
+}
+
 void exec_instruction(register struct thread_t *thread)
 {
     register union instruction_t instruction;
@@ -161,36 +165,36 @@ void exec_instruction(register struct thread_t *thread)
     /**/
     case jal_instrc:
         thread->registers[instruction.ltype.r1] = thread->program_counter + 8;
-        thread->program_counter += instruction.ltype.immediate;
+        thread->program_counter += ssextend(instruction.ltype.immediate);
         break;
     case jalr_instrc:
         thread->registers[instruction.stype.rd] = thread->program_counter + 8;
-        thread->program_counter += thread->registers[instruction.stype.rd] + instruction.stype.immediate;
+        thread->program_counter += thread->registers[instruction.stype.rd] + ssextend(instruction.stype.immediate);
         break;
     case je_instrc:
         if (thread->registers[instruction.stype.r1] == thread->registers[instruction.stype.rd])
-            thread->program_counter += instruction.stype.immediate;
+            thread->program_counter += ssextend(instruction.stype.immediate);
         break;
     case jne_instrc:
         if (thread->registers[instruction.stype.r1] != thread->registers[instruction.stype.rd])
-            thread->program_counter += instruction.stype.immediate;
+            thread->program_counter += ssextend(instruction.stype.immediate);
         break;
     /**/
     case jlu_instrc:
         if (thread->registers[instruction.stype.r1] < thread->registers[instruction.stype.rd])
-            thread->program_counter += instruction.stype.immediate;
+            thread->program_counter += ssextend(instruction.stype.immediate);
         break;
     case jls_instrc:
         if ((int64_t)thread->registers[instruction.stype.r1] < (int64_t)thread->registers[instruction.stype.rd])
-            thread->program_counter += instruction.stype.immediate;
+            thread->program_counter += ssextend(instruction.stype.immediate);
         break;
     case jleu_instrc:
         if (thread->registers[instruction.stype.r1] <= thread->registers[instruction.stype.rd])
-            thread->program_counter += instruction.stype.immediate;
+            thread->program_counter += ssextend(instruction.stype.immediate);
         break;
     case jles_instrc:
         if ((int64_t)thread->registers[instruction.stype.r1] <= (int64_t)thread->registers[instruction.stype.rd])
-            thread->program_counter += instruction.stype.immediate;
+            thread->program_counter += ssextend(instruction.stype.immediate);
         break;
     /**/
     case setlur_instrc:
@@ -300,5 +304,4 @@ int run(const char *filename, int argc, char **argv, void (*debugger)(struct thr
 
 void destroy_thread(struct thread_t * thread) {
     free(thread->memory);
-    free(thread);
 }

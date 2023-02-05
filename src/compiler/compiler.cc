@@ -273,10 +273,12 @@ return_t Assembler::assemble_call(Parse::CallNode * node) {
     }
 
     auto return_reg = this->request_register();
+    
+    int64_t offset = this->dot - sym_entry.dot;
 
-    if (sym_entry.dot >= 1 << 18)    
-        this->append_instruction(VirtMac::LInstruction(VirtMac::auipc_instrc, return_reg, (sym_entry.dot >> 18)));
-    this->append_instruction(VirtMac::SInstruction(VirtMac::jalr_instrc, return_reg, return_reg, (sym_entry.dot & ((1 << 18) - 1))));
+    if (offset >= 1 << 18)    
+        this->append_instruction(VirtMac::LInstruction(VirtMac::auipc_instrc, return_reg, (offset >> 18)));
+    this->append_instruction(VirtMac::SInstruction(VirtMac::jalr_instrc, return_reg, return_reg, (offset & ((1 << 18) - 1))));
     
     return {};
 }
