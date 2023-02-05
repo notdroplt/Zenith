@@ -12,12 +12,9 @@
 #ifndef _virtual_machine_h
 #define _virtual_machine_h 1
 
-
-
 #include "platform.h"
 #include <stdint.h>
 #include <stdio.h>
-#include <assert.h>
 #include <stdlib.h>
 #include <stddef.h>
 #include <string.h>

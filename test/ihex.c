@@ -51,8 +51,10 @@ int main() {
         return 1;
     }
 
+    free((void *)string);
+
     fclose(fp);
-    //remove("test.hex");
+    remove("test.hex");
 
     return 0;
 }

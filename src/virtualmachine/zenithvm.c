@@ -293,5 +293,12 @@ int run(const char *filename, int argc, char **argv, void (*debugger)(struct thr
     else while (!thread.halt_sig)
         exec_instruction(&thread);
 
+    destroy_thread(&thread);
+
     return (int)thread.registers[1];
+}
+
+void destroy_thread(struct thread_t * thread) {
+    free(thread->memory);
+    free(thread);
 }

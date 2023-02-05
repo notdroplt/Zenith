@@ -350,12 +350,6 @@ return_t Assembler::assemble(const Parse::node_pointer &node)
     return {};
 }
 
-void Assembler::format_output(const char * file_name) {
-    auto file = std::ofstream(file_name, std::ios_base::binary);
-    file.write(reinterpret_cast<char *>(this->instructions.data()), this->instructions.size() * sizeof(uint64_t));
-    file.close();
-}
-
 Compiler::byte_container Assembler::compile()
 {
     for (auto &&node : this->parsed_nodes)
@@ -365,7 +359,5 @@ Compiler::byte_container Assembler::compile()
         ++this->root_index;
     }
     
-    this->format_output("out.zvm");
-
     return this->instructions;
 }

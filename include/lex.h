@@ -172,4 +172,15 @@ struct token_t
  */
 struct token_t getNextToken(struct lex_t *lex);
 
+/**
+ * @brief compares a C string view with a C string
+ * 
+ *
+ * @param s1 C string view
+ * @param [in] s2 C string
+ * @returns 0 if equal
+ * @returns non-zero if different
+ */
+int strvcmp(const struct string_t s1, const char *s2);
+
 #endif

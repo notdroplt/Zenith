@@ -61,16 +61,16 @@ static uint64_t strtoi(struct string_t string)
 static double strtod(struct string_t str)
 {
 	double value = 0.0;
-	int i = 0, div = 10;
+	size_t i = 0, div = 10;
 
 	for (; str.string[i] != '.'; ++i)
 		value = value * 10.0 + str.string[i] - '0';
 	
 	++i;
 
-	for (; str.string[i] != '.'; ++i)
+	for (; i < str.size; ++i)
 	{
-		value += (str.string[i] - '0') / div;
+		value += (double)(str.string[i] - '0') / (double)div;
 		div *= 10;
 	}
 
@@ -114,12 +114,13 @@ static struct token_t lexNewToken(struct lex_t *lex, enum TokenTypes val)
 	lexNext(lex);
 	return tok;
 }
-
-static int strvcmp(const struct string_t s1, const char *s2)
+#include <stdio.h>
+int strvcmp(const struct string_t s1, const char *s2)
 {
 	size_t i = 0;
 	if (s1.size != strlen(s2))
 		return 1;
+
 	for (; i < s1.size; ++i)
 		if (s1.string[i] != s2[i])
 			return 1;

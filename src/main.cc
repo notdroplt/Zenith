@@ -12,6 +12,7 @@
 #include "zenith.hpp"
 #include <iostream>
 #include <string.h>
+#include <fstream>
 #include "formats.h"
 
 [[noreturn]] void Error(std::string_view error, std::string_view desc)
@@ -28,9 +29,13 @@ int main(int argc, char **argv)
 	auto nodes = Parse::Parser(argv[1]).File();	
 	Compiler::Assembler comp(nodes);
 
-	comp.compile();
+	auto vec = comp.compile();
 
-	ihex_create_file(comp.instructions.data(), comp.instructions.size() * 8, "out.hex");
+	auto file = std::ofstream("out.zvm", std::ios_base::binary);
+    file.write(reinterpret_cast<char *>(vec.data()), vec.size() * sizeof(uint64_t));
+    file.close();
+
+	ihex_create_file(vec.data(), vec.size() * 8, "out.hex");
 	VirtMac::disassemble_file("out.zvm");
 	
 	return VirtMac::run("out.zvm", argc, argv, NULL);

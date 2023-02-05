@@ -38,16 +38,12 @@
  */
 #ifndef ZENITH_HEADER_H
 #define ZENITH_HEADER_H 1
-#include <cstdlib>
-#include <exception>
-#include <fstream>
-#include <iosfwd>
-#include <memory>
-#include <sstream>
+
 #include <string_view>
 #include <unordered_map>
 #include <vector>
 #include <bitset>
+
 /**
  * @namespace AnsiFormat
  * @brief provides [ANSI](https://en.wikipedia.org/wiki/ANSI_escape_code) color encoding
@@ -87,7 +83,7 @@ namespace Parse
 	 *
 	 * size: 8 bytes
 	 */
-	class parse_exception : public std::exception
+	class parse_exception
 	{
 	};
 
@@ -179,7 +175,7 @@ namespace Parse
 	 * @typedef node_pointer
 	 * @brief a unique pointer to Node
 	 */
-	using node_pointer = std::unique_ptr<Node>;
+	using node_pointer = Node *;
 
 	/**
 	 * @struct NumberNode
@@ -423,14 +419,15 @@ namespace Parse
 	 * their syntax is as follows:
 	 * @code
 	 * [] (an open bracket and a closing bracket)
-	 * [ ... ] (the same but with any number of nodes)
+	 * [ ... ] (the same but with any number of nodes between them)
 	 * @endcode
 	 *
 	 * @todo actually make it usable
 	 */
 	struct ListNode final : public Node
 	{
-		std::vector<node_pointer> args; //!< list of nodes
+		const node_pointer * args; //!< array of nodes
+		const uint64_t args_size;  //!< amount of nodes
 
 		/**
 		 * @brief Construct a new List Node object
@@ -439,7 +436,7 @@ namespace Parse
 		 *
 		 * Complexity: Constant
 		 */
-		explicit ListNode(std::vector<node_pointer> args_) : Node(List), args(std::move(args_)) {}
+		ListNode(node_pointer * args_, uint64_t node_count) : Node(List), args(args_), args_size(node_count) {}
 	};
 
 	/**
@@ -463,6 +460,7 @@ namespace Parse
 	struct CallNode final : public Node
 	{
 		std::vector<node_pointer> args; //!< call arguments / indexer
+		uint64_t args_size;				//!< amount of arguments
 		node_pointer expr;				//!< expression to call / index
 
 		/**
@@ -1301,13 +1299,6 @@ namespace Compiler
 		 * Complexity: Constant
 		 */
 		Assembler(std::vector<Parse::node_pointer> &nodes);
-
-		/**
-		 * @brief format code to a runnable file
-		 *
-		 * @param out_name output file name (defaults to out.zvm)
-		 */
-		void format_output(const char *out_name);
 
 		/**
 		 * @brief compiles all nodes

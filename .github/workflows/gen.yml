@@ -1,5 +1,6 @@
 name: CMake
 
+# activate tests for pull requests also
 on:
   push:
     branches: [ "dev" ]
@@ -12,15 +13,10 @@ env:
 
 jobs:
   build:
-    # The CMake configure and build commands are platform agnostic and should work equally well on Windows or Mac.
-    # You can convert this to a matrix build if you need cross-platform coverage.
-    # See: https://docs.github.com/en/free-pro-team@latest/actions/learn-github-actions/managing-complex-workflows#using-a-build-matrix
+    # because the only thing the action is here for is to test on commits, ubuntu is really fine
     runs-on: ubuntu-latest
 
-    steps:
-    - name: Install doxygen
-      run: sudo apt-get install doxygen graphviz -y
-      
+    steps:      
     - uses: actions/checkout@v3
       with:
         submodules: true
@@ -32,5 +28,4 @@ jobs:
       run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
 
     - name: Test
-      working-directory: ${{github.workspace}}/build
-      run: ctest -C Release
+      run: ctest --test-dir ${{github.workspace}}/build -C ${{env.BUILD_TYPE}} --output-on-failure
