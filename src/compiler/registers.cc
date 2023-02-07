@@ -48,6 +48,7 @@ int Assembler::request_register(bool descending, int set_next)
     
     //! TODO: use stack (if target supports it)
     Error("compiler", "ran out of registers");
+    return -1;
 }
 
 void Assembler::clear_register(int index)

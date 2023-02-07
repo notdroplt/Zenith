@@ -14,29 +14,38 @@
 #include <string.h>
 #include <fstream>
 #include "formats.h"
+#include <dotenv.h>
 
-[[noreturn]] void Error(std::string_view error, std::string_view desc)
+void Error(std::string_view error, std::string_view desc)
 {
 	std::cerr << Color_Red << error << Color_Reset << ": " << desc << '\n';
-	exit(EXIT_FAILURE);
+	
 } 
 
 int main(int argc, char **argv) 
 {
-	if (argc < 2) {
-		Error("arguments", "expected a file name");
-	}
-	auto nodes = Parse::Parser(argv[1]).File();	
+	int res = 0;
+	load_dotenv();
+	
+	auto nodes = Parse::Parser(getenv(env_input)).File();	
 	Compiler::Assembler comp(nodes);
 
 	auto vec = comp.compile();
+	auto file = std::ofstream(getenv(env_output), std::ios_base::binary);
 
-	auto file = std::ofstream("out.zvm", std::ios_base::binary);
     file.write(reinterpret_cast<char *>(vec.data()), vec.size() * sizeof(uint64_t));
     file.close();
 
-	ihex_create_file(vec.data(), vec.size() * 8, "out.hex");
-	VirtMac::disassemble_file("out.zvm");
+	if (*getenv(env_compile_ihex) == '1') 
+		ihex_create_file(vec.data(), vec.size() * 8, "out.hex");
+
+	if (*getenv(env_print_disassemble) == '1')
+		VirtMac::disassemble_file("out.zvm");
 	
-	return VirtMac::run("out.zvm", argc, argv, VirtMac::debugger_func);
+	if (*getenv(env_debug) == '1')
+		res = VirtMac::run(getenv(env_output), argc, argv, VirtMac::debugger_func);
+	else 
+		res = VirtMac::run(getenv(env_output), argc, argv, NULL);
+
+	return res;
 }

@@ -19,7 +19,11 @@
 Parse::Parser::Parser(const char * fname) : filename(fname)
 {
 	std::ifstream file(fname, std::ios::in | std::ios::binary | std::ios::ate);
-
+	this->lexer.content = NULL;
+	if (!file.is_open()) {
+		::Error("parse", "parser was unable to open given file");
+		return;
+	}
 	size_t size = file.tellg();
 	this->lexer.content = new char[file.tellg()]; 
 
@@ -631,6 +635,7 @@ auto Parse::Parser::Assign() -> Parse::node_pointer
 
 auto Parse::Parser::File() -> std::vector<Parse::node_pointer> 
 {
+	if (this->lexer.content == NULL) return {};
 	std::vector<Parse::node_pointer> value;
 	try {
 		while (this->current_token.type) {

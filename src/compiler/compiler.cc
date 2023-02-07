@@ -32,6 +32,10 @@ uint64_t Assembler::assemble_number(Parse::NumberNode *node)
         return 0; // uses registers, becomes faster
     }
     uint64_t reg_index = this->request_register();
+
+    if (reg_index == -1U) {
+        return -1;
+    }
     // goes only if number actually needs it
     if (node->number > 0x400000000000)
     {
@@ -46,6 +50,10 @@ uint64_t Assembler::assemble_number(Parse::NumberNode *node)
 return_t Assembler::assemble_unary(Parse::UnaryNode *node)
 {
     auto used_regs = this->assemble(node->value);
+
+    if (used_regs[0] == -1U) {
+        return used_regs;
+    }
 
     switch (node->token)
     {
@@ -76,6 +84,11 @@ return_t Assembler::assemble_binary(Parse::BinaryNode *node, bool isJumping){
 
     auto & lfirst = used_lchild[0];
     auto & rfirst = used_rchild[0];
+
+    if (rfirst == -1U || lfirst == -1U) {
+        return used_lchild;
+    }
+
     if (!isJumping) {
         switch (node->token)
         {
@@ -140,7 +153,7 @@ return_t Assembler::assemble_binary(Parse::BinaryNode *node, bool isJumping){
             break;
         default:
             Error("compiler (binary node)", "unhandled node");
-            break;
+            return {-1LU};
         }
     } else {
         /**
@@ -190,7 +203,7 @@ return_t Assembler::assemble_binary(Parse::BinaryNode *node, bool isJumping){
             break;
         default:
             Error("compiler (binary node, ternary parent)", "impossible error, as getting to here should not be possible (probably)");
-            break;
+            return {-1LU};
         }
     }
     this->clear_register(rfirst);
@@ -202,7 +215,7 @@ return_t Assembler::assemble_binary(Parse::BinaryNode *node, bool isJumping){
 uint64_t Assembler::assemble_identifier(Parse::StringNode * node) {
 
     return_t registers;
-       if (!this->table.count(node->value) && !this->table[this->get_function(this->root_index)->name].entries.count(node->value))
+    if (!this->table.count(node->value) && !this->table[this->get_function(this->root_index)->name].entries.count(node->value))
         Error("compiler (identifier)", "variable not found");
     else if (this->table.count(node->value) && this->table[this->get_function(this->root_index)->name].entries.count(node->value))
         Error("compiler (identifier)", "multiple *invalid* definitions of same variable");
@@ -211,7 +224,8 @@ uint64_t Assembler::assemble_identifier(Parse::StringNode * node) {
     else if (this->table.count(node->value))
         return this->table[node->value].dot;
     else 
-        Error("compiler (identifier)", "unimplemented path: global identifier");  
+        Error("compiler (identifier)", "unimplemented path: global identifier"); 
+    return -1; 
 }
 
 return_t Assembler::assemble_lambda(Parse::LambdaNode *node)
@@ -220,8 +234,12 @@ return_t Assembler::assemble_lambda(Parse::LambdaNode *node)
     for (auto && arg : node->args) {
         if (arg->type != Parse::Identifier) {
             Error("Compiler (function arguments)", "expected argument to be a name");
+            return {-1LU};
         }
         auto reg_index = this->request_register(true);
+        if (reg_index == -1) {
+            return {-1LU};
+        }
         this->table[node->name].entries[arg->cget<Parse::StringNode>()->value] = reg_index;
         regs.push_back(reg_index);
     }
@@ -230,6 +248,9 @@ return_t Assembler::assemble_lambda(Parse::LambdaNode *node)
     this->table[node->name].arg_count = node->args.size();
     this->entry_point = this->dot;
     auto used = this->assemble(node->expression);
+    if (used[0] == -1U) {
+        return used;
+    }
     if (node->name == "main") {
         this->append_instruction(VirtMac::LInstruction(VirtMac::ecall_instrc, 0, 1));
     } else {
@@ -262,11 +283,11 @@ return_t Assembler::assemble_call(Parse::CallNode * node) {
         Error("compiler (call node)", "argument size mismatch");
     
     uint8_t arg_counter = 30;
-    uint8_t reg;
     for (auto && argument : node->args) {
-        reg = this->request_register(false, arg_counter);
-        if (reg) {
+        auto reg = this->request_register(false, arg_counter);
+        if (reg == -1) {
             Error("compiler (call node)", "could not request register for argument");
+            return {-1LU};
         }
         arg_counter--;
         this->assemble(argument);
@@ -348,15 +369,15 @@ return_t Assembler::assemble(const Parse::node_pointer &node)
         return this->assemble_call(node->cget<Parse::CallNode>());
     default:
         Error("compiler", "unhandled node");
+        return {-1LU};
     }
-    return {};
 }
 
 Compiler::byte_container Assembler::compile()
 {
     for (auto &&node : this->parsed_nodes)
     {
-        this->assemble(node);
+        if (this->assemble(node)[0] == -1U) break;
         
         ++this->root_index;
     }

@@ -67,9 +67,9 @@ namespace AnsiFormat
  * @param error error name
  * @param desc error description
  *
- * @note all errors are fatal (at least on real life thats not true)
+ * @note errors are not fatal 
  */
-[[noreturn]] void Error(std::string_view error, std::string_view desc);
+void Error(std::string_view error, std::string_view desc);
 
 namespace Parse
 {

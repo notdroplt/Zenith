@@ -73,8 +73,8 @@ enum TokenTypes
 /**
  * @enum KeywordTypes
  * @brief Saves space by deallocating space for keywords
- * 
- * 
+ *
+ *
  * size: 1 byte
  */
 enum KeywordTypes
@@ -159,8 +159,7 @@ struct token_t
 		enum KeywordTypes keyword; /*!< language keywords */
 	};
 	struct string_t string; /*!< strings or identifiers */
-	enum TokenTypes type; /*!< specify token type */
-
+	enum TokenTypes type;	/*!< specify token type */
 };
 
 /**
@@ -174,7 +173,7 @@ struct token_t getNextToken(struct lex_t *lex);
 
 /**
  * @brief compares a C string view with a C string
- * 
+ *
  *
  * @param s1 C string view
  * @param [in] s2 C string

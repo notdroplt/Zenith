@@ -1,7 +1,6 @@
 #include <formats.h>
 #include <stdio.h>
 
-
 static uint8_t calculate_checksum(uint16_t address,  uint64_t first, uint64_t second) {
     //                                        byte count ---\/ 
     uint8_t checksum = (address >> 8) + (address & 0xff) + 0x10;
@@ -9,12 +8,13 @@ static uint8_t calculate_checksum(uint16_t address,  uint64_t first, uint64_t se
 
     for (; i < 8; ++i) {
         // masking and then adding would have the same effect
-        // so we save the cpu from doing an unecessary mask
+        // so we save the cpu from doing an unnecessary mask
         checksum += (first + second) & 0xff ;
         first >>= 8;
         second >>= 8;
     }
 
+    // sum of everything + checksum must return (uint8_t)0
     return -checksum;
 }
 
