@@ -19,7 +19,6 @@
 void Error(std::string_view error, std::string_view desc)
 {
 	std::cerr << Color_Red << error << Color_Reset << ": " << desc << '\n';
-	
 } 
 
 int main(int argc, char **argv) 

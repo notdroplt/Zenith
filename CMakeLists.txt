@@ -40,6 +40,7 @@ add_subdirectory(src/virtualmachine)
 add_subdirectory(src/compiler)
 add_subdirectory(src/output)
 add_subdirectory(src/dotenv)
+add_subdirectory(src/types)
  
 # add test suits
 add_subdirectory(test)
@@ -53,3 +54,4 @@ target_link_libraries(zenith PRIVATE parse)
 target_link_libraries(zenith PRIVATE compiler)
 target_link_libraries(zenith PRIVATE output)
 target_link_libraries(zenith PRIVATE dotenv)
+target_link_libraries(zenith PRIVATE types)

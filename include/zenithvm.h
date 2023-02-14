@@ -114,7 +114,7 @@ enum instruction_prefixes
     Reserved = 0x06,
     Reserved = 0x07,
 
-    llsr_instrc = 0x08, /*!< `lls r#, r#, r#` : Rtype */
+    llsr_instrc = 0x08, /*!< `lls r#, r#, r#` : R type */
     llsi_instrc = 0x09, /*!< `lls r#, r#, imm` : S type */
     lrsr_instrc = 0x0A, /*!< `lrs r#, r#, r#` : Rtype */
     lrsi_instrc = 0x0B, /*!< `lrs r#, r#, imm` : S type */
@@ -140,10 +140,10 @@ enum instruction_prefixes
     sdivr_instrc = 0x1A, /*!< `sdiv r#, r#, r#` : R type */
     sdivi_instrc = 0x1B, /*!< `sdiv r#, r#, imm` : S type */
 
-    Reserved = 0x1C, /*!< `setu r#, r#, r#` : R type */
-    Reserved = 0x1D, /*!< `setu r#, r#, imm` : S type */
-    Reserved = 0x1E, /*!< `setr r#, r#, r#` : R type */
-    Reserved = 0x1F, /*!< `setr r#, r#, imm` : S type */
+    popcnt_instrc = 0x1C, /*!< `popcnt r#, r#, r#` : R type */
+    Reserved = 0x1D, /*!< `unused r#, r#, imm` : S type */
+    Reserved = 0x1E, /*!< `unused r#, r#, r#` : R type */
+    Reserved = 0x1F, /*!< `unused r#, r#, imm` : S type */
 
     /* group 2 */
     ld_byte_instrc = 0x20, /*!< `ldb r#, r#, imm` : S type */
@@ -156,13 +156,13 @@ enum instruction_prefixes
     st_word_instrc = 0x26, /*!< `stw r#, r#, imm` : S type */
     st_dwrd_instrc = 0x27, /*!< `std r#, r#, imm` : S type */
 
-    jal_instrc = 0x28,  /*!< `jal r#, imm` : L type */
+    jal_instrc = 0x28,  /*!< `jal r#, imm`      : L type */
     jalr_instrc = 0x29, /*!< `jalr r#, r#, imm` : S type */
-    je_instrc = 0x2A,   /*!< `je r#, r#, imm` : S type */
-    jne_instrc = 0x2B,  /*!< `jne r#, r#, imm` : S type */
+    je_instrc = 0x2A,   /*!< `je r#, r#, imm`   : S type */
+    jne_instrc = 0x2B,  /*!< `jne r#, r#, imm`  : S type */
 
-    jlu_instrc = 0x2C,  /*!< `jlu r#, r#, imm` : S type */
-    jls_instrc = 0x2D,  /*!< `jls r#, r#, imm` : S type */
+    jlu_instrc = 0x2C,  /*!< `jlu r#, r#, imm`  : S type */
+    jls_instrc = 0x2D,  /*!< `jls r#, r#, imm`  : S type */
     jleu_instrc = 0x2E, /*!< `jleu r#, r#, imm` : S type */
     jles_instrc = 0x2F, /*!< `jles r#, r#, imm` : S type */
 
@@ -186,6 +186,8 @@ enum instruction_prefixes
     // [unused] outw_instrc = 0x3D, /*!< `outw, r#, r#, 0` S type */
     // [unused] inb_instrc = 0x3E, /*!< `inb, r#, r#, 0` S type */
     // [unused] inw_instrc = 0x3F /*!< `inw, r#, r#, 0` S type */
+
+    /*! TODO: group 4, parallel operation instructions */
 
 };
 

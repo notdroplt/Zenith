@@ -231,7 +231,8 @@ uint64_t Assembler::assemble_identifier(Parse::StringNode * node) {
 return_t Assembler::assemble_lambda(Parse::LambdaNode *node)
 {
     return_t regs = {register_status::used, register_status::used};
-    for (auto && arg : node->args) {
+    for (uint32_t i = 0; i < node->arg_count; ++i) {
+        auto &arg = node->args[i];
         if (arg->type != Parse::Identifier) {
             Error("Compiler (function arguments)", "expected argument to be a name");
             return {-1LU};
@@ -245,7 +246,7 @@ return_t Assembler::assemble_lambda(Parse::LambdaNode *node)
     }
     
     this->table[node->name].dot = this->dot;
-    this->table[node->name].arg_count = node->args.size();
+    this->table[node->name].arg_count = node->arg_count;
     this->entry_point = this->dot;
     auto used = this->assemble(node->expression);
     if (used[0] == -1U) {
@@ -279,18 +280,17 @@ return_t Assembler::assemble_call(Parse::CallNode * node) {
     if (sym_entry.dot == (uint64_t)-1) 
         Error("compiler (call node)", "function not found");
     
-    if (sym_entry.arg_count != node->args.size()) 
+    if (sym_entry.arg_count != node->args_size) 
         Error("compiler (call node)", "argument size mismatch");
     
-    uint8_t arg_counter = 30;
-    for (auto && argument : node->args) {
+    for (uint8_t arg_counter = 30; arg_counter < 30 - node->args_size; --arg_counter) {
+
         auto reg = this->request_register(false, arg_counter);
         if (reg == -1) {
             Error("compiler (call node)", "could not request register for argument");
             return {-1LU};
         }
-        arg_counter--;
-        this->assemble(argument);
+        this->assemble(node->args[30 - arg_counter]);
     }
 
     auto return_reg = this->request_register();

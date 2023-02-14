@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* not everything here is implemented yet */
+
 static void setup_file_header(Elf64_Ehdr * header) {
     header->e_ident[EI_MAG0] = ELFMAG0;
     header->e_ident[EI_MAG1] = ELFMAG1;

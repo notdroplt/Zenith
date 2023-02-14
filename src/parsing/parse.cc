@@ -184,13 +184,8 @@ auto Parse::Parser::Switch() -> Parse::node_pointer
 
 auto Parse::Parser::Task() -> Parse::node_pointer
 {
-	this->next();
-	std::vector<Parse::node_pointer> task_list = {};
-	while (this->current_token.type == Parse::TT_Keyword && this->current_token.keyword != Parse::KW_end) {
-		this->next();
-		task_list.push_back(this->Assign());
-	}
-	return new Parse::TaskNode(task_list);
+	Warning("unimplemented", "tasks are not yet implemented");
+	return NULL;
 }
 
 auto Parse::Parser::Atom() -> Parse::node_pointer
@@ -282,8 +277,12 @@ auto Parse::Parser::Postfix() -> Parse::node_pointer
 		}
 
 		this->next();
-
-		return new Parse::CallNode(value, argsnode);
+		const auto size = argsnode.size() * sizeof(node_pointer);
+		return new Parse::CallNode(
+			value,
+			(node_pointer*)memcpy(malloc(size), argsnode.data(), size),
+			argsnode.size()
+		);
 		/// TODO: implement compile time call (this is gonna be awesome)
 	}
 	if (this->current_token.type == Parse::TT_LeftSquareBracket) {
@@ -298,7 +297,7 @@ auto Parse::Parser::Postfix() -> Parse::node_pointer
 		}
 
 		this->next();
-		return new Parse::CallNode(value, index, Parse::Index);
+		return new Parse::CallNode(value, index.data(), 1, Parse::Index);
 	}
 	if (this->current_token.type == Parse::TT_Dot) {
 		this->next();
@@ -584,7 +583,8 @@ auto Parse::Parser::Lambda(std::string_view name, bool arrowed) -> Parse::node_p
 	}
 
 	this->next();
-	return new Parse::LambdaNode(name, this->Ternary(), args);
+	const auto size = args.size() * sizeof(node_pointer);
+	return new Parse::LambdaNode(name, this->Ternary(), (node_pointer*)memcpy(malloc(size), args.data(), size), args.size());
 }
 
 auto Parse::Parser::Define(std::string_view name) -> Parse::node_pointer

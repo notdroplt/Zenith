@@ -67,7 +67,7 @@ namespace AnsiFormat
  * @param error error name
  * @param desc error description
  *
- * @note errors are not fatal 
+ * @note errors are not fatal
  */
 void Error(std::string_view error, std::string_view desc);
 
@@ -426,17 +426,17 @@ namespace Parse
 	 */
 	struct ListNode final : public Node
 	{
-		const node_pointer * args; //!< array of nodes
-		const uint64_t args_size;  //!< amount of nodes
+		const node_pointer *args; //!< array of nodes
+		const uint64_t args_size; //!< amount of nodes
 
 		/**
 		 * @brief Construct a new List Node object
 		 *
-		 * @param args_ list of elements in the list
-		 *
+		 * @param [in] args_ list of elements in the list
+		 * @param node_count amount of nodes pointed by `args_` 
 		 * Complexity: Constant
 		 */
-		ListNode(node_pointer * args_, uint64_t node_count) : Node(List), args(args_), args_size(node_count) {}
+		ListNode(node_pointer *args_, uint64_t node_count) : Node(List), args(args_), args_size(node_count) {}
 	};
 
 	/**
@@ -459,21 +459,21 @@ namespace Parse
 
 	struct CallNode final : public Node
 	{
-		std::vector<node_pointer> args; //!< call arguments / indexer
-		uint64_t args_size;				//!< amount of arguments
-		node_pointer expr;				//!< expression to call / index
+		node_pointer *args; //!< call arguments / indexer
+		uint64_t args_size; //!< amount of arguments
+		node_pointer expr;	//!< expression to call / index
 
 		/**
-		 * Call) @brief Construct a new Call Node object
+		 * @brief Construct a new Call Node object
 		 *
 		 * @param expr_ the expression to call or to index
-		 * @param args_ arguments to caller or index to indexer
+		 * @param [in] args_ arguments to caller or index to indexer
 		 * @param type_ either @a Call or @a Index, defaults to @a Call
 		 *
 		 * Complexity: Linear
 		 */
-		CallNode(node_pointer expr_, std::vector<node_pointer> args_, const NodeTypes type_ = Call) noexcept
-			: Node(type_), args(std::move(args_)), expr(std::move(expr_))
+		CallNode(node_pointer expr_, node_pointer *args_, uint64_t arg_size, const NodeTypes type_ = Call) noexcept
+			: Node(type_), args(args_), args_size(arg_size), expr(expr_)
 		{
 		}
 	};
@@ -538,9 +538,10 @@ namespace Parse
 	 */
 	struct LambdaNode final : public Node
 	{
-		std::vector<node_pointer> args; //!< function arguments
+		node_pointer * args; //!< function arguments
 		std::string_view name;			//!< function name
 		node_pointer expression;		//!< function expression
+		uint32_t arg_count;
 
 		/**
 		 * args_) @brief Construct a new Lambda Node object
@@ -551,8 +552,8 @@ namespace Parse
 		 *
 		 * Complexity: Constant
 		 */
-		LambdaNode(std::string_view name_, node_pointer expression_, std::vector<node_pointer> args_) noexcept
-			: Node(Lambda), args(std::move(args_)), name(name_), expression(std::move(expression_))
+		LambdaNode(std::string_view name_, node_pointer expression_, node_pointer* args_, uint32_t size) noexcept
+			: Node(Lambda), args(args_), name(name_), expression(expression_), arg_count(size)
 		{
 		}
 	};
@@ -676,8 +677,8 @@ namespace Parse
 	{
 		//!< TODO: actually implement as a unordered multimap, so tasks don't
 		//!< need to be synchronized and follow what the programmer wrote
-		std::vector<node_pointer> tasks; //!< list of tasks
-
+		node_pointer* tasks; //!< list of tasks
+		uint32_t task_count; //!< amount of tasks to do
 		/**
 		 * @brief Construct a new Task Node object
 		 *
@@ -685,7 +686,7 @@ namespace Parse
 		 *
 		 * Complexity: Constant
 		 */
-		explicit TaskNode(std::vector<node_pointer> task_list) : Node(Task), tasks(std::move(task_list)) {}
+		explicit TaskNode(node_pointer* task_list, uint32_t count) : Node(Task), tasks(task_list), task_count(count) {}
 	};
 
 	////////////////////////////////////////////////////////////////////////////////////////////
@@ -1120,11 +1121,11 @@ namespace Compiler
 	 */
 	struct symbol_table_entry
 	{
-		bool is_expression = false;												 //!< set if current entry is an expression rather than a function
-		uint64_t dot = 0;														 //!< current place at file
-		uint64_t value = -1;													 //!< value, if immediate
-		uint16_t reg_idx = -1;													 //!< value, if register
-		uint8_t arg_count;														 //!< amount of arguments, if function
+		bool is_expression = false;								//!< set if current entry is an expression rather than a function
+		uint64_t dot = 0;										//!< current place at file
+		uint64_t value = -1;									//!< value, if immediate
+		uint16_t reg_idx = -1;									//!< value, if register
+		uint8_t arg_count;										//!< amount of arguments, if function
 		std::unordered_map<std::string_view, uint64_t> entries; //!< registers used in arguments, if function
 	};
 
