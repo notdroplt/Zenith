@@ -28,6 +28,8 @@ static int verbose_printf_function(const char * format_string, ...) {
 
 char *strip(char *str)
 {
+	if (!str) return NULL;
+
 	char *end = str + strlen(str) - 1;
 
 	if (end < str)
@@ -57,7 +59,7 @@ void set_default()
 
 int load_dotenv()
 {
-	char key[64], value[64], *skey, *svalue;
+	char key[64] = {0}, value[64] = {0}, *skey = NULL, *svalue = NULL;
 	FILE *fp;
 	char *line = NULL;
 	size_t len = 0;
@@ -69,8 +71,8 @@ int load_dotenv()
 
 	while (getline(&line, &len, fp) != -1)
 	{
-
 		sscanf(line, "%[^=]=%[^\n;#]", key, value);
+		if (!*key || !*line) break;
 		skey = strip(key);
 		svalue = strip(value);
 
@@ -83,14 +85,11 @@ int load_dotenv()
 		else
 			setenv(skey, svalue, 1);
 	}
-
+	free(line);
 	fclose(fp);
 
-	if (*getenv(env_verbose) == '1')
-        vrprintf = verbose_printf_function;
-    else {
-        vrprintf = do_nothing_function;
-	}
+	vrprintf = *getenv(env_verbose) == '1' ? verbose_printf_function : do_nothing_function;
+	
 	
 	return 0;
 }

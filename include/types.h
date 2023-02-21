@@ -2,17 +2,23 @@
 #define ZENITH_TYPES_H 1
 
 #include <stdint.h>
-
+#include <stddef.h>
+/* default: SipHash-2-4 */
+#ifndef cROUNDS
+#define cROUNDS 2
+#endif
+#ifndef dROUNDS
+#define dROUNDS 4
+#endif
 /**
  * @ingroup col_types Collection types
  * @brief defines a group of collections that are used on some of the code
  * 
  * @warning be aware that when the collections are deleted, it doesnt delete
- * any kind of members
+ * any kind of members unless a deleter is passed
  * 
  * @{
  */
-
 
 /**
  * @brief struct for an array type
@@ -27,6 +33,13 @@ struct Array;
  * in this case, the list is a doubly linked list
  */
 struct List;
+
+/**
+ * @brief callback for deleter functions
+ * 
+ */
+typedef void (*deleter_func)(void *);
+
 
 /**
  * @brief creates an array with defined size
@@ -47,7 +60,7 @@ struct Array* create_array(uint32_t size);
  * @param index index of the array
  * @return void* value at desired index
  */
-const void * array_index(struct Array* array, uint64_t index);
+const void * array_index(const struct Array* array, const uint64_t index);
 
 /**
  * @brief sets a value at an index in a array
@@ -56,7 +69,7 @@ const void * array_index(struct Array* array, uint64_t index);
  * @param index index to be set
  * @param value value to be set
  */
-void array_set_index(struct Array * arr, uint64_t index, const void * value);
+void array_set_index(struct Array * arr, const uint64_t index, void * value);
 
 /**
  * @brief returns the size of an array
@@ -66,7 +79,7 @@ void array_set_index(struct Array * arr, uint64_t index, const void * value);
  * @param arr array to check size
  * @return uint32_t size of array
  */
-uint32_t array_size(struct Array * arr);
+uint32_t array_size(const struct Array * arr);
 
 
 /**
@@ -87,8 +100,9 @@ int array_copy_ptr(struct Array * arr, void ** ptr, uint64_t size);
  * @brief deletes an object array
  *
  * @param [in] array array to be deleted 
+ * @param [in] deleter deleter function
  */
-void delete_array(struct Array* array);
+void delete_array(struct Array* array, deleter_func deleter);
 
 /**
  * @brief creates a list object
@@ -106,7 +120,7 @@ struct List * create_list();
  * @returns 1 on error
  * @returns 0 on sucess
  */
-int append(struct List * list, const void * item);
+int list_append(struct List * list, void * item);
 
 /**
  * @brief transforms a linked list into an array
@@ -114,24 +128,25 @@ int append(struct List * list, const void * item);
  * @param [in] list ist to be transformed
  * @return struct Array* returned array
  * 
- * @note the function does not delete the list
+ * @note the function does delete the list after finishing
  */
-struct Array * to_array(const struct List * list);
+struct Array * list_to_array(struct List * list);
 
 /**
  * @brief deletes a list
  * 
  * @param [in] list list to be deleted
+ * @param [in] deleter function that destroys list objects, if it is NULL nothing happens
  */
-void delete_list(struct List * list);
+void delete_list(struct List * list, deleter_func deleter);
 
 /**
  * @brief pair struct used on hashmaps
  * 
  */
 struct pair_t {
-    void * first; //!< first value (key)
-    void * second; //!< second value (value)
+	void * first; //!< first value (key)
+	void * second; //!< second value (value)
 };
 
 /**
@@ -143,11 +158,12 @@ struct HashMap;
 /**
  * @brief hashes a string into a uint64_t
  * 
- *
- * @param string string to be hashed
+ * @param in string to be hashed
+ * @param inlen size of string to be hashed
+ * @param k key to be hashed
  * @return hashed value for string
  */
-uint64_t cstr_hash(const char * string);
+uint64_t siphash(const void *in, const size_t inlen, const void *k);
 
 /**
  * @brief create a hashmap with a table size
@@ -157,6 +173,32 @@ uint64_t cstr_hash(const char * string);
  */
 struct HashMap * create_map(uint64_t prealloc);
 
+/**
+ * @brief adds an integer key into the map
+ * 
+ * @param [in,out] map map to add key
+ * @param key key to index
+ * @param [in] value value to set
+ * @returns -1 on fail, key value on success
+ */
+int map_addi_key(struct HashMap * map, uint64_t key, void * value);
 
+/**
+ * @brief adds a string key into the map
+ * 
+ * @param [in,out] map map to add key
+ * @param [in] key key to index
+ * @param [in] value value to set
+ * @returns -1 on fail, key value on success
+ */
+int map_adds_key(struct HashMap * map, const char * key, void * value);
+
+/**
+ * @brief deletes map and its entries
+ * 
+ * @param [in] map map to be deleted
+ * @param [in] deleter deleter function that is called on values
+ */
+void delete_map(struct HashMap * map, deleter_func deleter);
 /*!< @} */ // end of group 
 #endif

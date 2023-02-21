@@ -61,18 +61,14 @@ void generate_pheaders(Elf64_Phdr *program_headers) {
 struct elf_layout_t * create_elf(){
     struct elf_layout_t * layout;
     layout = malloc(sizeof(struct elf_layout_t));
+    if (!layout) return NULL;
     layout->section_headers = malloc(sizeof(Elf64_Shdr) * 4);
     layout->section_counter = 0;
     layout->section_strings = malloc(1);
     layout->strings_size = 0;
-    if (!layout) return NULL;
 
     setup_file_header(&layout->header);
     generate_pheaders(&layout->program_headers[0]);
-    generate_section(layout, ".text");
-    generate_section(layout, ".data");
-    generate_section(layout, ".rodata");
-    generate_section(layout, ".bss");
 
     return layout;
 }

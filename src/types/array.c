@@ -3,12 +3,12 @@
 #include <string.h>
 
 struct Array {
-    const void ** ptr;
     uint32_t size;
+    void ** ptr;
 };
 
 struct Array* create_array(uint32_t size) {
-    struct Array* arr = malloc(size);
+    struct Array* arr = malloc(sizeof(struct Array));
     if (!arr) return NULL;
 
     arr->ptr = malloc(size * sizeof(void *));
@@ -16,15 +16,15 @@ struct Array* create_array(uint32_t size) {
     return arr;
 }
 
-const void * array_index(struct Array * arr, uint64_t index){
+const void * array_index(const struct Array * arr, const uint64_t index){
     return arr->ptr[index];
 }
 
-uint32_t array_size (struct Array * arr) {
+uint32_t array_size (const struct Array * arr) {
     return arr->size;
 }
 
-void array_set_index(struct Array * arr, uint64_t index, const void * value) {
+void array_set_index(struct Array * arr, const uint64_t index, void * value) {
     arr->ptr[index] = value;
 }
 
@@ -35,7 +35,16 @@ int array_copy_ptr(struct Array * arr, void ** ptr, uint64_t size ){
 }
 
 
-void delete_array(struct Array * arr) {
+void delete_array(struct Array * arr, deleter_func deleter) {
+    if (!deleter) {
+        goto delete_end;
+    }
+    
+    for (size_t i = 0; i < arr->size; ++i)
+        if (arr->ptr[i])
+            deleter(arr->ptr[i]);
+
+delete_end:
     free(arr->ptr);
     free(arr);
 }

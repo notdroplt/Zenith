@@ -8,6 +8,7 @@
  * @copyright Copyright (c) 2023
  *
  */
+#pragma once
 #ifndef ZENITH_LEX_H
 #define ZENITH_LEX_H 1
 
@@ -79,6 +80,8 @@ enum TokenTypes
  */
 enum KeywordTypes
 {
+	KW_Unknown, /*!< error code for keywords */
+
 	KW_var,		 /*!< "var" */
 	KW_function, /*!< "function" */
 	KW_as,		 /*!< "as" */
@@ -90,9 +93,8 @@ enum KeywordTypes
 	KW_else,	 /*!< "else" */
 	KW_end,		 /*!< "end" */
 	KW_return,	 /*!< "return" */
-	KW_include,	 /*!< "include" */
+	KW_include	 /*!< "include" */
 
-	KW_Unknown /*!< error code for keywords */
 };
 
 enum DomainTypes

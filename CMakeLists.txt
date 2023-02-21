@@ -8,16 +8,21 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE "Release")
 endif()
 
-# optimize debugging
-set(CMAKE_C_FLAGS_DEBUG "-O0 -g3")
-set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g3")
+find_program(MOLD_LINKER "mold")
 
-# remove flags after -O3 if releasing online
-set(CMAKE_C_FLAGS_RELEASE "-O3 -flto -march=native -mtune=native")
-set(CMAKE_CXX_FLAGS_RELEASE "-O3 -flto -march=native -mtune=native")
+# use mold if present
+if(MOLD_LINKER)
+  message(STATUS "found mold")
+  add_compile_options(-fuse-ld=mold)
+else() 
+  message(STATUS "mold not found")
+endif() 
 
 # add compile options to all types of build and 
-add_compile_options(-Wall -Wextra -pedantic -Werror)
+if (CMAKE_BUILD_TYPE EQUAL "Release")
+  add_compile_definitions(_FORTIFY_SOURCE=1)
+endif()
+add_compile_options(-Wall -Wextra -pedantic -Werror -fanalyzer)
 
 enable_testing()
 
@@ -37,7 +42,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_subdirectory(src/debugger)
 add_subdirectory(src/parsing)
 add_subdirectory(src/virtualmachine)
-add_subdirectory(src/compiler)
+# add_subdirectory(src/compiler)
 add_subdirectory(src/output)
 add_subdirectory(src/dotenv)
 add_subdirectory(src/types)
@@ -45,13 +50,13 @@ add_subdirectory(src/types)
 # add test suits
 add_subdirectory(test)
 
-add_executable(zenith src/main.cc)
+add_executable(zenith src/main.c)
 
 # link libraries
 target_link_libraries(zenith PRIVATE vm)
 target_link_libraries(zenith PRIVATE debugger)
 target_link_libraries(zenith PRIVATE parse)
-target_link_libraries(zenith PRIVATE compiler)
+# target_link_libraries(zenith PRIVATE compiler)
 target_link_libraries(zenith PRIVATE output)
 target_link_libraries(zenith PRIVATE dotenv)
 target_link_libraries(zenith PRIVATE types)

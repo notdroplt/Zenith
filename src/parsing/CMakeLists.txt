@@ -1,1 +1,1 @@
-add_library(parse lex.c parse.cc)
+add_library(parse lex.c node.c parse.c)

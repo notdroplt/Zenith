@@ -59,7 +59,7 @@
  * 
  * @return int 
  */
-CLink int load_dotenv();
+ int load_dotenv();
 
 /**
  * @brief defines a type for the verbose printf function

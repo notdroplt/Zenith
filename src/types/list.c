@@ -3,13 +3,14 @@
 
 struct ListNode {
     struct ListNode * next;
-    const void * value;
+    void * value;
 };
 
 struct List
 {
     uint32_t size;
     struct ListNode * head;
+    struct ListNode * tail;
 };
 
 struct List * create_list() {
@@ -17,46 +18,58 @@ struct List * create_list() {
     if (!list) return NULL;
 
     list->head = NULL;
+    list->tail = NULL;
     list->size = 0;
     return list;
 
 }
 
-int append(struct List * list, const void *item) {
-    
-    ++list->size;
-    if (list->head == NULL) {
-        list->head = malloc(sizeof(struct ListNode));
-        if (!list->head) return 1;
-        list->head->next = NULL;
-        list->head->value = item;
-        return 0;
-    }
+int list_append(struct List * list, void *item) {    
+    struct ListNode *new_node = malloc(sizeof(struct ListNode));
+    if(!new_node) return 1;
 
-    struct ListNode *node = list->head;
-    for(; node->next; node = node->next);
-    
-    node->next = malloc(sizeof(struct ListNode));
-    if(!node->next) return 1;
-    node->next->next = NULL;
-    node->next->value = item;
+    new_node->next = NULL;
+    new_node->value = item;
 
+    if (list->tail)
+        list->tail->next = new_node;
+
+    list->tail = new_node;
+
+    if (!list->head) 
+        list->head = list->tail;
+    
+    ++list->size;    
     return 0;
 }
 
-struct Array* to_array(const struct List * list) {
+struct Array* list_to_array(struct List * list) {
+    struct ListNode * node = list->head;
     struct Array * arr = create_array(list->size);
     if (arr == NULL) return NULL;
 
-    struct ListNode * node = list->head;
-    uint32_t index = 0;
     
-    while (node)
-    {
+    for (uint32_t index = 0; node; ++index, node = node->next)
         array_set_index(arr, index, node->value);
-        node = node->next;
-        ++index;
-    }
+
+    // don't delete list items, just the list and the indexes
+    delete_list(list, NULL);
     
     return arr;
+}
+
+void delete_list(struct List * list, deleter_func deleter) {
+    struct ListNode * node, *tmp;
+    if (!list->head) {
+        free(list);
+        return;
+    }
+    for (node = list->head; node;) {
+        tmp = node;
+        node = node->next;
+        if (deleter)
+            deleter(tmp->value);
+        free(tmp);
+    }
+    free(list);
 }

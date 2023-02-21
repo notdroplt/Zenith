@@ -3,7 +3,7 @@
 #define get_instruction(instruction) instructions[instruction]
 static const char *instructions[] = {
     "and", "and", "xor", "xor",
-    "or", "or", "??", "??",
+    "or", "or", "count", "??",
     "lls", "lls", "lrs", "lrs",
     "als", "als", "ars", "ars",
     "add", "add", "sub", "sub",

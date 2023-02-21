@@ -285,10 +285,12 @@ int run(const char *filename, int argc, char **argv, void (*debugger)(struct thr
 
     if (!fread(thread.memory, size, 1, fp))
     {
-        fclose(fp);
         free(thread.memory);
+        fclose(fp);
         return EXIT_FAILURE;
     }
+
+    fclose(fp);
 
     // registers should NOT be initialized because code shouldn't rely on that
 

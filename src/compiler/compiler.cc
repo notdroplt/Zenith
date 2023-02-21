@@ -231,8 +231,8 @@ uint64_t Assembler::assemble_identifier(Parse::StringNode * node) {
 return_t Assembler::assemble_lambda(Parse::LambdaNode *node)
 {
     return_t regs = {register_status::used, register_status::used};
-    for (uint32_t i = 0; i < node->arg_count; ++i) {
-        auto &arg = node->args[i];
+    for (uint32_t i = 0; i < array_size(node->params); ++i) {
+        Parse::Node * arg = (Parse::Node *)array_index(node->params, i);
         if (arg->type != Parse::Identifier) {
             Error("Compiler (function arguments)", "expected argument to be a name");
             return {-1LU};
@@ -246,7 +246,7 @@ return_t Assembler::assemble_lambda(Parse::LambdaNode *node)
     }
     
     this->table[node->name].dot = this->dot;
-    this->table[node->name].arg_count = node->arg_count;
+    this->table[node->name].arg_count = array_size(node->params);
     this->entry_point = this->dot;
     auto used = this->assemble(node->expression);
     if (used[0] == -1U) {
@@ -277,20 +277,25 @@ return_t Assembler::assemble_call(Parse::CallNode * node) {
             break;
         }
 
-    if (sym_entry.dot == (uint64_t)-1) 
+    if (sym_entry.dot == (uint64_t)-1) {
+        delete_array((struct Array *)node->arguments);
         Error("compiler (call node)", "function not found");
+    }
     
-    if (sym_entry.arg_count != node->args_size) 
+    if (sym_entry.arg_count != array_size(node->arguments)) {
+        delete_array((struct Array *)node->arguments);
         Error("compiler (call node)", "argument size mismatch");
+    }
     
-    for (uint8_t arg_counter = 30; arg_counter < 30 - node->args_size; --arg_counter) {
+    for (uint8_t arg_counter = 30; arg_counter < 30 - array_size(node->arguments); --arg_counter) {
 
         auto reg = this->request_register(false, arg_counter);
         if (reg == -1) {
+            delete_array((struct Array *)node->arguments);
             Error("compiler (call node)", "could not request register for argument");
             return {-1LU};
         }
-        this->assemble(node->args[30 - arg_counter]);
+        this->assemble((Parse::Node*)array_index(node->arguments, 30 - arg_counter));
     }
 
     auto return_reg = this->request_register();
@@ -301,6 +306,7 @@ return_t Assembler::assemble_call(Parse::CallNode * node) {
         this->append_instruction(VirtMac::LInstruction(VirtMac::auipc_instrc, return_reg, (offset >> 18)));
     this->append_instruction(VirtMac::SInstruction(VirtMac::jalr_instrc, return_reg, return_reg, (offset & ((1 << 18) - 1))));
     
+    delete_array((struct Array *)node->arguments);
     return {};
 }
 

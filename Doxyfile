@@ -1,7 +1,7 @@
 PROJECT_NAME           = "Zenith"
 PROJECT_NUMBER         = 0.0.1
 PROJECT_BRIEF          = "simple, small and fast "
-OUTPUT_DIRECTORY       = ./docs
+OUTPUT_DIRECTORY       = ./doxydocs
 SHORT_NAMES            = YES
 INPUT                  = include/
 FILE_PATTERNS          = *.c *.cc *.h *.hpp

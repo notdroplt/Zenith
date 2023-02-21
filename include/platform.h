@@ -1,15 +1,16 @@
+/**
+ * @file platform.h
+ * @author notdroplt (117052412+notdroplt@users.noreply.github.com)
+ * @brief defines platform specific
+ * @version 
+ * @date 2023-02-16
+ * 
+ * @copyright Copyright (c) 2023
+ * 
+ */
+
 #ifndef ZENITH_PLATFORM_H
 #define ZENITH_PLATFORM_H 1
-
-#ifdef _WIN32
-#ifdef shared_EXPORTS
-#define LIB_EXPORT __declspec(dllexport)
-#else
-#define LIB_EXPORT __declspec(dllimport)
-#endif
-#else
-#define LIB_EXPORT
-#endif
 
 #if defined(__linux__) || defined(__APPLE__) || defined(doxygen)
 #define Color_Red "\x1b[31m" //!< ANSI code for Red
@@ -29,20 +30,6 @@
 #define Color_Cyan ""
 #define Color_Bold ""
 #define Color_Reset ""
-#endif
-
-#ifdef __cplusplus
-/**
- * @brief defines C linkage
- *
- */
-#define CLink extern "C"
-#else
-/**
- * @brief defines C linkage
- *
- */
-#define CLink
 #endif
 
 #endif

@@ -1,51 +1,14 @@
 #include <types.h>
 #include <string.h>
 #include <stdlib.h>
-
+#include <time.h>
 struct HashMap {
 	uint64_t size; //!< entries in the map
 	uint64_t capacity; //!< maximum possible map size 
 	struct pair_t * pairs; //!< array of pairs
+	void * shkey; //!< spihash key
 };
 
-
-static uint8_t popcount(uint64_t n) {
-	uint8_t v = 0;
-	for (; n; n >>= 1) if (n & 1) ++v;
-	return v;
-}
-// hash 8-a-time w/ popcount
-uint64_t cstr_hash(const char * string) {
-	size_t size = strlen(string);
-	uint64_t hash = 0x49bf73d903ddeda3;
-
-	while (size % 8) {
-		hash ^= (*string << (size % 8)) * 37;
-		++string;
-		--size;
-	}
-
-	// putting the if statement outside makes so its done once
-	// not every iteration
-
-	register uint64_t var;
-	if (__builtin_cpu_supports ("popcnt"))
-		while (size) {
-			var = *(uint64_t *)string;
-			hash ^= (var * size) << __builtin_popcount(var ^ hash);
-			string += 8;
-			size -= 8;
-		}    
-	else 
-		while (size) {
-			var = *(uint64_t *)string;
-			hash ^= (var * size) << popcount(var ^ hash);
-			string += 8;
-			size -= 8;
-		}    
-
-	return hash;
-}
 /// reallocation happens in two situations:
 ///	1:	when the size of the buffer is going to be more than 
 ///		50% of the current size, to avoid  key collison
@@ -60,19 +23,27 @@ static int map_rebuffer (struct HashMap * map) {
 	for (size_t i = 0; i < map->capacity; i++)
 	{
 		if(!map->pairs[i].first) continue;
-		const uint64_t hashv = cstr_hash(map->pairs[i].first);
-		// keys that didn't collide before will not collide on rebuffering
+		const uint64_t hashv = (uint64_t)map->pairs[i].first;
 		entries[hashv % (map->capacity << 1)] = map->pairs[hashv % map->capacity];
 	}
 	
 	free(map->pairs);
 
 	map->pairs = entries;
+	map->capacity <<= 1;
 
 	return 0;
 }
 
 struct HashMap * create_map(uint64_t prealloc) {
+	static char key[16] = {0};
+
+	if (!*key) {
+		srand(time(NULL));
+		for (int i = 0; i < 16; i++)
+			key[i] = rand();
+	}
+
 	struct HashMap * map = calloc(1, sizeof(struct HashMap));
 	if (!map) return NULL;
 	if (!prealloc) prealloc = 32;
@@ -80,6 +51,8 @@ struct HashMap * create_map(uint64_t prealloc) {
 	map->capacity = prealloc;
 	map->size = 0;
 	map->pairs = calloc(prealloc, sizeof(struct pair_t));
+	map->shkey = key;
+
 	if (!map->pairs) {
 		free(map);
 		return NULL;
@@ -89,20 +62,40 @@ struct HashMap * create_map(uint64_t prealloc) {
 }
 
 int map_addi_key(struct HashMap * map, uint64_t key, void * value) {
-	if (map->pairs[key % map->capacity].first == NULL ||
-	    map->pairs[key % map->capacity].first == (void*)key) 
+	if (map->pairs[key % map->capacity].first == (void*)key) {
+		map->pairs[key % map->capacity].second = value;
+		return key;
+	}
+
+	++map->size;
+
+	if (map->pairs[key % map->capacity].first == NULL) 
 	{
 		map->pairs[key % map->capacity].first = (void*)key;
 		map->pairs[key % map->capacity].second = value;
 		return key;
 	}
 
-	while(map->pairs[key % map->capacity].first == NULL) {
-		if (map_rebuffer(map)) return 0;
+	while(map->pairs[key % map->capacity].first != NULL) {
+		if (map_rebuffer(map)) return -1;
 	}
 
 	map->pairs[key % map->capacity].first = (void *)key;
 	map->pairs[key % map->capacity].second = value;
-
 	return key;
+}
+
+int map_adds_key(struct HashMap * map, const char * key, void * value) {
+	return map_addi_key(map, siphash(key, strlen(key), map->shkey), value);
+}
+
+void delete_map(struct HashMap * map, deleter_func deleter) {
+	for (size_t i = 0; i < map->capacity; i++)
+	{
+		if(!map->pairs[i].first) continue;
+		if (deleter && map->pairs[i].second) deleter(map->pairs[i].second);
+	}
+
+	free(map->pairs);
+	free(map);
 }

@@ -109,6 +109,7 @@ int test_str_tok() {
 
     if (!code_string) {
         fputs("out of memory\n", stderr);
+        free(str);
         return 1;
     }
 
@@ -139,7 +140,7 @@ int test_str_tok() {
     free(code_string);
 
     free(str);
-    return 1;
+    return 0;
 }
 
 int main(int argc, char ** argv ) {
@@ -147,9 +148,9 @@ int main(int argc, char ** argv ) {
 
     if (argc < 2) return 1;
 
-    if(strcmp(argv[1], "int")) return test_int_tok();
-    if(strcmp(argv[1], "float")) return test_double_tok();
-    if(strcmp(argv[1], "str")) return test_str_tok();
+    if(strcmp(argv[1], "int") == 0) return test_int_tok();
+    if(strcmp(argv[1], "float") == 0) return test_double_tok();
+    if(strcmp(argv[1], "str") == 0) return test_str_tok();
     
     return 1;
 }

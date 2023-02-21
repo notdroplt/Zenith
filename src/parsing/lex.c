@@ -1,4 +1,5 @@
 #include <lex.h>
+#include <stdio.h>
 
 static char lexNext(struct lex_t *lex)
 {
@@ -23,17 +24,17 @@ static struct token_t lexString(struct lex_t *lex)
 {
 	size_t start = lex->position.index + 1; /* skip the first " */
 	struct token_t tok;
-	tok.type = TT_Unknown;
-
 	lexNext(lex);
 	while (lex->current_char != '"' && lex->current_char)
 		lexNext(lex);
 	
-
 	lexNext(lex);
 
 	if (!lex->current_char)
 	{
+		tok.type = TT_Unknown;
+		tok.string.size = 0;
+		tok.string.string = NULL;
 		return tok; /* lexer silently dies*/
 	}
 
@@ -83,10 +84,14 @@ static struct token_t lexNumber(struct lex_t *lex)
 	int dot = 0;
 	tok.string.string = lex->content + lex->position.index;
 	tok.string.size = 0;
+
+	tok.type = TT_Unknown;
 	do
 	{
-		if (lex->current_char == '.' && dot)
-			return tok;
+		if (lex->current_char == '.' && dot){
+			tok.type = TT_Unknown;
+			tok.integer = 0;
+		}
 		else if (lex->current_char == '.')
 			dot = 1;
 
@@ -111,10 +116,12 @@ static struct token_t lexNewToken(struct lex_t *lex, enum TokenTypes val)
 {
 	struct token_t tok;
 	tok.type = val;
+	tok.keyword = KW_Unknown;
+	tok.string.size = 0;
+	tok.string.string = NULL;
 	lexNext(lex);
 	return tok;
 }
-#include <stdio.h>
 int strvcmp(const struct string_t s1, const char *s2)
 {
 	size_t i = 0;
@@ -165,6 +172,7 @@ static struct token_t lexIdentifier(struct lex_t *lex)
 		}
 	
 
+	tok.integer = 0;
 	return tok;
 }
 
@@ -189,9 +197,8 @@ static struct token_t lexCompare(struct lex_t *lex, char c, enum TokenTypes valu
 static struct token_t lexEqual(struct lex_t *lex)
 {
 	struct token_t tok;
-	tok.type = TT_Equal;
 	lexNext(lex);
-
+	tok.type = TT_Unknown;
 	if (lex->current_char == '=')
 	{
 		tok.type = TT_CompareEqual;
@@ -235,6 +242,8 @@ static struct token_t lexRepeat(struct lex_t *lex, enum TokenTypes type, char c)
 struct token_t getNextToken(struct lex_t *lex)
 {
 	struct token_t tok;
+	tok.integer = 0;
+	tok.type = TT_Unknown;
 	switch (lex->current_char)
 	{
 	case '\0':
