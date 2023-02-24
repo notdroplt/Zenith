@@ -89,6 +89,14 @@ int map_adds_key(struct HashMap * map, const char * key, void * value) {
 	return map_addi_key(map, siphash(key, strlen(key), map->shkey), value);
 }
 
+struct pair_t *map_getkey_i(const struct HashMap * map, const uint64_t key) {
+	return &map->pairs[key % map->capacity];
+}
+
+struct pair_t *map_getkey_s(const struct HashMap * map, const char * key) {
+	return &map->pairs[siphash(key, strlen(key), map->shkey) % map->capacity];
+}
+
 void delete_map(struct HashMap * map, deleter_func deleter) {
 	for (size_t i = 0; i < map->capacity; i++)
 	{

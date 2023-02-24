@@ -16,6 +16,7 @@
 #include <stddef.h>
 #include <ctype.h>
 #include <string.h>
+#include <platform.h>
 
 /**
  * @enum TokenTypes
@@ -137,16 +138,6 @@ struct lex_t
 	char current_char;	   /*!< current cursor char*/
 };
 
-/**
- * @brief a c string_view object
- *
- * Size : 16 bytes
- */
-struct string_t
-{
-	size_t size;  //!< string size */
-	char *string; /*!< string pointer */
-};
 
 /**
  * @brief defines a struct that carries tokens

@@ -9,6 +9,9 @@
  *
  */
 
+#pragma once
+#ifndef ZENITH_NODES_H
+#define ZENITH_NODES_H 1
 #include "lex.h"
 #include "types.h"
 #include <stdbool.h>
@@ -582,3 +585,5 @@ node_pointer create_tasknode(struct Array *array);
  * @param node
  */
 void delete_node(struct Node *node);
+
+#endif

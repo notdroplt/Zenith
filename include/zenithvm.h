@@ -9,8 +9,9 @@
  *
  */
 
-#ifndef _virtual_machine_h
-#define _virtual_machine_h 1
+#pragma once
+#ifndef ZENITH_VIRTUAL_MACHINE_H
+#define ZENITH_VIRTUAL_MACHINE_H 1
 
 #include "platform.h"
 #include <stdint.h>
@@ -19,10 +20,6 @@
 #include <stddef.h>
 #include <string.h>
 
-//! @cond Doxygen_Suppress
-#define CONCAT_IMPL(x, y) x##y // this is just for macro concatenation, its nothing too much    
-#define MACRO_CONCAT(x, y) CONCAT_IMPL(x, y)
-//! @endcond
 
 
 /**

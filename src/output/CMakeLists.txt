@@ -1,1 +1,1 @@
-add_library(output elf.c ihex.c)
+add_library(output zrf.c ihex.c)

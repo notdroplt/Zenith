@@ -1,6 +1,8 @@
+#pragma once
 #ifndef ZENITH_TYPES_H
 #define ZENITH_TYPES_H 1
 
+#include "platform.h"
 #include <stdint.h>
 #include <stddef.h>
 /* default: SipHash-2-4 */
@@ -192,6 +194,39 @@ int map_addi_key(struct HashMap * map, uint64_t key, void * value);
  * @returns -1 on fail, key value on success
  */
 int map_adds_key(struct HashMap * map, const char * key, void * value);
+
+/**
+ * @brief adds a string_t key into the map
+ * 
+ * @param [in,out] map map to add key
+ * @param key key to index
+ * @param [in] value to be added
+ *  
+ * @returns -1 on fail, key value on success
+ */
+int map_addss_key(struct HashMap * map, struct string_t key, void * value);
+
+/**
+ * @brief get a key:value from a map, using an integer
+ * 
+ * @param [in] map map to be keyed
+ * @param key key to fetch
+ * 
+ * @returns pointer to pair, will never return a null pointer but
+ * can return a reference to a 0:0 pair
+*/
+struct pair_t *map_getkey_i(const struct HashMap * map, const uint64_t key);
+
+/**
+ * @brief get a key:value from a map, using a string
+ * 
+ * @param [in] map map to be keyed
+ * @param key key to fetch
+ * 
+ * @returns pointer to pair, will never return a null pointer but
+ * can return a reference to a 0:0 pair
+*/
+struct pair_t *map_getkey_s(const struct HashMap * map, const char * key);
 
 /**
  * @brief deletes map and its entries
