@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.21.0)
 
+SET (CMAKE_C_COMPILER             "/usr/bin/gcc")
+
 project(zenith LANGUAGES C CXX)
 
 # default build type

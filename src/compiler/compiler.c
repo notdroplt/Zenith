@@ -45,8 +45,8 @@ static int32_t request_register(struct Assembler * assembler, bool descending, i
     
     if (next_reg != -1 && assembler->registers & (1 << next_reg)) {
         // get pre-reserved register
-        assembler->registers |= 1 << set_next;
-        return set_next;
+        assembler->registers |= 1 << next_reg;
+        return next_reg;
     }
 
     if (!descending) {
