@@ -18,7 +18,7 @@ endif()
 if (CMAKE_BUILD_TYPE EQUAL "Release")
 add_compile_options(-D_FORTIFY_SOURCE=1)
 endif()
-add_compile_options(-Wall -Wextra -pedantic -Werror -fanalyzer)
+add_compile_options(-Wall -Wextra -pedantic -Werror -fanalyzer -fanalyzer-verbosity=3) 
 
 enable_testing()
 
