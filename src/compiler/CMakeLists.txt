@@ -1,1 +1,1 @@
-add_library(compiler compiler.cc registers.cc)
+add_library(compiler compiler.c)

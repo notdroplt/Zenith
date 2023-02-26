@@ -10,26 +10,62 @@
  */
 #pragma once
 #ifndef ZENITH_COMPILER_H
-#include
+#include <stdbool.h>
 
+#include "nodes.h"
+#include "zenithvm.h"
 #include "platform.h"
 #include "types.h"
 
-
-enum register_status {
-    reg_trashed = 0,
-    reg_used = 1
+/**
+ * @brief defines statuses for registers, which can either be:
+ *
+ * 0 -> trashed, means its not being used, but value is unknown
+ * 1 -> used, somewhere in the code that register is being used
+ *
+ */
+enum register_status
+{
+    reg_trashed = 0, /*!< trashed status */
+    reg_used = 1     /*!< used status */
 };
 
-struct Assembler {
-    struct Array * parsed_nodes;
-    struct HashMap * table;
-    struct List * instructions;
-    uint64_t dot;
-    uint64_t root_index;
-    uint64_t entry_point;
+/**
+ * @brief defines a struct which will be resposible for assembling the nodes
+ *
+ * assembling right now is just traversing a tree and returning the instructions
+ * to perform those actions, there is still need to implement an optimizer and a
+ * type checker, which will be done later
+ */
+struct Assembler
+{
+    const struct Array *parsed_nodes; /*!< array of nodes that have been parsed */
+    struct HashMap *table;            /*!< table of elements */
+    struct List *instructions;        /*!< compiled instructions */
+    uint64_t dot;                     /*!< current offset in the file */
+    uint64_t root_index;              /*!< how many root nodes have been parsed */
+    uint64_t entry_point;             /*!< where should the code start */
+    uint32_t registers;               /*!< register status */
 };
 
-struct Assembler * create_assembler(struct Array * parsed_nodes)
+/**
+ * @brief generate the assembler struct
+ *
+ * @param [in] parsed_nodes nodes already parsed (and futurely also optimized)
+ * @return assembler struct
+ *
+ */
+struct Assembler *create_assembler(const struct Array *parsed_nodes);
+
+/**
+ * @brief translates a compiling unit (a file)
+ *
+ * @param [in, out] assembler assembler struct
+ *
+ * @return array of instructions
+ *
+ * Complexity: unpredictable (depends on every node traversing complexity)
+ */
+struct Array *translate_unit(struct Assembler *assembler);
 
 #endif

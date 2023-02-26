@@ -97,6 +97,10 @@ struct pair_t *map_getkey_s(const struct HashMap * map, const char * key) {
 	return &map->pairs[siphash(key, strlen(key), map->shkey) % map->capacity];
 }
 
+struct pair_t *map_getkey_ss(const struct HashMap * map, const struct string_t key) {
+	return &map->pairs[siphash(key.string, key.size, map->shkey) % map->capacity];
+}
+
 void delete_map(struct HashMap * map, deleter_func deleter) {
 	for (size_t i = 0; i < map->capacity; i++)
 	{

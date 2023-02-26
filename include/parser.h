@@ -4,6 +4,13 @@
 #include "nodes.h"
 #include "types.h"
 
+/**
+ * @brief struct necessary to generate syntax trees
+ * 
+ * the parser is responsible for transforming written text into a
+ * structure that is easier for the compiler to understand, and those
+ * are trees 
+*/
 struct Parser {
 	struct token_t current_token;
 	struct pos_t current_position;

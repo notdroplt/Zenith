@@ -27,8 +27,8 @@ struct Parser* create_parser(const char * filename){
 	}
 
 	if(fread(content, sizeof(char), size, fp) != size) {
-		fclose(fp);
 		fprintf(stderr, "could not read '%s'\n", filename);
+		fclose(fp);
 		goto parser_destructor_content;
 	}
 

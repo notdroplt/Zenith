@@ -21,7 +21,7 @@
 /**
  * @enum TokenTypes
  * @brief All possible token types
- * <br>
+ * 
  * size : 1 byte
  */
 
@@ -98,6 +98,12 @@ enum KeywordTypes
 
 };
 
+/**
+ * @enum DomainTypes
+ * @brief type for domain definitions
+ * 
+ * size: 1 byte
+*/
 enum DomainTypes
 {
 	DM_byte,  /*!< 1 byte:  N ∩ [0, 2⁸)  */

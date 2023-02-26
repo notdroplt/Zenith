@@ -34,6 +34,12 @@ int array_copy_ptr(struct Array * arr, void ** ptr, uint64_t size ){
     return 0;
 }
 
+int32_t array_find(const struct Array * arr, const void * cmp, comparer_func comp) {
+    for (size_t i = 0; i < arr->size; ++i)
+        if (!comp(arr->ptr[i], cmp)) return i;
+    return -1;    
+    
+}
 
 void delete_array(struct Array * arr, deleter_func deleter) {
     if (!deleter) {

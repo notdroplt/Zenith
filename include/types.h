@@ -42,6 +42,11 @@ struct List;
  */
 typedef void (*deleter_func)(void *);
 
+/**
+ * @brief a function that compares two objects
+ * 
+*/
+typedef int (*comparer_func)(const void * v1, const void * v2);
 
 /**
  * @brief creates an array with defined size
@@ -83,6 +88,19 @@ void array_set_index(struct Array * arr, const uint64_t index, void * value);
  */
 uint32_t array_size(const struct Array * arr);
 
+/**
+ * @brief finds an item in the array
+ * 
+ * Complexity: Linear 
+ * 
+ * @param [in] arr array that will be searched
+ * @param val value to be compared 
+ * @param [in] comp a comparision function that returns 0 when both values are equal and non-zero when they are different
+ * 
+ * @returns -1 if not found
+ * @returns index if found
+*/
+int32_t array_find(const struct Array * arr, const void * val, comparer_func comp);
 
 /**
  * @brief copies like memcpy
@@ -209,7 +227,7 @@ int map_addss_key(struct HashMap * map, struct string_t key, void * value);
 /**
  * @brief get a key:value from a map, using an integer
  * 
- * @param [in] map map to be keyed
+ * @param [in] map map to be fetch
  * @param key key to fetch
  * 
  * @returns pointer to pair, will never return a null pointer but
@@ -220,13 +238,18 @@ struct pair_t *map_getkey_i(const struct HashMap * map, const uint64_t key);
 /**
  * @brief get a key:value from a map, using a string
  * 
- * @param [in] map map to be keyed
+ * @param [in] map map to be fetch
  * @param key key to fetch
  * 
  * @returns pointer to pair, will never return a null pointer but
  * can return a reference to a 0:0 pair
 */
 struct pair_t *map_getkey_s(const struct HashMap * map, const char * key);
+
+/**
+ * @brief get a key:value from a map
+*/
+struct pair_t *map_getkey_ss(const struct HashMap * map, const struct string_t key);
 
 /**
  * @brief deletes map and its entries
