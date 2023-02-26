@@ -40,6 +40,7 @@ static int32_t request_register(struct Assembler * assembler, bool descending, i
     if (set_next != -1) {
         next_reg = set_next;
         // compiler can then check if register is free
+        if (set_next < 0) return -1;
         return assembler->registers & (1 << set_next);
     }
     
