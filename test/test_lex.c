@@ -48,8 +48,8 @@ int test_int_tok() {
         return 1;
     }
 
-    if (tok.integer != number) {
-        fprintf(stderr, "[lex int] expected value to be %d but lexer returned %d\n", number,(uint32_t)tok.integer);
+    if (tok.val.integer != number) {
+        fprintf(stderr, "[lex int] expected value to be %d but lexer returned %d\n", number,(uint32_t)tok.val.integer);
         return 1;
     }
 
@@ -87,8 +87,8 @@ int test_double_tok() {
         return 1;
     }
     // junky "near equal" for decimal point numbers
-    if ((int64_t)(tok.number/1) != (int64_t)(number/1)) {
-        fprintf(stderr, "[lex double] expected value to be %lf but lexer returned %lf\n", number, tok.number);
+    if ((int64_t)(tok.val.number/1) != (int64_t)(number/1)) {
+        fprintf(stderr, "[lex double] expected value to be %lf but lexer returned %lf\n", number, tok.val.number);
         return 1;
     }
 

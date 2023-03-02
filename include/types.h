@@ -130,7 +130,7 @@ void delete_array(struct Array* array, deleter_func deleter);
  * Complexy: depends on malloc
  * 
  */
-struct List * create_list();
+struct List * create_list(void);
 
 /**
  * @brief appends an item to a list
@@ -165,8 +165,8 @@ void delete_list(struct List * list, deleter_func deleter);
  * 
  */
 struct pair_t {
-	void * first; //!< first value (key)
-	void * second; //!< second value (value)
+	void * first; /*!< first value (key) */
+	void * second; /*!< second value (value) */
 };
 
 /**
@@ -258,5 +258,6 @@ struct pair_t *map_getkey_ss(const struct HashMap * map, const struct string_t k
  * @param [in] deleter deleter function that is called on values
  */
 void delete_map(struct HashMap * map, deleter_func deleter);
-/*!< @} */ // end of group 
+
+/*!< @} */ /* end of group */
 #endif

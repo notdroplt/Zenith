@@ -90,7 +90,7 @@ static struct token_t lexNumber(struct lex_t *lex)
 	{
 		if (lex->current_char == '.' && dot){
 			tok.type = TT_Unknown;
-			tok.integer = 0;
+			tok.val.integer = 0;
 		}
 		else if (lex->current_char == '.')
 			dot = 1;
@@ -102,12 +102,12 @@ static struct token_t lexNumber(struct lex_t *lex)
 	if (dot)
 	{
 		tok.type = TT_Double;
-		tok.number = strtod(tok.string);
+		tok.val.number = strtod(tok.string);
 	}
 	else
 	{
 		tok.type = TT_Int;
-		tok.integer = strtoi(tok.string);
+		tok.val.integer = strtoi(tok.string);
 	}
 	return tok;
 }
@@ -116,7 +116,7 @@ static struct token_t lexNewToken(struct lex_t *lex, enum TokenTypes val)
 {
 	struct token_t tok;
 	tok.type = val;
-	tok.keyword = KW_Unknown;
+	tok.val.keyword = KW_Unknown;
 	tok.string.size = 0;
 	tok.string.string = NULL;
 	lexNext(lex);
@@ -159,7 +159,7 @@ static struct token_t lexIdentifier(struct lex_t *lex)
 		if (strvcmp(tok.string, keywords[i]) == 0)
 		{
 			tok.type = TT_Keyword;
-			tok.keyword = i;
+			tok.val.keyword = i;
 			return tok;
 		}
 
@@ -167,12 +167,12 @@ static struct token_t lexIdentifier(struct lex_t *lex)
 		if (strvcmp(tok.string, domains[i]) == 0)
 		{
 			tok.type = TT_Domain;
-			tok.keyword = i;
+			tok.val.keyword = i;
 			break;
 		}
 	
 
-	tok.integer = 0;
+	tok.val.integer = 0;
 	return tok;
 }
 
@@ -217,6 +217,7 @@ static struct token_t lexNot(struct lex_t *lex)
 	struct token_t tok;
 
 	lexNext(lex);
+	tok.type = TT_Not;
 	if (lex->current_char == '=')
 	{
 		tok.type = TT_NotEqual;
@@ -242,7 +243,7 @@ static struct token_t lexRepeat(struct lex_t *lex, enum TokenTypes type, char c)
 struct token_t getNextToken(struct lex_t *lex)
 {
 	struct token_t tok;
-	tok.integer = 0;
+	tok.val.integer = 0;
 	tok.type = TT_Unknown;
 	switch (lex->current_char)
 	{

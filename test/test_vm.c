@@ -83,7 +83,7 @@ void test_debugger(struct thread_t * thread) {
     if((status = test_memory_set(thread))) return;
 }
 
-int main() {
+int main(void) {
     run(NULL, 0, NULL, test_debugger);
     return status;    
 }

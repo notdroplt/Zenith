@@ -59,7 +59,7 @@
  * 
  * @return int 
  */
- int load_dotenv();
+ int load_dotenv(void);
 
 /**
  * @brief defines a type for the verbose printf function
@@ -74,6 +74,5 @@ typedef int (*verbose_printf)(const char * format_string, ...);
  * 
  */
 extern verbose_printf vrprintf;
-
 
 #endif

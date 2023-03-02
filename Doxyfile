@@ -10,7 +10,7 @@ HTML_OUTPUT            = .
 GENERATE_TREEVIEW      = YES
 SEARCHENGINE           = NO
 GENERATE_LATEX         = NO
-HAVE_DOT               = YES
+# HAVE_DOT               = YES
 TEMPLATE_RELATIONS     = YES
 DOT_IMAGE_FORMAT       = svg
 INTERACTIVE_SVG        = YES
@@ -20,4 +20,5 @@ DOT_MULTI_TARGETS      = YES
 # HTML_EXTRA_STYLESHEET  = ./doxygen_css/doxygen-awesome.css
 MACRO_EXPANSION        = YES 
 EXPAND_ONLY_PREDEF     = YES 
+PREDEFINED             = __attribute__(x)=
 PREDEFINED             = doxygen 

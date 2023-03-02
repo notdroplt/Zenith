@@ -44,6 +44,11 @@ enum NodeTypes
 	Task						/*!< Task nodes */
 };
 
+/**
+ * @brief define a basic struct for node types, which can be casted
+ * from and to another nodes, depending on `type`
+ * 
+ */
 struct Node
 {
 	enum NodeTypes type; /*!< current node @ref NodeTypes "type" */
@@ -99,7 +104,7 @@ node_pointer create_intnode(const uint64_t value);
 /**
  * @brief Constructs a number node, from a double
  *
- * @param value_ node value
+ * @param value node value
  *
  * Complexity: depends on `malloc`
  */
@@ -121,7 +126,7 @@ node_pointer create_doublenode(const double value);
 struct StringNode
 {
 	struct Node base;	   /*!< base node */
-	struct string_t value; //!< string value
+	struct string_t value; /*!< string value */
 };
 
 /**
@@ -168,9 +173,9 @@ node_pointer create_stringnode(struct string_t value, const enum NodeTypes type)
  */
 struct UnaryNode
 {
-	struct Node base;	   //!< base node
-	node_pointer value;	   //!< main node value
-	enum TokenTypes token; //!< unary operation token
+	struct Node base;	   /*!< base node */
+	node_pointer value;	   /*!< main node value */
+	enum TokenTypes token; /*!< unary operation token */
 };
 
 /**
@@ -205,10 +210,10 @@ node_pointer create_unarynode(const node_pointer value, const enum TokenTypes to
  */
 struct BinaryNode
 {
-	struct Node base;	   //!< base node
-	node_pointer left;	   //!< left node value
-	node_pointer right;	   //!< right node value
-	enum TokenTypes token; //!< binary token
+	struct Node base;	   /*!< base node */
+	node_pointer left;	   /*!< left node value */
+	node_pointer right;	   /*!< right node value */
+	enum TokenTypes token; /*!< binary token */
 };
 
 /**
@@ -251,10 +256,10 @@ node_pointer create_binarynode(node_pointer left, const enum TokenTypes token, n
  */
 struct TernaryNode
 {
-	struct Node base;
-	node_pointer condition; //!< conditional node
-	node_pointer trueop;	//!< true node, node value in case @ref condition evaluates to true
-	node_pointer falseop;	//!< false node, node value in case @ref condition evaluates to fasle
+	struct Node base;		/*!< base node*/
+	node_pointer condition; /*!< conditional node */
+	node_pointer trueop;	/*!< true node, node value in case @ref condition evaluates to true */
+	node_pointer falseop;	/*!< false node, node value in case @ref condition evaluates to fasle */
 };
 
 /**
@@ -286,9 +291,9 @@ node_pointer create_ternarynode(node_pointer condition, node_pointer true_op, no
  */
 struct ExpressionNode
 {
-	struct Node base;
-	struct string_t name; //!< expression name
-	node_pointer value;	  //!< expression value
+	struct Node base;		/*!< base node*/
+	struct string_t name;	/*!< expression name */
+	node_pointer value;		/*!< expression value */
 };
 
 /**
@@ -320,15 +325,14 @@ node_pointer create_expressionnode(struct string_t name, node_pointer value);
  */
 struct ListNode
 {
-	struct Node base;
-	struct Array *nodes; // array of node pointers
+	struct Node base;	 /*!< base node*/
+	struct Array *nodes; /*!< array of node pointers */
 };
 
 /**
  * @brief Construct a new List Node object
  *
- * @param [in] args_ list of elements in the list
- * @param node_count amount of nodes pointed by `args_`
+ * @param node_array array of elements
  * Complexity: depends on `malloc`
  */
 node_pointer create_listnode(struct Array *node_array);
@@ -353,9 +357,9 @@ node_pointer create_listnode(struct Array *node_array);
 
 struct CallNode
 {
-	struct Node base;
-	struct Array *arguments; //!< array of arguments
-	node_pointer expr;		 //!< expression to call / index
+	struct Node base;		 /*!< base node */
+	struct Array *arguments; /*!< array of arguments */
+	node_pointer expr;		 /*!< expression to call / index */
 };
 
 /**
@@ -391,9 +395,9 @@ node_pointer create_callnode(node_pointer expr, struct Array *arg_array, const e
  */
 struct SwitchNode
 {
-	struct Node base;
-	struct Array *cases; //!< array of cases
-	node_pointer expr;	 //!< switch expression
+	struct Node base;	 /*!< base node */
+	struct Array *cases; /*!< array of cases */
+	node_pointer expr;	 /*!< switch expression */
 };
 
 /**
@@ -429,10 +433,10 @@ node_pointer create_switchnode(node_pointer expr, struct Array *cases);
  */
 struct LambdaNode
 {
-	struct Node base;
-	struct Array *params;	 //!< function parameters
-	struct string_t name;	 //!< function name
-	node_pointer expression; //!< function expression
+	struct Node base;		 /*!< base node */
+	struct Array *params;	 /*!< function parameters */
+	struct string_t name;	 /*!< function name */
+	node_pointer expression; /*!< function expression */
 };
 
 /**
@@ -472,9 +476,9 @@ node_pointer create_lambdanode(struct string_t name, node_pointer expression, st
  */
 struct DefineNode
 {
-	struct Node base;
-	node_pointer cast;	  //!< node that type is casted to
-	struct string_t name; //!< type name
+	struct Node base;		/*!< base node */
+	node_pointer cast;		/*!< node that type is casted to */
+	struct string_t name;	/*!< type name */
 };
 
 /**
@@ -508,16 +512,16 @@ node_pointer create_definenode(struct string_t name, node_pointer cast);
  */
 struct IncludeNode
 {
-	struct Node base;
-	struct string_t fname; //!< the file name
-	bool binary;		   //!< test to see if it is a binary or a normal file
+	struct Node base;		/*!< node base*/
+	struct string_t fname;	/*!< the file name */
+	bool binary;			/*!< test to see if it is a binary or a normal file */
 };
 
 /**
  * @brief Construct a new Include Node object
  *
  * @param fname file name
- * @param isLib check if it is a binary library
+ * @param binary check if it is a binary library
  *
  * Complexity: depends on `malloc`
  */
@@ -540,9 +544,9 @@ node_pointer create_includenode(struct string_t fname, bool binary);
  */
 struct ScopeNode
 {
-	struct Node base;
-	node_pointer parent; //!< node that holds the scope
-	node_pointer child;	 //!< node that is going to be get from the scope
+	struct Node base; /*!< base node */
+	node_pointer parent; /*!< node that holds the scope */
+	node_pointer child;	 /*!< node that is going to be get from the scope */
 };
 
 /**
@@ -565,15 +569,15 @@ node_pointer create_scopenode(node_pointer parent, node_pointer child);
 struct TaskNode
 {
 	struct Node base;
-	//!< TODO: actually implement as a unordered multimap, so tasks don't
-	//!< need to be synchronized and follow what the programmer wrote
-	struct Array *tasks; //!< tasks to do
+	/*!< TODO: actually implement as a unordered multimap, so tasks don't
+		 need to be synchronized and follow what the programmer wrote */
+	struct Array *tasks; /*!< tasks to do */
 };
 
 /**
  * @brief Construct a new Task Node object
  *
- * @param task_list list of nodes
+ * @param array list of nodes
  *
  * Complexity: depends on `malloc`
  */

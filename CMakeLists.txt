@@ -20,17 +20,13 @@ endif()
 if (CMAKE_BUILD_TYPE EQUAL "Release")
 add_compile_options(-D_FORTIFY_SOURCE=1)
 endif()
-add_compile_options(-Wall -Wextra -pedantic -Werror -fanalyzer -fanalyzer-verbosity=3) 
+add_compile_options(-Wall -Wextra -pedantic -Werror -fanalyzer) 
 
 enable_testing()
 
 include_directories(src include)
 
-set_property(GLOBAL PROPERTY C_STANDARD 99)
-set_property(GLOBAL PROPERTY CXX_STANDARD 14)
 
-set(CMAKE_C_EXTENSIONS OFF)
-set(CMAKE_C_STANDARD_REQUIRED ON)
 
 # include actual code
 add_subdirectory(src/debugger)
@@ -40,11 +36,14 @@ add_subdirectory(src/compiler)
 add_subdirectory(src/output)
 add_subdirectory(src/dotenv)
 add_subdirectory(src/types)
- 
+
 # add test suits
 add_subdirectory(test)
 
 add_executable(zenith src/main.c)
+set(CMAKE_C_EXTENSIONS OFF)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+set_property(TARGET zenith PROPERTY C_STANDARD 99) 
 
 # link libraries
 target_link_libraries(zenith PRIVATE vm debugger parse compiler output dotenv types)

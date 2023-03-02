@@ -231,9 +231,9 @@ static return_t assemble_identifier(struct Assembler * assembler, const struct S
         return 30 - array_find(((struct table_entry*)entry->second)->names, &node->value, (comparer_func)sstrcmp);
     }
 
-    return -1U;
-    
+    return -1U;    
 }
+
 
 static return_t assemble_lambda(struct Assembler * assembler, const struct LambdaNode * node) {
     struct List * args = create_list();

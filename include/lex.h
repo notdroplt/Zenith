@@ -151,12 +151,12 @@ struct lex_t
  */
 struct token_t
 {
-	union
+	union values
 	{
-		double number;			   /*!< decimal numbers */
-		uint64_t integer;		   /*!< integer numbers */
-		enum KeywordTypes keyword; /*!< language keywords */
-	};
+		double number;				/*!< decimal numbers */
+		uint64_t integer;			/*!< integer numbers */
+		enum KeywordTypes keyword;	/*!< language keywords */
+	} val;							/*!< possible values */		
 	struct string_t string; /*!< strings or identifiers */
 	enum TokenTypes type;	/*!< specify token type */
 };

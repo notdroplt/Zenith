@@ -5,4 +5,4 @@
 build/*
 .cache/*
 # while documentation isn't completed, its better not to put it in the repo and make people make it themselves
-docs/*
+doxydocs/*

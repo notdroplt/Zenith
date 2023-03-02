@@ -22,12 +22,12 @@ typedef uint64_t zst_hash_t;   /*!< name hash */
  */
 enum zst_section_flags
 {
-    sec_read = 1,    //!< section can be read to
-    sec_write = 2,   //!< section can be written to
-    sec_execute = 4, //!< section can be executed
-    sec_zero = 8,    //!< section needs zero'd memory
-    sec_copy = 16,   //!< section needs to be copied to memory
-    sec_noop = 32    //!< section isn't loaded
+    sec_read = 1,    /*!< section can be read to */
+    sec_write = 2,   /*!< section can be written to */
+    sec_execute = 4, /*!< section can be executed */
+    sec_zero = 8,    /*!< section needs zero'd memory */
+    sec_copy = 16,   /*!< section needs to be copied to memory */
+    sec_noop = 32    /*!< section isn't loaded */
 };
 
 /**
@@ -68,7 +68,7 @@ struct zst_section_t
 enum target_architecture
 {
     zst_target_invalid,
-    zst_target_zenithvm,
+    zst_target_zenithvm
 };
 
 /**
@@ -90,25 +90,25 @@ enum target_expects
 
 struct zst_header_t
 {
-    uint32_t magic;
+    uint32_t magic; /*!< file magic*/
     struct
     {
-        uint8_t major;
-        uint8_t minor;
-    } version;
+        uint8_t major; /*!< major file version */
+        uint8_t minor; /*!< minor file version */
+    } version; /*!< current file version (does not refer to the compiler version) */
 
-    enum target_expects expectations;
+    enum target_expects expectations; /*!< bitfield with compiler expectations */
 
     struct
     {
-        uint64_t clock_speed;
-        uint64_t ram_size;
-        uint64_t rom_size;
-        uint64_t stack_depth;
-    } expect;
+        uint64_t clock_speed; /*!< expected clock speed (in Hz) */
+        uint64_t ram_size; /*!< expected ram size (in bytes) */
+        uint64_t rom_size; /*!< expected rom size (in bytes) */
+        uint64_t stack_depth; /*!< stack depth value (counted) */
+    } expect; /*!< value of the compiler expectations */
 
-    zst_offset_t entry_point;
-    zst_count_t entries;
+    zst_offset_t entry_point; /*!< entry point (on physical memory)*/
+    zst_count_t entries; /*!< count of entries on the file*/
 };
 
 #define ZSF_HEADER_MAG 0x0046485A

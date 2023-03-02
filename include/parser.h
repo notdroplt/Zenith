@@ -12,20 +12,27 @@
  * are trees 
 */
 struct Parser {
-	struct token_t current_token;
-	struct pos_t current_position;
-	struct lex_t lexer;
+	struct token_t current_token; 	/*!< current parsed token*/
+	struct pos_t current_position; 	/*!< current parser position */
+	struct lex_t lexer;				/*!< lexer config struct */
 
-	struct List * strings;
-	struct List * symbols;
-	struct HashMap * table;
+	struct List * strings;	/*!< define data strings */
+	struct List * symbols; 	/*!< define identifier strings */
+	struct HashMap * table; /*!< define table of symbols*/
 
-	const char * filename;
-	uint32_t filesize;
-	bool sucessfull;
+	const char * filename; 	/*!< define current file name */
+	uint32_t filesize; 		/*!< define current file size*/
+	bool sucessfull; 		/*!< defines if the compilation was successfull */
 };
 
+/**
+ * @brief Create a parser object
+ * 
+ * @param filename file to parse
+ * @return struct Parser* parser struct
+ */
 struct Parser* create_parser(const char * filename);
+
 void delete_parser(struct Parser * parser);
 
 struct Array* translate_unit(struct Parser * parser);

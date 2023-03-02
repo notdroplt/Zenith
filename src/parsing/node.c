@@ -1,5 +1,6 @@
 #include <nodes.h>
 #include <stdlib.h>
+#include <optimizing.h>
 
 struct Node create_node(const enum NodeTypes type, const bool isconst) {
     return (struct Node){
@@ -33,29 +34,36 @@ node_pointer create_doublenode(const double value) {
 }
 
 node_pointer create_stringnode(struct string_t value, const enum NodeTypes type) {
-    struct StringNode * node = malloc(sizeof(struct StringNode));
-    if (!node) return NULL;
-    *node = (struct StringNode) {
-        .base = create_node(type, false),
-        .value = value
-    };
+	struct StringNode * node = malloc(sizeof(struct StringNode));
+	if (!node) return NULL;
+	
+	*node = (struct StringNode) {
+		.base = create_node(type, false),
+		.value = value
+    	};
 
-    return (node_pointer)node;
+	return (node_pointer)node;
 }
 
-node_pointer create_unarynode(const node_pointer value, const enum TokenTypes token){
-    struct UnaryNode * node = malloc(sizeof(struct UnaryNode));
-    if (!node) return NULL;
-    *node = (struct UnaryNode) {
-        .base = create_node(Unary, value->isconst),
-        .token = token,
+node_pointer create_unarynode(node_pointer value, const enum TokenTypes token){
+	
+	node_pointer node = optimized_unarynode(value, token);
+    if (node) return node;
+    
+    node = malloc(sizeof(struct UnaryNode));
+	if (!node) return NULL;
+	
+	*(struct UnaryNode *)node = (struct UnaryNode) {
+		.base = create_node(Unary, value->isconst),
+		.token = token,
         .value = value
-    };
+	};
 
-    return (node_pointer)node;
+	return (node_pointer)node;
 }
 
 node_pointer create_binarynode(node_pointer left, const enum TokenTypes token, node_pointer right){
+
     struct BinaryNode * node = malloc(sizeof(struct BinaryNode));
     if (!node) return NULL;
     *node = (struct BinaryNode) {
@@ -69,6 +77,8 @@ node_pointer create_binarynode(node_pointer left, const enum TokenTypes token, n
 }
 
 node_pointer create_ternarynode(node_pointer condition, node_pointer true_op, node_pointer false_op){
+    
+
     struct TernaryNode * node = malloc(sizeof(struct TernaryNode));
     if(!node) return NULL;
     *node = (struct TernaryNode) {

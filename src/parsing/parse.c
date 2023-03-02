@@ -94,8 +94,8 @@ static node_pointer parse_number(struct Parser * parser) {
 	parse_next(parser);
 
 	if (token.type == TT_Int)
-		return create_intnode(token.integer);
-	return create_doublenode(token.number);
+		return create_intnode(token.val.integer);
+	return create_doublenode(token.val.number);
 }
 
 static node_pointer parse_string(struct Parser * parser, enum TokenTypes type) {
@@ -186,9 +186,9 @@ static node_pointer parse_switch (struct Parser * parser) {
 		return NULL;
 	}
 
-	while(parser->current_token.keyword != KW_end) {
+	while(parser->current_token.val.keyword != KW_end) {
 		node_pointer case_expr, case_return;
-		if (parser->current_token.type != TT_Colon && parser->current_token.keyword != KW_default) {
+		if (parser->current_token.type != TT_Colon && parser->current_token.val.keyword != KW_default) {
 			parser_error(parser, "case", "':' or \"default\" to initiate a case expression.");
 			goto delete_xcase;
 		}
@@ -234,7 +234,7 @@ delete_xcase_ret:
 		}
 	}
 
-	if (!parser->current_token.type || parser->current_token.keyword != KW_end) {
+	if (!parser->current_token.type || parser->current_token.val.keyword != KW_end) {
 		parser_error(parser, "switch", "expected 'end' to close switch expression");
 delete_xcase:
 		delete_node(switch_expr);
@@ -262,9 +262,9 @@ static node_pointer parse_atom(struct Parser * parser) {
 		case TT_Identifier:
 			return parse_string(parser, parser->current_token.type);
 		case TT_Keyword:
-			if (parser->current_token.keyword == KW_switch)
+			if (parser->current_token.val.keyword == KW_switch)
 				return parse_switch(parser);
-			else if (parser->current_token.keyword == KW_do)
+			else if (parser->current_token.val.keyword == KW_do)
 				return parse_task(parser);
 			return NULL;
 		case TT_LeftParentesis:
@@ -549,7 +549,7 @@ static node_pointer parse_define(struct Parser * parser, struct string_t name) {
 }
 
 static node_pointer parse_toplevel(struct Parser * parser) {
-	if (parser->current_token.keyword == KW_include) {
+	if (parser->current_token.val.keyword == KW_include) {
 		parse_next(parser);
 		struct string_t str = parser->current_token.string;
 		parse_next(parser);
@@ -567,7 +567,7 @@ static node_pointer parse_toplevel(struct Parser * parser) {
 
 	if (tok.type == TT_LeftParentesis || tok.type == TT_Arrow) 
 		return parse_lambda(parser, name, tok.type == TT_Arrow);
-	else if (tok.type == TT_Colon || tok.keyword == KW_as) {
+	else if (tok.type == TT_Colon || tok.val.keyword == KW_as) {
 		parser_warn(parser, "discouraged uses", "use of `defines` is not yet completed, consider removing for now");
 		return parse_define(parser, name);
 	} else if (tok.type == TT_Equal) {

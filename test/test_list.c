@@ -15,7 +15,7 @@ struct List
     struct ListNode * tail;
 };
 
-int main() {
+int main(void) {
     srand(time(NULL));
 
     struct List * list = create_list();

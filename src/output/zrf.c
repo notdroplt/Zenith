@@ -99,4 +99,3 @@ struct zst_symbol_t * create_symbol_on_section(struct zst_layout_t *layout, char
     map_adds_key(layout->symbol_map, name, lsym);
     return symbol;
 }
-
