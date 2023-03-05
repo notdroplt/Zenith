@@ -62,14 +62,14 @@ a lot of peephole optimizations work alongside with [constant propagation](./Con
     Tautologic sequences are inlined as they are proven to be either always true, always false, or always return the same value. Being:
 
 
-    * $ x = x, \forall x \rightarrow true $  
-    * $ x > x, \forall x \rightarrow false $
-    * $ x \ne x, \forall x \rightarrow false$
-    * $ x \le k, \forall x \in Domain \space \vert \space Domain \subset \mathbf{U} \le k \rightarrow true $ 
-    * $ x > k, \forall x \in Domain \space \vert \space Domain \subset \mathbf{U} \le k \rightarrow false $ 
-    * $ x \pm 0 , \forall x \rightarrow x$
-    * $ x \times 1, \forall x \rightarrow x$
-    * $ x \div 1, \forall x \rightarrow x$
+    $$x = x, \forall x \rightarrow true$$  
+    $$x > x, \forall x \rightarrow false$$
+    $$x \ne x, \forall x \rightarrow false$$
+    $$x \le k, \forall x \in Domain \space \vert \space Domain \subset \mathbf{U} \le k \rightarrow true$$ 
+    $$x > k, \forall x \in Domain \space \vert \space Domain \subset \mathbf{U} \le k \rightarrow false$$
+    $$x \pm 0 , \forall x \rightarrow x$$
+    $$x \times 1, \forall x \rightarrow x$$
+    $$x \div 1, \forall x \rightarrow x$$
 
 
     Note, $\mathbf{U}$ represents the biggest set the language is able to work with, currently, $\mathbf{U} = \mathbf{N}$
