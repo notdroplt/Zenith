@@ -4,10 +4,10 @@ Just to note, this documentation is about the *language and its environment*, no
 *compiler*, the latter's documentation can be found running `doxygen` on the project root and 
 going to `doxydocs/index.html`.
 
-Another note, because the language is still in its early phases, this documentation will lack
-some features.
+Another note, because the language is still in its early phases, this documentation will lack some features, and also denote ones that will be or are being worked on.
 
-The documentation assumes that you have never seen a programming language in your entire life, but it gets progressively harder as soon as the basic syntax is fully covered.
+The documentation assumes that you have never seen a programming language in your entire life, but it 
+gets progressively harder as soon as the basic syntax is fully covered.
 
 but it does assumes you have at least some knownledge on the following topics:
 
