@@ -13,7 +13,7 @@ static int do_nothing_function(const char * format __attribute_maybe_unused__, .
     return 0;
 }
 
-static int verbose_printf_function(const char * format_string, ...) {
+static int vprintf_function(const char * format_string, ...) {
     va_list args;
     int ret = 0;
     va_start(args, format_string);
@@ -45,7 +45,7 @@ char *strip(char *str)
 	return str;
 }
 
-void set_default()
+void set_default(void)
 {
 	set_without_overwrite(env_output, "output.zvm");
 	set_without_overwrite(env_input, "source.znh");
@@ -57,7 +57,7 @@ void set_default()
 	set_without_overwrite(env_print_disassemble, "0");	
 }
 
-int load_dotenv()
+int load_dotenv(void)
 {
 	char key[64] = {0}, value[64] = {0}, *skey = NULL, *svalue = NULL;
 	FILE *fp;
@@ -88,7 +88,7 @@ int load_dotenv()
 	free(line);
 	fclose(fp);
 
-	vrprintf = *getenv(env_verbose) == '1' ? verbose_printf_function : do_nothing_function;
+	vrprintf = *getenv(env_verbose) == '1' ? vprintf_function : do_nothing_function;
 	
 	
 	return 0;

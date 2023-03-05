@@ -66,6 +66,6 @@ struct Assembler *create_assembler(const struct Array *parsed_nodes);
  *
  * Complexity: unpredictable (depends on every node traversing complexity)
  */
-struct Array *translate_unit(struct Assembler *assembler);
+struct Array *compile_unit(struct Assembler *assembler);
 
 #endif

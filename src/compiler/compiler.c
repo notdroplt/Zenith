@@ -1,3 +1,6 @@
+#include "nodes.h"
+#include "platform.h"
+#include "types.h"
 #include <compiler.h>
 
 struct table_entry {
@@ -25,6 +28,7 @@ struct Assembler * create_assembler(const struct Array * parsed_nodes){
     assembler->dot = 0x1000;
     assembler->entry_point = 0;
     assembler->root_index = 0;
+    return assembler;
 destructor_2:
     delete_list(assembler->instructions, NULL);
 destructor_1:
@@ -75,10 +79,10 @@ static void clear_register(struct Assembler * assembler, uint32_t index) {
 }
 
 static int append_instruction(struct Assembler * assembler, const union instruction_t instruction){
-    if (list_append(assembler->instructions, (void*)instruction.value))
-        return 1;
+    if (!list_append(assembler->instructions, (void*)instruction.value))
+        return 0;
     assembler->dot += 8;
-    return 0;
+    return 1;
 }
 
 static struct string_t get_current_function_name(struct Assembler * assembler) {
@@ -225,7 +229,15 @@ static return_t assemble_identifier(struct Assembler * assembler, const struct S
         return ((struct table_entry *)(table_entry->second))->allocation_point;
     }
 
-    if (strncmp(get_current_function_name(assembler).string, node->value.string, node->value.size) == 0) {
+    struct string_t fname = get_current_function_name(assembler);
+
+    struct table_entry * function_table = map_getkey_ss(assembler->table, fname)->second;
+
+    if (!function_table) return -1U;
+   
+    
+
+    if (strncmp(fname.string, node->value.string, node->value.size) == 0) {
         struct pair_t * entry = map_getkey_ss(assembler->table, get_current_function_name(assembler));
         if (!entry->first) return -1U;
         return 30 - array_find(((struct table_entry*)entry->second)->names, &node->value, (comparer_func)sstrcmp);
@@ -238,17 +250,20 @@ static return_t assemble_identifier(struct Assembler * assembler, const struct S
 static return_t assemble_lambda(struct Assembler * assembler, const struct LambdaNode * node) {
     struct List * args = create_list();
     for (uint32_t i = 0; i < array_size(node->params); ++i) {
-        struct Node * arg = (struct Node *)array_index(node->params, i);
-        if (arg->type != Identifier) goto destructor_list;
+        // get current param
+        struct StringNode * arg = (struct StringNode *)array_index(node->params, i);
+        if (arg->base.type != Identifier) goto destructor_list;
         
+        // request register for param
         uint32_t reg_index = request_register(assembler, true, -1);
         if (reg_index == -1U) goto destructor_list;
 
-        struct table_entry * entry = map_getkey_ss(assembler->table, node->name)->second;
-        if (!entry) goto destructor_list;
-
+        // allocate string for param
         struct string_t * name = malloc(sizeof(struct string_t));
         if (!name) goto destructor_list;
+
+        name->size = arg->value.size;
+        name->string = arg->value.string;
 
         if (!list_append(args, name)) {
             free(name);
@@ -270,6 +285,9 @@ static return_t assemble_lambda(struct Assembler * assembler, const struct Lambd
 
     assembler->registers = (1 << array_size(node->params)) - 1;
 
+    if (!map_addss_key(assembler->table, node->name, entry))
+        goto destructor_entry;
+
     uint32_t regs = assemble(assembler, node->expression);
 
     if (regs == -1U)
@@ -278,8 +296,6 @@ static return_t assemble_lambda(struct Assembler * assembler, const struct Lambd
     if (append_instruction(assembler, SInstruction(jalr_instrc, 0, 31, 0)))
         goto destructor_entry;
 
-    if (!map_addss_key(assembler->table, node->name, entry))
-        goto destructor_entry;
     
     return 1; 
 
@@ -292,7 +308,6 @@ destructor_list:
     delete_list(args, free);
     return -1U;
 }
-
 
 static return_t assemble(struct Assembler * assembler, const struct Node * node){
     switch (node->type)
@@ -312,7 +327,7 @@ static return_t assemble(struct Assembler * assembler, const struct Node * node)
     }
 }
 
-struct Array * translate_unit(struct Assembler * assembler) {
+struct Array * compile_unit(struct Assembler * assembler) {
     for (size_t i = 0; i < array_size(assembler->parsed_nodes); ++i)
     {
         const struct Node * node = array_index(assembler->parsed_nodes, i);

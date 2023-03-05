@@ -1,14 +1,11 @@
 include(CTest)
 enable_testing()
 
-# because there isnt need for it on tests
-add_compile_options(-fno-analyzer)
-
 add_executable(test_ihex test_ihex.c)
 target_link_libraries(test_ihex PRIVATE output)
 
 add_executable(test_vm test_vm.c)
-target_link_libraries(test_vm PRIVATE vm)
+target_link_libraries(test_vm PRIVATE vm compiler)
 
 add_executable(test_lex test_lex.c)
 target_link_libraries(test_lex PRIVATE parse)

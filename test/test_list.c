@@ -36,7 +36,7 @@ int main(void) {
 
     for (register uint32_t i = 0; i < size; ++i) {
         array[i] = rand();
-        if (list_append(list, (void *)array[i])) {
+        if (!list_append(list, (void *)array[i])) {
             fprintf(stderr, "error while appending value %lu at index #%u\n", array[i], i);
             delete_list(list, NULL);
             return 1;

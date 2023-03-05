@@ -111,7 +111,7 @@ static node_pointer parse_string(struct Parser * parser, enum TokenTypes type) {
 	if (!str) return NULL;
 	*str = token.string;
 
-	if (list_append(type == TT_String ? parser->strings : parser->symbols, str)) {
+	if (!list_append(type == TT_String ? parser->strings : parser->symbols, str)) {
 		free(str);
 		return NULL;
 	}
@@ -130,7 +130,7 @@ static struct Array * parse_comma(struct Parser * parser, enum TokenTypes end_to
 		value = parse_ternary(parser);
 		if (!value) goto comma_destructor_list;
 
-		if(list_append(list, value)) goto comma_destructor_all;
+		if(!list_append(list, value)) goto comma_destructor_all;
 
 		if(parser->current_token.type != TT_Comma || parser->current_token.type == end_token) break;
 
@@ -223,7 +223,7 @@ static node_pointer parse_switch (struct Parser * parser) {
 		pair->first = case_expr;
 		pair->second = case_return;
 
-		if (list_append(cases, pair))
+		if (!list_append(cases, pair))
 		{
 			free(pair);
 delete_xpair:
@@ -513,7 +513,7 @@ static node_pointer parse_lambda(struct Parser * parser, struct string_t name, b
 		} else if (parser->current_token.type != TT_Identifier)
 			break;
 		
-		if (list_append(list, create_stringnode(parser->current_token.string, Identifier))) 
+		if (!list_append(list, create_stringnode(parser->current_token.string, Identifier))) 
 			goto lambda_destructor;
 		parse_next(parser);
 	} while(parser->current_token.type);
@@ -595,7 +595,6 @@ struct Array * translate_unit(struct Parser * parser) {
 
 	delete_list(parser->symbols, free);
 	delete_list(parser->strings, free);
-	free(parser->lexer.content);
 	free(parser);
 
 	if (success) 

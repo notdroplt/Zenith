@@ -55,3 +55,6 @@ delete_end:
     free(arr);
 }
 
+void * array_get_ptr(const struct Array * arr) {
+    return arr->ptr;
+}

@@ -11,11 +11,12 @@
 
 #pragma once
 #ifndef ZENITH_PLATFORM_H
-#define ZENITH_PLATFORM_H 1
+#	define ZENITH_PLATFORM_H 1
 #include <stdint.h>
+#include <stdatomic.h>
 #if defined(__linux__) || defined(__APPLE__) || defined(doxygen)
-#define Color_Red "\x1b[31m" /*!< ANSI code for Red */
-#define Color_Green "\x1b[32m" /*!< ANSI code for Green */
+#	define Color_Red "\x1b[31m" /*!< ANSI code for Red */
+#	define Color_Green "\x1b[32m" /*!< ANSI code for Green */
 #define Color_Yellow "\x1b[33m" /*!< ANSI code for Yellow */
 #define Color_Blue "\x1b[34m" /*!< ANSI code for Blue */
 #define Color_Magenta "\x1b[35m" /*!< ANSI code for Magenta */
@@ -64,5 +65,7 @@ struct string_t
 	uintmax_t size;  /*!< string size */
 	char *string; /*!< string pointer */
 };
+
+#include "types.h"
 
 #endif

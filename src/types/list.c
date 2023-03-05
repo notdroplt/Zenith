@@ -13,7 +13,7 @@ struct List
     struct ListNode * tail;
 };
 
-struct List * create_list() {
+struct List * create_list(void) {
     struct List * list = malloc(sizeof(struct List));
     if (!list) return NULL;
 
@@ -26,7 +26,7 @@ struct List * create_list() {
 
 int list_append(struct List * list, void *item) {    
     struct ListNode *new_node = malloc(sizeof(struct ListNode));
-    if(!new_node) return 1;
+    if(!new_node) return 0;
 
     new_node->next = NULL;
     new_node->value = item;
@@ -40,7 +40,7 @@ int list_append(struct List * list, void *item) {
         list->head = list->tail;
     
     ++list->size;    
-    return 0;
+    return 1;
 }
 
 struct Array* list_to_array(struct List * list) {
@@ -73,3 +73,5 @@ void delete_list(struct List * list, deleter_func deleter) {
     }
     free(list);
 }
+
+

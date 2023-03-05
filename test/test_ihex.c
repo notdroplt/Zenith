@@ -12,7 +12,7 @@ static const char * expected_string =
 
 
 
-int main() {
+int main(void) {
     uint64_t array1 [] = {
         0xAAAAAAAAAAAAAAAA, 0xABABABABABABABAB,
         0xABCDABCDABCDABCD, 0xABCD0123ABCD0123,

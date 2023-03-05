@@ -91,7 +91,7 @@ uint32_t array_size(const struct Array * arr);
 /**
  * @brief finds an item in the array
  * 
- * Complexity: Linear 
+ * Complexity: Linear (not accounting time for function to be ran)
  * 
  * @param [in] arr array that will be searched
  * @param val value to be compared 
@@ -105,7 +105,7 @@ int32_t array_find(const struct Array * arr, const void * val, comparer_func com
 /**
  * @brief copies like memcpy
  * 
- * Complexity: linear
+ * Complexity: Linear
  * 
  * @param arr array (destination)
  * @param ptr source pointer
@@ -115,6 +115,16 @@ int32_t array_find(const struct Array * arr, const void * val, comparer_func com
  * @returns 1 on error 
  */
 int array_copy_ptr(struct Array * arr, void ** ptr, uint64_t size);
+
+/**
+ * @brief returns ther raw pointer to the array's start
+ * 
+ * Complexity: Constant
+ *
+ * @param arr array pointer
+ * @return void* raw pointer
+ */
+void * array_get_ptr(const struct Array * arr);
 
 /**
  * @brief deletes an object array
@@ -137,8 +147,8 @@ struct List * create_list(void);
  * 
  * @param [in, out] list list to append item to
  * @param [in] item item to be appended
- * @returns 1 on error
- * @returns 0 on sucess
+ * @returns 0 on error
+ * @returns 1 on success
  */
 int list_append(struct List * list, void * item);
 
@@ -258,6 +268,6 @@ struct pair_t *map_getkey_ss(const struct HashMap * map, const struct string_t k
  * @param [in] deleter deleter function that is called on values
  */
 void delete_map(struct HashMap * map, deleter_func deleter);
-
+	
 /*!< @} */ /* end of group */
 #endif
