@@ -68,4 +68,14 @@ struct string_t
 
 #include "types.h"
 
+
+/*!< defines basic error code printing */
+#define ZENITH_PRINT_ERR(fmt, ...) fprintf(stderr, "Zenith Error: %s" fmt "\n", __VA_ARGS__)
+
+/*!< error when any part of the code goes out of memory */
+#define ZenithOutOfMemory ZENITH_PRINT_ERR("", "Z0000");
+
+/*!< error when a file is not found by any means*/
+#define ZenithFileNotFound(filename) ZENITH_PRINT_ERR(":\"%s\"", "Z0001", filename)
+
 #endif

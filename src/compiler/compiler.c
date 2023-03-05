@@ -34,6 +34,7 @@ destructor_2:
 destructor_1:
     free(assembler);
 destructor_final:
+    ZenithOutOfMemory;
     return NULL;
 }
 
@@ -306,6 +307,7 @@ destructor_array:
     return -1U;
 destructor_list:
     delete_list(args, free);
+    ZenithOutOfMemory;
     return -1U;
 }
 

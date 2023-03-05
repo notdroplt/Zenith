@@ -1,3 +1,4 @@
+#include "platform.h"
 #include <parser.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -12,7 +13,7 @@ struct Parser* create_parser(const char * filename){
 	FILE * fp = fopen(filename, "r");
 
 	if (!fp) {
-		fprintf(stderr, "file '%s' does not exist", filename);
+		ZenithFileNotFound(filename);
 		return NULL;
 	}
 
@@ -35,7 +36,10 @@ struct Parser* create_parser(const char * filename){
 	fclose(fp);
 
 	parser = calloc(1, sizeof(struct Parser));
-	if (!parser) goto parser_destructor_content;
+	if (!parser) {
+		ZenithOutOfMemory;
+		goto parser_destructor_content;
+	}
 
 	parser->strings = create_list();
 
@@ -108,11 +112,13 @@ static node_pointer parse_string(struct Parser * parser, enum TokenTypes type) {
 	
 	struct string_t *str = malloc(sizeof(struct string_t));
 
-	if (!str) return NULL;
+	if (!str) goto destructor;
 	*str = token.string;
 
 	if (!list_append(type == TT_String ? parser->strings : parser->symbols, str)) {
 		free(str);
+destructor:
+		ZenithOutOfMemory;
 		return NULL;
 	}
 	
@@ -142,6 +148,7 @@ comma_destructor_all:
 	delete_node(value);
 comma_destructor_list:
 	delete_list(list, (deleter_func)delete_node);
+	ZenithOutOfMemory;
 	return NULL;
 }
 

@@ -1,13 +1,9 @@
 # Error list
-
-this file lists simple compiler errors (those that do not need any given context, at most the lines where they happen)
-
 ## summary:
 
 - errors Z0000 - Z00FF: internal errors
     - [Error Z0000: Memory Allocation Error](#Z0000-memory-allocation-error)
     - [Error Z0001: File not found](#Z0001-File-Not-Found)
-    - [Error Z0002: ]
 - errors Z0100 - Z02FF: tokenizing / parsing errors
 - errors Z0300 - Z06FF: syntax errors
 - errors Z0700 - Z08FF: compil
