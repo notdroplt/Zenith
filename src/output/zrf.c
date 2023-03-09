@@ -28,6 +28,7 @@ struct zst_layout_t {
 
 struct zst_layout_t * create_layout(uint8_t prealloc) {
     struct zst_layout_t * layout = malloc(sizeof(struct zst_layout_t));
+    struct zst_header_t * header = NULL;;
     if (!layout) return NULL;
 
     layout->section_map = create_map(prealloc);
@@ -43,7 +44,7 @@ struct zst_layout_t * create_layout(uint8_t prealloc) {
         return NULL;
     }
 
-    struct zst_header_t * header = &layout->header;
+    header = &layout->header;
 
     header->magic = ZSF_HEADER_MAG;
     header->version.major = ZSF_HEADER_VER_MAJ;
@@ -56,9 +57,10 @@ struct zst_layout_t * create_layout(uint8_t prealloc) {
 }
 
 struct zst_section_t * create_section(struct zst_layout_t* layout, char * section_name) {
+    struct zst_section_t * section = NULL;
     struct linked_section * lsect = malloc(sizeof(struct linked_section));
     if (!lsect) return NULL;
-    struct zst_section_t * section = &lsect->section;
+    section = &lsect->section;
     
     section->name = section_name;
     section->file_off = 0; 
@@ -78,8 +80,11 @@ struct zst_section_t * create_section(struct zst_layout_t* layout, char * sectio
 
 struct zst_symbol_t * create_symbol_on_section(struct zst_layout_t *layout, char *name, struct Array *data, struct Array *references, char * section_name) {
     struct linked_symbol * lsym = malloc(sizeof(struct linked_symbol));
+    struct zst_symbol_t * symbol = NULL;
+    void * section = NULL;
     if (!lsym) return NULL;
-    struct zst_symbol_t * symbol = &lsym->symbol;
+    
+    symbol = &lsym->symbol;
     symbol->name = name;
     symbol->content = 0;
     symbol->reference_count = array_size(references);
@@ -88,7 +93,7 @@ struct zst_symbol_t * create_symbol_on_section(struct zst_layout_t *layout, char
     symbol->start_addr = 0;
 
     lsym->content = data;
-    void * section = map_getkey_s(layout->section_map, section_name)->second;
+    section = map_getkey_s(layout->section_map, section_name)->second;
     if (!section) {
         free(lsym);
         return NULL;

@@ -22,8 +22,8 @@ static int map_rebuffer (struct HashMap * map) {
 
 	for (size_t i = 0; i < map->capacity; i++)
 	{
-		if(!map->pairs[i].first) continue;
 		const uint64_t hashv = (uint64_t)map->pairs[i].first;
+		if(!map->pairs[i].first) continue;
 		entries[hashv % (map->capacity << 1)] = map->pairs[hashv % map->capacity];
 	}
 	
@@ -37,6 +37,7 @@ static int map_rebuffer (struct HashMap * map) {
 
 struct HashMap * create_map(uint64_t prealloc) {
 	static char key[16] = {0};
+	struct HashMap * map = calloc(1, sizeof(struct HashMap));
 
 	if (!*key) {
 		srand(time(NULL));
@@ -44,7 +45,6 @@ struct HashMap * create_map(uint64_t prealloc) {
 			key[i] = rand();
 	}
 
-	struct HashMap * map = calloc(1, sizeof(struct HashMap));
 	if (!map) return NULL;
 	if (!prealloc) prealloc = 32;
 

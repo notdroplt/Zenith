@@ -242,9 +242,7 @@ static struct token_t lexRepeat(struct lex_t *lex, enum TokenTypes type, char c)
 
 struct token_t getNextToken(struct lex_t *lex)
 {
-	struct token_t tok;
-	tok.val.integer = 0;
-	tok.type = TT_Unknown;
+	struct token_t tok = UNDEFINED_TOK;
 	switch (lex->current_char)
 	{
 	case '\0':

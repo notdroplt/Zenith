@@ -18,6 +18,7 @@
 #include <string.h>
 #include <platform.h>
 
+
 /**
  * @enum TokenTypes
  * @brief All possible token types
@@ -161,6 +162,7 @@ struct token_t
 	enum TokenTypes type;	/*!< specify token type */
 };
 
+#define UNDEFINED_TOK (struct token_t){.type = TT_Unknown, .val.integer = 0, .string.string = NULL, .string.size = 0}
 /**
  * @brief gets a new token from the content array
  *

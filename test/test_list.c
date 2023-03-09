@@ -1,33 +1,25 @@
+#include <stdint.h>
 #include <types.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 
-struct ListNode {
-    struct ListNode * next;
-    const void * value;
-};
-
-struct List
-{
-    uint32_t size;
-    struct ListNode * head;
-    struct ListNode * tail;
-};
-
 int main(void) {
+    struct List * list = NULL;
+    struct Array * result_array = NULL;
+    uint16_t size = 0;
+    uint64_t * array = NULL;
     srand(time(NULL));
 
-    struct List * list = create_list();
+    list = create_list();
     if (!list) {
         fprintf(stderr, "could not initiate list\n");
         return 1;
     }
 
     /* limit size a bit */
-    uint16_t size = rand();
-
-    uint64_t *array = malloc(sizeof(uint64_t) * size);
+    size = rand();
+    array = malloc(sizeof(uint64_t) * size);
     if (!array) {
         delete_list(list, NULL);
         fprintf(stderr, "could not allocate %ld bytes for comparision array\n", size * sizeof(uint64_t));
@@ -44,7 +36,7 @@ int main(void) {
     }
 
     /* because we have the size, and the pointer to the list goes first, we can do this without problems */
-    struct Array * result_array = list_to_array(list);
+    result_array = list_to_array(list);
 
     for (register uint16_t i = 0; i < size; ++i) {
         register uint64_t value = (uint64_t)array_index(result_array, i);

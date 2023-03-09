@@ -11,7 +11,7 @@ endif()
 if (CMAKE_BUILD_TYPE EQUAL "Release")
 add_compile_options(-D_FORTIFY_SOURCE=1)
 endif()
-add_compile_options(-Wall -Wextra -pedantic -Werror) 
+add_compile_options(-Wall -Wextra -pedantic -Werror -Wunused -Wdeclaration-after-statement -fstack-protector-strong -pedantic-errors -Wformat=2 -Wstack-usage=384 -Wdangling-pointer -Wno-aggressive-loop-optimizations -fanalyzer) 
 
 
 include_directories(src/ include/)

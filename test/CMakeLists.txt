@@ -1,6 +1,8 @@
 include(CTest)
 enable_testing()
 
+add_compile_options(-fno-analyzer)
+
 add_executable(test_ihex test_ihex.c)
 target_link_libraries(test_ihex PRIVATE output)
 

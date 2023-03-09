@@ -5,6 +5,7 @@
 #include "platform.h"
 #include <stdint.h>
 #include <stddef.h>
+#include <stdbool.h>
 /* default: SipHash-2-4 */
 #ifndef cROUNDS
 #define cROUNDS 2
@@ -44,6 +45,12 @@ typedef void (*deleter_func)(void *);
 
 /**
  * @brief a function that compares two objects
+ *
+ * @param v1 first value
+ * @param v2 second value
+ * 
+ * @returns 0 when both values are equal
+ * @returns non-0 when they're not
  * 
 */
 typedef int (*comparer_func)(const void * v1, const void * v2);
@@ -125,6 +132,17 @@ int array_copy_ptr(struct Array * arr, void ** ptr, uint64_t size);
  * @return void* raw pointer
  */
 void * array_get_ptr(const struct Array * arr);
+
+/**
+ * @brief compares two arrays
+ * 
+ * @param left left array to compare
+ * @param right right array to compare
+ * @param comp comparator function
+ * @return true when same
+ * @return false when different 
+ */
+bool array_compare(const struct Array * left, const struct Array * right, comparer_func comp);
 
 /**
  * @brief deletes an object array

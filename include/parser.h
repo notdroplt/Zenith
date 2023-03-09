@@ -14,7 +14,7 @@
 struct Parser {
 	struct token_t current_token; 	/*!< current parsed token*/
 	struct pos_t current_position; 	/*!< current parser position */
-	struct lex_t lexer;				/*!< lexer config struct */
+	struct lex_t lexer;				/*!< lexer config struct Node */
 
 	struct List * strings;	/*!< define data strings */
 	struct List * symbols; 	/*!< define identifier strings */

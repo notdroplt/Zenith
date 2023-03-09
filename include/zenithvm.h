@@ -292,7 +292,7 @@ union instruction_t LInstruction(const uint8_t opcode, const uint8_t r1,
  * function call, because there is no need to setup extra code while the virtual
  * machine can do that itself.
  *
- * Size: 320 bytes (aligned)
+ * Size: 288 bytes (aligned)
  */
 struct thread_t {
   uint64_t registers[32];   /*!< thread registers */
@@ -300,7 +300,7 @@ struct thread_t {
   uint64_t memory_size;     /*!< thread memory size */
   uint8_t *memory;          /*!< thread memory pointer */
   uint8_t halt_sig;         /*!< defines when program should stop */
-} __attribute__((aligned(64)));
+};
 
 /**
  * @brief fetches one byte from a memory address

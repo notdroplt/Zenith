@@ -2,6 +2,7 @@
 #include "platform.h"
 #include "types.h"
 #include <compiler.h>
+#include <stdint.h>
 
 struct table_entry {
     struct string_t name;
@@ -91,9 +92,10 @@ static struct string_t get_current_function_name(struct Assembler * assembler) {
 }
 
 static return_t assemble_number(struct Assembler * assembler, const struct NumberNode * node){
+    uint32_t reg_index = 0;
     if (node->value == 0.0 && node->number == 0) return 0;
 
-    uint32_t reg_index = request_register(assembler, false, -1);
+    reg_index = request_register(assembler, false, -1);
     if (reg_index == -1U) return -1U;
 
     if (node->number > 0x400000000000)
@@ -225,19 +227,19 @@ static int sstrcmp(struct string_t * s1, struct string_t * s2) {
 
 static return_t assemble_identifier(struct Assembler * assembler, const struct StringNode * node) {
     struct pair_t * table_entry = map_getkey_ss(assembler->table, node->value);
+    struct string_t fname;
+    struct table_entry * function_table;
 
     if (table_entry->first) {
         return ((struct table_entry *)(table_entry->second))->allocation_point;
     }
 
-    struct string_t fname = get_current_function_name(assembler);
+    fname = get_current_function_name(assembler);
 
-    struct table_entry * function_table = map_getkey_ss(assembler->table, fname)->second;
+    function_table = map_getkey_ss(assembler->table, fname)->second;
 
     if (!function_table) return -1U;
    
-    
-
     if (strncmp(fname.string, node->value.string, node->value.size) == 0) {
         struct pair_t * entry = map_getkey_ss(assembler->table, get_current_function_name(assembler));
         if (!entry->first) return -1U;
@@ -250,17 +252,22 @@ static return_t assemble_identifier(struct Assembler * assembler, const struct S
 
 static return_t assemble_lambda(struct Assembler * assembler, const struct LambdaNode * node) {
     struct List * args = create_list();
+    struct string_t * name = NULL;
+    struct Array * arr;
+    struct table_entry * entry;
+    uint32_t reg_index = -1U, regs = -1U;
+
     for (uint32_t i = 0; i < array_size(node->params); ++i) {
         // get current param
         struct StringNode * arg = (struct StringNode *)array_index(node->params, i);
         if (arg->base.type != Identifier) goto destructor_list;
         
         // request register for param
-        uint32_t reg_index = request_register(assembler, true, -1);
+        reg_index = request_register(assembler, true, -1);
         if (reg_index == -1U) goto destructor_list;
 
         // allocate string for param
-        struct string_t * name = malloc(sizeof(struct string_t));
+        name = malloc(sizeof(struct string_t));
         if (!name) goto destructor_list;
 
         name->size = arg->value.size;
@@ -272,11 +279,9 @@ static return_t assemble_lambda(struct Assembler * assembler, const struct Lambd
         }        
     }
 
-    struct Array * arr = list_to_array(args);
-    if (!arr) goto destructor_list;
+    if (!(arr = list_to_array(args))) goto destructor_list;
 
-    struct table_entry * entry = malloc(sizeof(struct table_entry));
-    if (!entry) goto destructor_array;
+    if (!(entry = malloc(sizeof(struct table_entry)))) goto destructor_array;
 
     entry->is_function = true;
     entry->allocation_point = assembler->dot;
@@ -289,7 +294,7 @@ static return_t assemble_lambda(struct Assembler * assembler, const struct Lambd
     if (!map_addss_key(assembler->table, node->name, entry))
         goto destructor_entry;
 
-    uint32_t regs = assemble(assembler, node->expression);
+    regs = assemble(assembler, node->expression);
 
     if (regs == -1U)
         goto destructor_entry;
@@ -310,6 +315,10 @@ destructor_list:
     ZenithOutOfMemory;
     return -1U;
 }
+
+// static inline return_t assemble_ternary(struct Assembler * assembler, const struct TernaryNode * node) {
+    
+// }
 
 static return_t assemble(struct Assembler * assembler, const struct Node * node){
     switch (node->type)

@@ -1,5 +1,7 @@
 #include "platform.h"
+#include "types.h"
 #include <parser.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <stdio.h>
 
@@ -90,9 +92,10 @@ static void parse_next(struct Parser * parser) {
 }
 
 static node_pointer parse_number(struct Parser * parser) {
+	struct token_t token;
 	if (!parser) return NULL;
 
-	struct token_t token = parser->current_token;
+	token = parser->current_token;
 	if (token.type == TT_Unknown) return NULL;
 
 	parse_next(parser);
@@ -103,14 +106,16 @@ static node_pointer parse_number(struct Parser * parser) {
 }
 
 static node_pointer parse_string(struct Parser * parser, enum TokenTypes type) {
+	struct token_t token;
+	struct string_t *str = NULL;
 	if (!parser) return NULL;
-	struct token_t token = parser->current_token;
+	
+	token = parser->current_token;
 	parse_next(parser);
 	
 	if (token.type == TT_Unknown) return NULL;
-
 	
-	struct string_t *str = malloc(sizeof(struct string_t));
+	str = malloc(sizeof(struct string_t));
 
 	if (!str) goto destructor;
 	*str = token.string;
@@ -194,7 +199,8 @@ static node_pointer parse_switch (struct Parser * parser) {
 	}
 
 	while(parser->current_token.val.keyword != KW_end) {
-		node_pointer case_expr, case_return;
+		struct Node * case_expr = NULL, * case_return = NULL;
+		struct pair_t * pair = NULL;
 		if (parser->current_token.type != TT_Colon && parser->current_token.val.keyword != KW_default) {
 			parser_error(parser, "case", "':' or \"default\" to initiate a case expression.");
 			goto delete_xcase;
@@ -223,7 +229,7 @@ static node_pointer parse_switch (struct Parser * parser) {
 
 		if (!case_return) goto delete_xcase_ret;
 
-		struct pair_t * pair = malloc(sizeof(struct pair_t));
+		pair = malloc(sizeof(struct pair_t));
 
 		if (!pair) goto delete_xpair;
 		
@@ -494,22 +500,25 @@ ter_destructor_cond:
 }
 
 static struct string_t parse_name(struct Parser * parser) {
+	struct string_t string;
 	if (parser->current_token.type != TT_Identifier) {
 		parser_error(parser, "name", "token cannot be a name");
 	}
-	struct string_t string = parser->current_token.string;
+	string = parser->current_token.string;
 	parse_next(parser);
 	return string;
 }
 
 static node_pointer parse_lambda(struct Parser * parser, struct string_t name, bool arrowed) {	
+	struct List * list = NULL;
+	struct Node * expr = NULL;
 	if (arrowed) {
 		node_pointer ptr = parse_ternary(parser);
 		if (!ptr) return NULL;
 		return create_expressionnode(name, ptr);
 	}
 
-	struct List * list = create_list();
+	list = create_list();
 
 	if (!list) return NULL;
 
@@ -537,7 +546,7 @@ static node_pointer parse_lambda(struct Parser * parser, struct string_t name, b
 	}
 	parse_next(parser);
 
-	node_pointer expr = parse_ternary(parser);
+	expr = parse_ternary(parser);
 
 	if (!expr) {
 lambda_destructor:
@@ -556,20 +565,23 @@ static node_pointer parse_define(struct Parser * parser, struct string_t name) {
 }
 
 static node_pointer parse_toplevel(struct Parser * parser) {
+	struct string_t name;
+	struct token_t tok;
+
 	if (parser->current_token.val.keyword == KW_include) {
 		parse_next(parser);
-		struct string_t str = parser->current_token.string;
+		name = parser->current_token.string;
 		parse_next(parser);
-		return create_includenode(str, false);
+		return create_includenode(name, false);
 	}
 
-	struct string_t name = parse_name(parser);
+	name = parse_name(parser);
 	if (!name.size) {
 		parser_error(parser, "top-level expression", "a name is necessary for every expression assigned");
 		return NULL;
 	}
 
-	struct token_t tok = parser->current_token;
+	tok = parser->current_token;
 	parse_next(parser);
 
 	if (tok.type == TT_LeftParentesis || tok.type == TT_Arrow) 
@@ -588,9 +600,12 @@ static node_pointer parse_toplevel(struct Parser * parser) {
 }
 
 struct Array * translate_unit(struct Parser * parser) {
+	struct List * list = NULL;
+	bool success = false;
+
 	if (!parser->lexer.content) return NULL;
 
-	struct List * list = create_list();
+	list = create_list();
 	
 	while(parser->current_token.type) {
 		node_pointer node = parse_toplevel(parser);
@@ -598,7 +613,7 @@ struct Array * translate_unit(struct Parser * parser) {
 		list_append(list, node);
 	}
 
-	bool success = parser->sucessfull;
+	success = parser->sucessfull;
 
 	delete_list(parser->symbols, free);
 	delete_list(parser->strings, free);

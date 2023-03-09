@@ -23,8 +23,9 @@ struct lex_t * init_lex(char * string) {
     return lex;
 }
 
-int test_int_tok() {
-
+int test_int_tok(void) {
+    struct lex_t * lex = NULL;
+    struct token_t tok = UNDEFINED_TOK;
     uint32_t number = rand();
     char * code_string = calloc(1, 16);
 
@@ -36,9 +37,9 @@ int test_int_tok() {
     sprintf(code_string, "%d\n", number);
 
 
-    struct lex_t *lex = init_lex(code_string);
+    lex = init_lex(code_string);
     if (!lex) return 1;
-    struct token_t tok = getNextToken(lex);
+    tok = getNextToken(lex);
 
     free(lex);
     free(code_string);
@@ -62,8 +63,9 @@ double dont_zero(double n) {
     return n;
 }
 
-int test_double_tok() {
-    // should work
+int test_double_tok(void) {
+    struct lex_t * lex = NULL;
+    struct token_t tok = UNDEFINED_TOK;
     double number = (double) rand() / (double)  dont_zero(rand());
 
     char * code_string = calloc(1, 20);
@@ -75,9 +77,9 @@ int test_double_tok() {
 
     sprintf(code_string, "%lf\n", number);
 
-    struct lex_t *lex = init_lex(code_string);
+    lex = init_lex(code_string);
     if (!lex) return 1;
-    struct token_t tok = getNextToken(lex);
+    tok = getNextToken(lex);
 
     free(lex);
     free(code_string);
@@ -95,17 +97,20 @@ int test_double_tok() {
     return 0;
 }
 
-int test_str_tok() {
+int test_str_tok(void) {
     size_t size = rand() % 32;
     char * str = calloc(1, size + 1);
     static char charset[] = "qwertyuiopasdfghjklzxcvbnm_QWERTYUIOPASDFGHJKLZXCVBNM";
+    char * code_string = NULL;
+    struct lex_t * lex = NULL;
+    struct token_t tok;
 
     if (!str) {
         fputs("out of memory", stderr);
         return 1;
     }
 
-    char * code_string = calloc(1, 40);
+    code_string = calloc(1, 40);
 
     if (!code_string) {
         fputs("out of memory\n", stderr);
@@ -122,9 +127,9 @@ int test_str_tok() {
     
     sprintf(code_string, "\"%s\"\n", str);
 
-    struct lex_t *lex = init_lex(code_string);
+    lex = init_lex(code_string);
     if (!lex) return 1;
-    struct token_t tok = getNextToken(lex);
+    tok = getNextToken(lex);
 
     free(lex);
     if (tok.type != TT_String) {

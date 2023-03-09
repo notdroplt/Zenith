@@ -18,16 +18,20 @@ int main(void) {
         0xABCDABCDABCDABCD, 0xABCD0123ABCD0123,
         0x0123456789ABCDEF,        
     };
+    
+    FILE * fp = NULL;
+    size_t size = 0, status = 0; 
+    const char * string = NULL;
 
     ihex_create_file(array1, sizeof(array1), "test.hex");
 
-    FILE * fp = fopen("test.hex", "r");
+    fp = fopen("test.hex", "r");
 
     fseek(fp, 0, SEEK_END);
-    size_t size = ftell(fp);
+    size = ftell(fp);
     fseek(fp, 0, SEEK_SET);
 
-    const char * string = calloc(sizeof(char), size + 1);
+    string = calloc(sizeof(char), size + 1);
     
     if (!string) {
         fclose(fp);
@@ -35,7 +39,7 @@ int main(void) {
         return 1;
     }
 
-    size_t status = 0;
+    status = 0;
     if ((status = fread((void*) string, 1, size, fp)) != size) {
         fclose(fp);
         free((void *)string);

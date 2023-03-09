@@ -1,3 +1,6 @@
+#include "platform.h"
+#include <stdio.h>
+#include <stdlib.h>
 #include <zenithvm.h>
 
 #define color_old(old, new) ((old) > (new) ? Color_Green : ((new) > (old) ? Color_Red : ""))
@@ -37,16 +40,22 @@ void print_diff_status(register struct thread_t *old_thread, register struct thr
 
 void debugger_func(struct thread_t *thread)
 {
-    struct thread_t saved_state;
-    memset(&saved_state, 0, sizeof(struct thread_t));
+    struct thread_t * saved_state = NULL;
     char action[16] = {'\0'};
     // memcpy(&saved_state, thread, sizeof(struct thread_t));
+
+    saved_state = calloc(1, sizeof(struct thread_t));
+    if (!saved_state) {
+        ZenithOutOfMemory;
+        return;
+    }
 
     while (1)
     {
         fputs("zdb> ", stdout);
         if (scanf(" %15s", action) == EOF)
         {
+            free(saved_state);
             fputs("exit\n", stdout);
             break;
         }
@@ -84,16 +93,19 @@ void debugger_func(struct thread_t *thread)
             disassemble_instruction(*(union instruction_t *)(thread->memory + thread->program_counter));
         }
         else if (strcmp(action, "save") == 0)
-            memcpy(&saved_state, thread, sizeof(struct thread_t));
+            memcpy(saved_state, thread, sizeof(struct thread_t));
         else if (strcmp(action, "rollback") == 0)
-            memcpy(thread, &saved_state, sizeof(struct thread_t));
+            memcpy(thread, saved_state, sizeof(struct thread_t));
         else if (strcmp(action, "diff") == 0)
-            print_diff_status(&saved_state, thread);
-        else if (strcmp(action, "exit") == 0)
+            print_diff_status(saved_state, thread);
+        else if (strcmp(action, "exit") == 0){
+            free(saved_state);
             break;
+        }
         else
             fprintf(stdout, "\"%s\" is not recognized as a command.\n", action);
 
         memset(action, 0, 16);
     }
+
 }

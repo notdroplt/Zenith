@@ -1,6 +1,8 @@
+#include "types.h"
 #include <nodes.h>
 #include <stdlib.h>
 #include <optimizing.h>
+#include <string.h>
 
 struct Node create_node(const enum NodeTypes type, const bool isconst) {
     return (struct Node){
@@ -9,7 +11,7 @@ struct Node create_node(const enum NodeTypes type, const bool isconst) {
     };
 }
 
-node_pointer create_intnode(const uint64_t value) {
+struct Node * create_intnode(const uint64_t value) {
     struct NumberNode * node = malloc(sizeof(struct NumberNode));
     if (!node) return NULL;
     *node = (struct NumberNode) {
@@ -18,10 +20,10 @@ node_pointer create_intnode(const uint64_t value) {
         .number = value
     };
 
-    return (node_pointer)node;
+    return (struct Node *)node;
 }
 
-node_pointer create_doublenode(const double value) {
+struct Node * create_doublenode(const double value) {
     struct NumberNode * node = malloc(sizeof(struct NumberNode));
     if (!node) return NULL;
     *node = (struct NumberNode) {
@@ -30,10 +32,10 @@ node_pointer create_doublenode(const double value) {
         .value = value
     };
 
-    return (node_pointer)node;
+    return (struct Node *)node;
 }
 
-node_pointer create_stringnode(struct string_t value, const enum NodeTypes type) {
+struct Node * create_stringnode(struct string_t value, const enum NodeTypes type) {
 	struct StringNode * node = malloc(sizeof(struct StringNode));
 	if (!node) return NULL;
 	
@@ -42,12 +44,12 @@ node_pointer create_stringnode(struct string_t value, const enum NodeTypes type)
 		.value = value
     	};
 
-	return (node_pointer)node;
+	return (struct Node *)node;
 }
 
-node_pointer create_unarynode(node_pointer value, const enum TokenTypes token){
+struct Node * create_unarynode(struct Node * value, const enum TokenTypes token){
 	
-	node_pointer node = optimized_unarynode(value, token);
+	struct Node * node = optimized_unarynode(value, token);
     if (node) return node;
     
     node = malloc(sizeof(struct UnaryNode));
@@ -59,10 +61,10 @@ node_pointer create_unarynode(node_pointer value, const enum TokenTypes token){
         .value = value
 	};
 
-	return (node_pointer)node;
+	return (struct Node *)node;
 }
 
-node_pointer create_binarynode(node_pointer left, const enum TokenTypes token, node_pointer right){
+struct Node * create_binarynode(struct Node * left, const enum TokenTypes token, struct Node * right){
 
     struct BinaryNode * node = malloc(sizeof(struct BinaryNode));
     if (!node) return NULL;
@@ -73,10 +75,10 @@ node_pointer create_binarynode(node_pointer left, const enum TokenTypes token, n
         .token = token
     };
 
-    return (node_pointer)node;
+    return (struct Node *)node;
 }
 
-node_pointer create_ternarynode(node_pointer condition, node_pointer true_op, node_pointer false_op){
+struct Node * create_ternarynode(struct Node * condition, struct Node * true_op, struct Node * false_op){
     
 
     struct TernaryNode * node = malloc(sizeof(struct TernaryNode));
@@ -88,10 +90,10 @@ node_pointer create_ternarynode(node_pointer condition, node_pointer true_op, no
         .falseop = false_op
     };
 
-    return (node_pointer)node;
+    return (struct Node *)node;
 }
 
-node_pointer create_expressionnode(struct string_t name, node_pointer value) {
+struct Node * create_expressionnode(struct string_t name, struct Node * value) {
     struct ExpressionNode * node = malloc(sizeof(struct ExpressionNode));
     if(!node) return NULL;
     *node = (struct ExpressionNode) {
@@ -100,10 +102,10 @@ node_pointer create_expressionnode(struct string_t name, node_pointer value) {
         .value = value
     };
 
-    return (node_pointer)node;
+    return (struct Node *)node;
 }
 
-node_pointer create_listnode(struct Array *node_array){
+struct Node * create_listnode(struct Array *node_array){
     struct ListNode * node = malloc(sizeof(struct ListNode));
     if(!node) return NULL;
     *node = (struct ListNode) {
@@ -111,10 +113,10 @@ node_pointer create_listnode(struct Array *node_array){
         .nodes = node_array
     };
 
-    return (node_pointer)node;
+    return (struct Node *)node;
 }
 
-node_pointer create_callnode(node_pointer expr, struct Array *arg_array, const enum NodeTypes type){
+struct Node * create_callnode(struct Node * expr, struct Array *arg_array, const enum NodeTypes type){
     struct CallNode * node = malloc(sizeof(struct CallNode));
     if(!node) return NULL;
     *node = (struct CallNode ) {
@@ -123,10 +125,10 @@ node_pointer create_callnode(node_pointer expr, struct Array *arg_array, const e
         .arguments = arg_array,
     };
 
-    return (node_pointer)node;
+    return (struct Node *)node;
 }
 
-node_pointer create_switchnode(node_pointer expr, struct Array *cases){ 
+struct Node * create_switchnode(struct Node * expr, struct Array *cases){ 
     struct SwitchNode * node = malloc(sizeof(struct SwitchNode));
     if(!node) return NULL;
     *node = (struct SwitchNode ) {
@@ -135,10 +137,10 @@ node_pointer create_switchnode(node_pointer expr, struct Array *cases){
         .cases = cases
     };
 
-    return (node_pointer)node;
+    return (struct Node *)node;
 }
 
-node_pointer create_lambdanode(struct string_t name, node_pointer expression, struct Array *params_arr) {
+struct Node * create_lambdanode(struct string_t name, struct Node * expression, struct Array *params_arr) {
     struct LambdaNode * node = malloc(sizeof(struct LambdaNode));
     if (!node) return NULL;
     *node = (struct LambdaNode) {
@@ -148,10 +150,10 @@ node_pointer create_lambdanode(struct string_t name, node_pointer expression, st
         .params = params_arr
     };
 
-    return (node_pointer)node;
+    return (struct Node *)node;
 }
 
-node_pointer create_definenode(struct string_t name, node_pointer cast){
+struct Node * create_definenode(struct string_t name, struct Node * cast){
     struct DefineNode * node = malloc(sizeof(struct DefineNode));
     if(!node) return NULL;
     *node = (struct DefineNode) {
@@ -160,10 +162,10 @@ node_pointer create_definenode(struct string_t name, node_pointer cast){
         .cast = cast
     };
 
-    return (node_pointer)node;
+    return (struct Node *)node;
 }
 
-node_pointer create_includenode(struct string_t fname, bool binary){
+struct Node * create_includenode(struct string_t fname, bool binary){
     struct IncludeNode * node = malloc(sizeof(struct IncludeNode));
     if(!node) return NULL;
     *node = (struct IncludeNode) {
@@ -172,10 +174,10 @@ node_pointer create_includenode(struct string_t fname, bool binary){
         .binary = binary
     };
 
-    return (node_pointer)node;
+    return (struct Node *)node;
 }
 
-node_pointer create_scopenode(node_pointer parent, node_pointer child){
+struct Node * create_scopenode(struct Node * parent, struct Node * child){
     struct ScopeNode * node = malloc(sizeof(struct ScopeNode));
     if(!node) return NULL;
     *node = (struct ScopeNode) {
@@ -184,10 +186,10 @@ node_pointer create_scopenode(node_pointer parent, node_pointer child){
         .child = child
     };
 
-    return (node_pointer)node;
+    return (struct Node *)node;
 }
 
-node_pointer create_tasknode(struct Array *array) {
+struct Node * create_tasknode(struct Array *array) {
     struct TaskNode * node = malloc(sizeof(struct TaskNode));
     if(!node) return NULL;
     *node = (struct TaskNode) {
@@ -195,7 +197,7 @@ node_pointer create_tasknode(struct Array *array) {
         .tasks = array
     };
 
-    return (node_pointer)node;
+    return (struct Node *)node;
 }
 
 static void delete_numbernode(struct NumberNode * node) {
@@ -329,4 +331,136 @@ void delete_node(struct Node * node) {
         case Unused:
             break;
     }
+}
+
+#define typecast(type, val) ((type)val)
+int node_equals(const struct Node * left, const struct Node * right) {
+    if (left->type != right->type) return false;
+
+    switch (left->type) {
+        case Unused:
+            return false;
+        case Integer:
+            return typecast(struct NumberNode*, left)->number == typecast(struct NumberNode*, right)->number;
+        case Double:
+            return typecast(struct NumberNode*, left)->value == typecast(struct NumberNode*, right)->value;
+        case String:
+        case Identifier:
+            if (typecast(struct StringNode*, left)->value.size != typecast(struct StringNode*, right)->value.size) return false;
+            return strncmp(
+                typecast(struct StringNode*, left)->value.string,
+                typecast(struct StringNode*, right)->value.string,
+                typecast(struct StringNode*, left)->value.size
+            );
+        case Unary:
+            return typecast(struct UnaryNode *, left)->token == typecast(struct UnaryNode *, right)->token &&
+                node_equals(
+                    typecast(struct UnaryNode *, left)->value,
+                    typecast(struct UnaryNode *, right)->value
+                );
+        case Binary:
+            return typecast(struct BinaryNode *, left)->token == typecast(struct BinaryNode *, right)->token &&
+                node_equals(
+                    typecast(struct BinaryNode *, left)->left,
+                    typecast(struct BinaryNode *, right)->left
+                ) && 
+                node_equals(
+                    typecast(struct BinaryNode *, left)->right,
+                    typecast(struct BinaryNode *, right)->right
+                );
+        case Ternary:
+            return node_equals(
+                    typecast(struct TernaryNode *, left)->condition,
+                    typecast(struct TernaryNode *, right)->condition
+                ) &&
+                node_equals(
+                    typecast(struct TernaryNode *, left)->trueop,
+                    typecast(struct TernaryNode *, right)->trueop
+                ) &&
+                node_equals(
+                    typecast(struct TernaryNode *, left)->falseop,
+                    typecast(struct TernaryNode *, right)->falseop
+                );
+        case Expression:
+            if (typecast(struct ExpressionNode*, left)->name.size != typecast(struct ExpressionNode*, right)->name.size) return false;
+            return strncmp(
+                typecast(struct ExpressionNode*, left)->name.string,
+                typecast(struct ExpressionNode*, right)->name.string,
+                typecast(struct ExpressionNode*, left)->name.size
+            ) && 
+            node_equals(
+                typecast(struct ExpressionNode*, left)->value,
+                typecast(struct ExpressionNode*, right)->value
+            );
+        case List:
+            if (array_size(typecast(struct ListNode*, left)->nodes) != array_size(typecast(struct ListNode*, right)->nodes)) return false;
+            return array_compare(
+                typecast(struct ListNode*, left)->nodes,
+                typecast(struct ListNode*, right)->nodes,
+                (comparer_func)node_equals);
+        case Call:
+        case Index:
+            return node_equals(typecast(struct CallNode*, left)->expr, typecast(struct CallNode*, right)->expr) &&
+            array_compare(
+                typecast(struct CallNode*, left)->arguments, 
+                typecast(struct CallNode*, left)->arguments, 
+                (comparer_func)node_equals
+            );
+        case Lambda:
+            if (typecast(struct LambdaNode*, left)->name.size != typecast(struct LambdaNode*, right)->name.size) return false;
+            return strncmp(
+                typecast(struct LambdaNode*, left)->name.string,
+                typecast(struct LambdaNode*, right)->name.string,
+                typecast(struct LambdaNode*, left)->name.size
+            ) && node_equals(
+                typecast(struct LambdaNode*, left)->expression,
+                typecast(struct LambdaNode*, left)->expression
+            ) && array_compare(
+                typecast(struct LambdaNode*, left)->params, 
+                typecast(struct LambdaNode*, right)->params, 
+                (comparer_func)node_equals
+            );
+        case Switch:
+            return node_equals(
+                typecast(struct SwitchNode *, left)->expr,
+                typecast(struct SwitchNode *, right)->expr
+            ) && array_compare(
+                typecast(struct SwitchNode *, left)->cases, 
+                typecast(struct SwitchNode *, right)->cases,
+                (comparer_func)node_equals
+            );
+        case Define:
+            if (typecast(struct DefineNode *, left)->name.size != typecast(struct DefineNode *, right)->name.size) return false;
+            return strncmp(
+                typecast(struct DefineNode *, left)->name.string,
+                typecast(struct DefineNode *, right)->name.string,
+                typecast(struct DefineNode *, left)->name.size
+            ) && node_equals(
+                typecast(struct DefineNode * , left)->cast, 
+                typecast(struct DefineNode * , right)->cast
+            );
+        case Include:
+            if (typecast(struct IncludeNode *, left)->fname.size != typecast(struct IncludeNode *, right)->fname.size) return false;
+            return strncmp(
+                typecast(struct IncludeNode *, left)->fname.string,
+                typecast(struct IncludeNode *, right)->fname.string,
+                typecast(struct IncludeNode *, left)->fname.size
+            );
+        case Scope:
+            return node_equals(
+                typecast(struct ScopeNode *, left)->parent, 
+                typecast(struct ScopeNode *, right)->parent
+            ) && node_equals(
+                typecast(struct ScopeNode *, left)->child, 
+                typecast(struct ScopeNode *, right)->child
+            );
+        case Task:
+            return array_compare(
+                typecast(struct TaskNode *, left)->tasks, 
+                typecast(struct TaskNode *, right)->tasks,
+                (comparer_func)node_equals
+            );
+            break;
+    }
+    return false;
 }

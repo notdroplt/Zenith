@@ -15,7 +15,7 @@
  * @returns a valid pointer when the node was optimized
  * @returns NULL when the node could not be optimized
  */
-node_pointer optimized_unarynode(node_pointer value, const enum TokenTypes token);
+struct Node * optimized_unarynode(struct Node * value, const enum TokenTypes token);
 
 /**
  * @brief generate an optimized binary node
@@ -25,6 +25,6 @@ node_pointer optimized_unarynode(node_pointer value, const enum TokenTypes token
  * @param right right hand value
  * @returns a valid pointer when the node was 
  */
-node_pointer optimized_binarynode(node_pointer left, const enum TokenTypes token, node_pointer right);
+struct Node * optimized_binarynode(struct Node * left, const enum TokenTypes token, struct Node * right);
 
 #endif

@@ -28,9 +28,10 @@ static int vprintf_function(const char * format_string, ...) {
 
 char *strip(char *str)
 {
+	char *end = NULL;
 	if (!str) return NULL;
 
-	char *end = str + strlen(str) - 1;
+	end = str + strlen(str) - 1;
 
 	if (end < str)
 		return str;

@@ -20,7 +20,7 @@
  * @return A node pointer.
  */
 
-node_pointer optimized_unarynode(node_pointer value, const enum TokenTypes token) {
+struct Node * optimized_unarynode(struct Node * value, const enum TokenTypes token) {
 	if (token == TT_Plus) return value; /* this is what "discarted" means */
 
 
@@ -76,7 +76,7 @@ node_pointer optimized_unarynode(node_pointer value, const enum TokenTypes token
 	return NULL;
 }
 
-node_pointer optimized_binarynode(node_pointer left, const enum TokenTypes token, node_pointer right){
+struct Node * optimized_binarynode(struct Node * left, const enum TokenTypes token, struct Node * right){
 	if (left->isconst && right->isconst && left->type == Integer && right->type == Integer) {
 		struct NumberNode * nleft = (struct NumberNode *)left;
 		struct NumberNode * nright = (struct NumberNode *)right;
@@ -140,11 +140,11 @@ node_pointer optimized_binarynode(node_pointer left, const enum TokenTypes token
         }
 opt_double_case:
 	if (left->isconst && right->isconst && (left->type == Double || right->type == Double)) {
-		struct NumberNode * nleft = (struct NumberNode *)left;
+		struct NumberNode * nleft = (struct NumberNode *)left, * nright;
 		if (nleft->value == 0.0 && nleft->number != 0)
 			nleft->value = nleft->number;
 
-		struct NumberNode * nright = (struct NumberNode *)right;
+		nright = (struct NumberNode *)right;
 		if (nleft->value == 0.0 && nleft->number != 0)
 			nleft->value = nleft->number;
 		switch (token) {				

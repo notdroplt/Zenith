@@ -68,11 +68,24 @@ struct Node
  */
 struct Node create_node(const enum NodeTypes type, const bool isconst);
 
+
 /**
  * @typedef node_pointer
  * @brief a unique pointer to Node
  */
 typedef struct Node *node_pointer;
+
+/**
+ * @brief compares if two nodes are equal
+ *
+ * Complexity: unknown
+ * 
+ * @param left left node to compare
+ * @param right right node to compare
+ * @return 1 when the same
+ * @return 0 when not the same
+ */
+int node_equals(const struct Node * left, const struct Node * right);
 
 /**
  * @struct NumberNode
@@ -87,7 +100,7 @@ typedef struct Node *node_pointer;
  */
 struct NumberNode
 {
-	struct Node base; /*!< base node struct */
+	struct Node base; /*!< base node struct Node */
 	uint64_t number;  /*!< integer number value */
 	double value;	  /*!< decimal number value */
 };
@@ -99,7 +112,7 @@ struct NumberNode
  *
  * Complexity: depends on `malloc`
  */
-node_pointer create_intnode(const uint64_t value);
+struct Node * create_intnode(const uint64_t value);
 
 /**
  * @brief Constructs a number node, from a double
@@ -108,7 +121,7 @@ node_pointer create_intnode(const uint64_t value);
  *
  * Complexity: depends on `malloc`
  */
-node_pointer create_doublenode(const double value);
+struct Node * create_doublenode(const double value);
 
 /**
  * @struct StringNode
@@ -138,7 +151,7 @@ struct StringNode
  * Complexity: depends on `malloc`
  * string_view's default copy constructor only does a shallow copy of the string
  */
-node_pointer create_stringnode(struct string_t value, const enum NodeTypes type);
+struct Node * create_stringnode(struct string_t value, const enum NodeTypes type);
 
 /**
  * @struct UnaryNode
@@ -174,7 +187,7 @@ node_pointer create_stringnode(struct string_t value, const enum NodeTypes type)
 struct UnaryNode
 {
 	struct Node base;	   /*!< base node */
-	node_pointer value;	   /*!< main node value */
+	struct Node * value;	   /*!< main node value */
 	enum TokenTypes token; /*!< unary operation token */
 };
 
@@ -186,7 +199,7 @@ struct UnaryNode
  *
  * Complexity: depends on `malloc`
  */
-node_pointer create_unarynode(const node_pointer value, const enum TokenTypes token);
+struct Node * create_unarynode(struct Node * value, const enum TokenTypes token);
 
 /**
  * @struct BinaryNode
@@ -211,8 +224,8 @@ node_pointer create_unarynode(const node_pointer value, const enum TokenTypes to
 struct BinaryNode
 {
 	struct Node base;	   /*!< base node */
-	node_pointer left;	   /*!< left node value */
-	node_pointer right;	   /*!< right node value */
+	struct Node * left;	   /*!< left node value */
+	struct Node * right;	   /*!< right node value */
 	enum TokenTypes token; /*!< binary token */
 };
 
@@ -225,7 +238,7 @@ struct BinaryNode
  *
  * Complexity: depends on `malloc`
  */
-node_pointer create_binarynode(node_pointer left, const enum TokenTypes token, node_pointer right);
+struct Node * create_binarynode(struct Node * left, const enum TokenTypes token, struct Node * right);
 
 /**
  * @struct TernaryNode
@@ -257,9 +270,9 @@ node_pointer create_binarynode(node_pointer left, const enum TokenTypes token, n
 struct TernaryNode
 {
 	struct Node base;		/*!< base node*/
-	node_pointer condition; /*!< conditional node */
-	node_pointer trueop;	/*!< true node, node value in case @ref condition evaluates to true */
-	node_pointer falseop;	/*!< false node, node value in case @ref condition evaluates to fasle */
+	struct Node * condition; /*!< conditional node */
+	struct Node * trueop;	/*!< true node, node value in case @ref condition evaluates to true */
+	struct Node * falseop;	/*!< false node, node value in case @ref condition evaluates to fasle */
 };
 
 /**
@@ -271,7 +284,7 @@ struct TernaryNode
  *
  * Complexity: depends on `malloc`
  */
-node_pointer create_ternarynode(node_pointer condition, node_pointer true_op, node_pointer false_op);
+struct Node * create_ternarynode(struct Node * condition, struct Node * true_op, struct Node * false_op);
 
 /**
  * @struct ExpressionNode
@@ -293,7 +306,7 @@ struct ExpressionNode
 {
 	struct Node base;		/*!< base node*/
 	struct string_t name;	/*!< expression name */
-	node_pointer value;		/*!< expression value */
+	struct Node * value;		/*!< expression value */
 };
 
 /**
@@ -304,7 +317,7 @@ struct ExpressionNode
  *
  * Complexity: depends on `malloc`
  */
-node_pointer create_expressionnode(struct string_t name, node_pointer value);
+struct Node * create_expressionnode(struct string_t name, struct Node * value);
 
 /**
  * @struct ListNode
@@ -335,7 +348,7 @@ struct ListNode
  * @param node_array array of elements
  * Complexity: depends on `malloc`
  */
-node_pointer create_listnode(struct Array *node_array);
+struct Node * create_listnode(struct Array *node_array);
 
 /**
  * @struct CallNode
@@ -359,7 +372,7 @@ struct CallNode
 {
 	struct Node base;		 /*!< base node */
 	struct Array *arguments; /*!< array of arguments */
-	node_pointer expr;		 /*!< expression to call / index */
+	struct Node * expr;		 /*!< expression to call / index */
 };
 
 /**
@@ -371,7 +384,7 @@ struct CallNode
  *
  * Complexity: depends on `malloc`
  */
-node_pointer create_callnode(node_pointer expr, struct Array *arg_array, const enum NodeTypes type);
+struct Node * create_callnode(struct Node * expr, struct Array *arg_array, const enum NodeTypes type);
 
 /**
  * @struct SwitchNode
@@ -397,7 +410,7 @@ struct SwitchNode
 {
 	struct Node base;	 /*!< base node */
 	struct Array *cases; /*!< array of cases */
-	node_pointer expr;	 /*!< switch expression */
+	struct Node * expr;	 /*!< switch expression */
 };
 
 /**
@@ -408,7 +421,7 @@ struct SwitchNode
  *
  * Complexity: depends on `malloc`
  */
-node_pointer create_switchnode(node_pointer expr, struct Array *cases);
+struct Node * create_switchnode(struct Node * expr, struct Array *cases);
 
 /**
  * @struct LambdaNode
@@ -436,7 +449,7 @@ struct LambdaNode
 	struct Node base;		 /*!< base node */
 	struct Array *params;	 /*!< function parameters */
 	struct string_t name;	 /*!< function name */
-	node_pointer expression; /*!< function expression */
+	struct Node * expression; /*!< function expression */
 };
 
 /**
@@ -448,7 +461,7 @@ struct LambdaNode
  *
  * Complexity: depends on `malloc`
  */
-node_pointer create_lambdanode(struct string_t name, node_pointer expression, struct Array *params_arr);
+struct Node * create_lambdanode(struct string_t name, struct Node * expression, struct Array *params_arr);
 
 /**
  * @struct DefineNode
@@ -477,7 +490,7 @@ node_pointer create_lambdanode(struct string_t name, node_pointer expression, st
 struct DefineNode
 {
 	struct Node base;		/*!< base node */
-	node_pointer cast;		/*!< node that type is casted to */
+	struct Node * cast;		/*!< node that type is casted to */
 	struct string_t name;	/*!< type name */
 };
 
@@ -489,7 +502,7 @@ struct DefineNode
  *
  * Complexity: depends on `malloc`
  */
-node_pointer create_definenode(struct string_t name, node_pointer cast);
+struct Node * create_definenode(struct string_t name, struct Node * cast);
 
 /**
  * @struct IncludeNode
@@ -525,7 +538,7 @@ struct IncludeNode
  *
  * Complexity: depends on `malloc`
  */
-node_pointer create_includenode(struct string_t fname, bool binary);
+struct Node * create_includenode(struct string_t fname, bool binary);
 
 /**
  * @struct ScopeNode
@@ -545,8 +558,8 @@ node_pointer create_includenode(struct string_t fname, bool binary);
 struct ScopeNode
 {
 	struct Node base; /*!< base node */
-	node_pointer parent; /*!< node that holds the scope */
-	node_pointer child;	 /*!< node that is going to be get from the scope */
+	struct Node * parent; /*!< node that holds the scope */
+	struct Node * child;	 /*!< node that is going to be get from the scope */
 };
 
 /**
@@ -557,7 +570,7 @@ struct ScopeNode
  *
  * Complexity: depends on `malloc`
  */
-node_pointer create_scopenode(node_pointer parent, node_pointer child);
+struct Node * create_scopenode(struct Node * parent, struct Node * child);
 
 /**
  * @struct TaskNode
@@ -581,7 +594,7 @@ struct TaskNode
  *
  * Complexity: depends on `malloc`
  */
-node_pointer create_tasknode(struct Array *array);
+struct Node * create_tasknode(struct Array *array);
 
 /**
  * @brief deletes any kind of node

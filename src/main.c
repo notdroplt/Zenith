@@ -33,6 +33,8 @@ int main(int argc, char ** argv)
 	struct Parser * parser = NULL;
 	struct Assembler * assembler = NULL;
 	struct Array * nodes = NULL, * instructions = NULL;
+	FILE * fp = NULL;
+	char * content = NULL;
 
 	if (argc > 1 && (strcmp(argv[1], "-v") == 0 || strcmp(argv[1], "--version") == 0)) {
 		fputs("v" platform_ver_str "\n", stdout);
@@ -46,7 +48,7 @@ int main(int argc, char ** argv)
 	
 	parser = create_parser(getenv(env_input));
 
-	char * content = parser->lexer.content;
+	content = parser->lexer.content;
 
 	if (!parser) return 1;
 
@@ -62,7 +64,7 @@ int main(int argc, char ** argv)
 
 	if (!instructions) return 1;
 
-	FILE * fp = fopen(getenv(env_output), "w");
+	fp = fopen(getenv(env_output), "w");
 	if (!fp) return 1;
 
 	fwrite(
