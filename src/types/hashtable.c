@@ -1,3 +1,4 @@
+#include <stdint.h>
 #include <types.h>
 #include <string.h>
 #include <stdlib.h>
@@ -69,8 +70,7 @@ int map_addi_key(struct HashMap * map, uint64_t key, void * value) {
 
 	++map->size;
 
-	if (map->pairs[key % map->capacity].first == NULL) 
-	{
+	if (map->pairs[key % map->capacity].first == NULL) 	{
 		map->pairs[key % map->capacity].first = (void*)key;
 		map->pairs[key % map->capacity].second = value;
 		return key;
@@ -109,7 +109,7 @@ void delete_map(struct HashMap * map, deleter_func deleter) {
 	for (size_t i = 0; i < map->capacity; i++)
 	{
 		if(!map->pairs[i].first) continue;
-		if (deleter && map->pairs[i].second) deleter(map->pairs[i].second);
+		if(deleter && map->pairs[i].second) deleter(map->pairs[i].second);
 	}
 
 	free(map->pairs);

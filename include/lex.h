@@ -12,11 +12,9 @@
 #ifndef ZENITH_LEX_H
 #define ZENITH_LEX_H 1
 
-#include <stdint.h>
-#include <stddef.h>
 #include <ctype.h>
 #include <string.h>
-#include <platform.h>
+#include "platform.h"
 
 
 /**
@@ -182,5 +180,15 @@ struct token_t getNextToken(struct lex_t *lex);
  * @returns non-zero if different
  */
 int strvcmp(const struct string_t s1, const char *s2);
+
+/**
+ * @brief compares two string views
+ * 
+ * @param s1 string 1
+ * @param s2 string 2
+ * 
+ * @returns 0 when both strings are equal
+ */
+int sstrcmp(const struct string_t * s1, const struct string_t * s2);
 
 #endif

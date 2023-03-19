@@ -58,6 +58,14 @@ struct Array* list_to_array(struct List * list) {
     return arr;
 }
 
+uint32_t list_size(const struct List * list) {
+    return list->size;
+}
+
+void * list_get_tail_value(const struct List * list) {
+    return &(list->tail->value);
+}
+
 void delete_list(struct List * list, deleter_func deleter) {
     struct ListNode * node, *tmp;
     if (!list->head) {

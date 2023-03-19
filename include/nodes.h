@@ -14,7 +14,6 @@
 #define ZENITH_NODES_H 1
 #include "lex.h"
 #include "types.h"
-#include <stdbool.h>
 
 /**
  * @enum NodeTypes

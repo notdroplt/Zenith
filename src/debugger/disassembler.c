@@ -1,4 +1,4 @@
-#include <zenithvm.h>
+#include "zenithvm.h"
 
 #define get_instruction(instruction) instructions[instruction]
 static const char *instructions[] = {
@@ -48,7 +48,7 @@ void disassemble_file(const char *filename)
 
     for (; dot < maxsize; dot += 8)
         if (!fread(&inst, sizeof(union instruction_t), 1, fp) || inst.ltype.opcode > 0x3B)
-            fprintf(stderr, "invalid read at block 0x%lx\n", dot);
+            fprintf(stderr, "invalid read at block 0x%lX\n", dot);
         else {
             printf("0x%08lx | %016lX | ", dot, inst.value);
             disassemble_instruction(inst);

@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-int main() {
+int main(void) {
     uint16_t size = rand();
     struct Array * arr = create_array(size);
     if (array_size(arr) != size) {

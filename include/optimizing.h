@@ -2,7 +2,7 @@
 #ifndef ZENITH_OPTIMIZING_H
 #define ZENITH_OPTIMIZING_H 1
 
-#include <nodes.h>
+#include "nodes.h"
 
 /**
  * @brief generate an optimized unary node
@@ -26,5 +26,15 @@ struct Node * optimized_unarynode(struct Node * value, const enum TokenTypes tok
  * @returns a valid pointer when the node was 
  */
 struct Node * optimized_binarynode(struct Node * left, const enum TokenTypes token, struct Node * right);
+
+/**
+ * @brief try to optimize a ternary node
+ * 
+ * @param condition 
+ * @param true_op 
+ * @param false_op 
+ * @return struct Node* 
+ */
+struct Node * optimized_ternarynode(struct Node * condition, struct Node * true_op, struct Node * false_op);
 
 #endif

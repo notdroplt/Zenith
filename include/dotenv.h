@@ -1,7 +1,7 @@
 #pragma once
 #ifndef ZENITH_DOTENV_H
 #define ZENITH_DOTENV_H 1
-#include <platform.h>
+#include "platform.h"
 
 /**
  * @brief enviromental variable for the input file

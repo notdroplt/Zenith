@@ -1,8 +1,6 @@
-#include "nodes.h"
-#include "platform.h"
-#include "types.h"
-#include <compiler.h>
 #include <stdint.h>
+#include <stdio.h>
+#include "compiler.h"
 
 struct table_entry {
     struct string_t name;
@@ -15,8 +13,8 @@ struct table_entry {
 typedef uint64_t return_t;
 static return_t assemble(struct Assembler * assembler, const struct Node * node);
 
-struct Assembler * create_assembler(const struct Array * parsed_nodes){
-    struct Assembler * assembler = malloc(sizeof(struct Assembler));
+struct Assembler * create_assembler(struct Array * parsed_nodes){
+    struct Assembler * assembler = calloc(1,sizeof(struct Assembler));
     if (!assembler) goto destructor_final;
 
     assembler->instructions = create_list();
@@ -38,31 +36,28 @@ destructor_final:
     ZenithOutOfMemory;
     return NULL;
 }
-
-static int32_t request_register(struct Assembler * assembler, bool descending, int32_t set_next) {
+/* memory allocate -> malloc */
+/* register allocate -> ralloc */
+static int32_t ralloc(struct Assembler * assembler, bool descending, int32_t set_next) {
     static int32_t next_reg = -1;
     int i;
 
     if (set_next != -1) {
         next_reg = set_next;
-        // compiler can then check if register is free
         return assembler->registers & (1 << set_next);
     }
     
     if (next_reg != -1 && assembler->registers & (1 << next_reg)) {
-        // get pre-reserved register
         assembler->registers |= 1 << next_reg;
         return next_reg;
     }
 
     if (!descending) {
-        // normal register usage
         for (i = 1; i < 32; ++i)
             if (!(assembler->registers & (1 << i)))
                 break;
     } else {
-        // passing arguments around
-        for (i = 31; i >= 0; --i)
+        for (i = 31; i > 0; --i)
             if (!(assembler->registers & (1 << i)))
                 break;
     }
@@ -72,7 +67,6 @@ static int32_t request_register(struct Assembler * assembler, bool descending, i
         return i;
     } 
     
-    //! TODO: use stack (if target supports it)
     return -1;
 }
 
@@ -95,7 +89,7 @@ static return_t assemble_number(struct Assembler * assembler, const struct Numbe
     uint32_t reg_index = 0;
     if (node->value == 0.0 && node->number == 0) return 0;
 
-    reg_index = request_register(assembler, false, -1);
+    reg_index = ralloc(assembler, false, -1);
     if (reg_index == -1U) return -1U;
 
     if (node->number > 0x400000000000)
@@ -217,7 +211,7 @@ static return_t assemble_binary(struct Assembler * assembler, const struct Binar
     return lchild;
 }
 
-static int sstrcmp(struct string_t * s1, struct string_t * s2) {
+int sstrcmp(const struct string_t * s1, const struct string_t * s2) {
     if (s1->size != s2->size) return 1;
     for (size_t i = 0; i < s1->size; i++)
         if (s1->string[i] != s2->string[i]) return 1;
@@ -240,7 +234,7 @@ static return_t assemble_identifier(struct Assembler * assembler, const struct S
 
     if (!function_table) return -1U;
    
-    if (strncmp(fname.string, node->value.string, node->value.size) == 0) {
+    if (array_find(function_table->names, &node->value, (comparer_func)sstrcmp) != -1) {
         struct pair_t * entry = map_getkey_ss(assembler->table, get_current_function_name(assembler));
         if (!entry->first) return -1U;
         return 30 - array_find(((struct table_entry*)entry->second)->names, &node->value, (comparer_func)sstrcmp);
@@ -263,7 +257,7 @@ static return_t assemble_lambda(struct Assembler * assembler, const struct Lambd
         if (arg->base.type != Identifier) goto destructor_list;
         
         // request register for param
-        reg_index = request_register(assembler, true, -1);
+        reg_index = ralloc(assembler, true, -1);
         if (reg_index == -1U) goto destructor_list;
 
         // allocate string for param
@@ -299,7 +293,7 @@ static return_t assemble_lambda(struct Assembler * assembler, const struct Lambd
     if (regs == -1U)
         goto destructor_entry;
 
-    if (append_instruction(assembler, SInstruction(jalr_instrc, 0, 31, 0)))
+    if (!append_instruction(assembler, SInstruction(jalr_instrc, 0, 31, 0)))
         goto destructor_entry;
 
     
@@ -316,9 +310,99 @@ destructor_list:
     return -1U;
 }
 
-// static inline return_t assemble_ternary(struct Assembler * assembler, const struct TernaryNode * node) {
+static inline return_t assemble_ternary(struct Assembler * assembler, const struct TernaryNode * node) {
+    uint64_t dot_v;
+    uint64_t used_true, status_true;
+    uint64_t used_false;
+
+    union instruction_t * last_instr;
     
-// }
+    if (node->condition->type == Binary) 
+        assemble_binary(assembler, (struct BinaryNode *)node->condition, true);
+    else 
+        /* checks `cond != 0`, which is what c-like languages do */
+        append_instruction(assembler, SInstruction(je_instrc, assemble(assembler, node->condition), 0, 0));
+    
+    last_instr = list_get_tail_value(assembler->instructions);
+
+    dot_v = assembler->dot;  
+
+    used_true = assemble(assembler, node->trueop);
+
+    if (dot_v == assembler->dot) {
+        /* if the node is just a variable reference */
+        append_instruction(assembler, RInstruction(addr_instrc, used_true, 0, used_true));
+    }
+
+    status_true = assembler->registers;
+
+    append_instruction(assembler, SInstruction(jal_instrc, 0, 0, 0));
+    last_instr->stype.immediate = assembler->dot - dot_v;
+
+    last_instr = list_get_tail_value(assembler->instructions);
+
+    dot_v = assembler->dot;  
+
+    used_false = assemble(assembler, node->falseop);
+    if (dot_v == assembler->dot) 
+        /* if the node is just a variable */
+        append_instruction(assembler, RInstruction(addr_instrc, used_false, 0, used_false));
+    
+    assembler->registers |= status_true; 
+    last_instr->ltype.immediate = assembler->dot - dot_v;
+
+    return used_true;
+}
+
+static return_t assemble_call(struct Assembler * assembler, const struct CallNode * node) {
+    return_t return_reg;
+    uint64_t offset;
+    uint32_t arg_size = array_size(node->arguments);
+    uint8_t arg_counter = 30;
+    struct string_t name = ((struct StringNode *)(node->expr))->value;
+    struct table_entry * sym_entry;
+    struct pair_t * pair;
+
+    
+
+    if (node->expr->type != Identifier) {
+        fprintf(stderr, "expected");
+    }
+
+    pair = map_getkey_ss(assembler->table, name);
+
+    if (!pair->first) {
+        ZENITH_PRINT_ERR(":%*s\n", 0x0700, (int)name.size, name.string);
+        return -1LU;
+    }
+
+    sym_entry = pair->second;
+    if (sym_entry->arg_size != arg_size) {
+        ZENITH_PRINT_ERR(":%d:%d", 0x701, (int)sym_entry->arg_size, arg_size);
+    }
+    
+    for (; arg_counter < 30 - arg_size; --arg_counter) {
+
+        uint64_t reg = ralloc(assembler, false, arg_counter);
+        if (reg == -1LU) {
+            ZENITH_PRINT_ERR("", 0x702);
+            return -1LU;
+        } 
+        if (assemble(assembler, array_index(node->arguments, 30 - arg_counter)) == -1LU) {
+            return -1LU;
+        }
+    }
+
+    return_reg = ralloc(assembler, false, -1);
+    
+    offset = assembler->dot - sym_entry->allocation_point;
+
+    if (offset >= 1 << 18)    
+        append_instruction(assembler, LInstruction(auipc_instrc, return_reg, (offset >> 18)));
+    append_instruction(assembler, SInstruction(jalr_instrc, return_reg, return_reg, (offset & ((1 << 18) - 1))));
+    
+    return return_reg;
+}
 
 static return_t assemble(struct Assembler * assembler, const struct Node * node){
     switch (node->type)
@@ -331,9 +415,14 @@ static return_t assemble(struct Assembler * assembler, const struct Node * node)
         return assemble_unary(assembler, (const struct UnaryNode*)node);
     case Binary:
         return assemble_binary(assembler, (const struct BinaryNode*)node, false);
+    case Ternary:
+        return assemble_ternary(assembler, (const struct TernaryNode *)node);
     case Lambda:
         return assemble_lambda(assembler, (const struct LambdaNode*)node);    
+    case Call:
+        return assemble_call(assembler, (const struct CallNode *) node);
     default:
+        fprintf(stderr, "did not recognize not of type %d\n", node->type);
         return -1;
     }
 }
@@ -349,4 +438,15 @@ struct Array * compile_unit(struct Assembler * assembler) {
     }
 
     return list_to_array(assembler->instructions);
+}
+
+void delete_table_entry(struct table_entry * entry) {
+    delete_array(entry->names, free);
+    free(entry);
+}
+
+void delete_assembler(struct Assembler * assembler){
+    delete_array(assembler->parsed_nodes, (deleter_func)delete_node);
+    delete_map(assembler->table, (deleter_func)delete_table_entry);
+    free(assembler);
 }

@@ -38,8 +38,6 @@ int test_memory_fetch (struct thread_t * thread) {
         return 1;
     }
 
-    printf("functions `fetch8`, `fetch16`, `fetch32`, and `fetch64` passed tests successfully\n");
-
     return 0;
 }
 
@@ -72,9 +70,6 @@ int test_memory_set(struct thread_t * thread) {
         fprintf(stderr, "function `set_memory_64` set %ld instead of %ld\n", *(uint64_t *)thread->memory, rand4);
         return 1;
     }
-
-    printf("functions `set_memory_8`, `set_memory_16`, `set_memory_32`, and `set_memory_64` passed tests successfully\n");
-
     return 0;
 }
 

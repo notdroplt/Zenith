@@ -1,9 +1,5 @@
-#include "platform.h"
-#include "types.h"
-#include <parser.h>
-#include <stdbool.h>
-#include <stdlib.h>
 #include <stdio.h>
+#include "parser.h"
 
 static void parse_next(struct Parser * parser);
 static node_pointer parse_ternary(struct Parser * parser);

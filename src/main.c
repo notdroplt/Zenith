@@ -39,6 +39,7 @@ int main(int argc, char ** argv)
 	if (argc > 1 && (strcmp(argv[1], "-v") == 0 || strcmp(argv[1], "--version") == 0)) {
 		fputs("v" platform_ver_str "\n", stdout);
 		return 0;
+	/* while there is no good command parsing */
 	} else if (argc > 1) {
 		print_help();
 		return 0;
@@ -77,8 +78,11 @@ int main(int argc, char ** argv)
 	fclose(fp);
 
 	disassemble_file(getenv(env_output));
-	delete_array(nodes, (deleter_func) delete_node);
-	delete_array(instructions, NULL);
+	delete_assembler(assembler);
 	free(content);
+	delete_array(instructions, NULL);
+
+	if (*getenv(env_debug) == '1') 
+		run(getenv(env_output), 0, NULL, debugger_func);
 	return 0;
 }

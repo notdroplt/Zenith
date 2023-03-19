@@ -11,18 +11,22 @@
 
 #pragma once
 #ifndef ZENITH_PLATFORM_H
-#	define ZENITH_PLATFORM_H 1
+#define ZENITH_PLATFORM_H 1
+
 #include <stdint.h>
-#include <stdatomic.h>
+#include <stdlib.h>
+#include <stddef.h>
+#include <stdbool.h>
+
 #if defined(__linux__) || defined(__APPLE__) || defined(doxygen)
 #	define Color_Red "\x1b[31m" /*!< ANSI code for Red */
 #	define Color_Green "\x1b[32m" /*!< ANSI code for Green */
-#define Color_Yellow "\x1b[33m" /*!< ANSI code for Yellow */
-#define Color_Blue "\x1b[34m" /*!< ANSI code for Blue */
-#define Color_Magenta "\x1b[35m" /*!< ANSI code for Magenta */
-#define Color_Cyan "\x1b[36m" /*!< ANSI code for Cyan */
-#define Color_Bold "\x1b[1m" /*!< ANSI code for Bold */
-#define Color_Reset "\x1b[0m" /*!< ANSI code for reseting terminal color */
+#	define Color_Yellow "\x1b[33m" /*!< ANSI code for Yellow */
+#	define Color_Blue "\x1b[34m" /*!< ANSI code for Blue */
+#	define Color_Magenta "\x1b[35m" /*!< ANSI code for Magenta */
+#	define Color_Cyan "\x1b[36m" /*!< ANSI code for Cyan */
+#	define Color_Bold "\x1b[1m" /*!< ANSI code for Bold */
+#	define Color_Reset "\x1b[0m" /*!< ANSI code for reseting terminal color */
 #else /* i am sorry windows users but no colors for you */
 #define Color_Red ""
 #define Color_Green ""
@@ -66,16 +70,16 @@ struct string_t
 	char *string; /*!< string pointer */
 };
 
-#include "types.h"
-
 
 /*!< defines basic error code printing */
-#define ZENITH_PRINT_ERR(fmt, ...) fprintf(stderr, "Zenith Error: %s" fmt "\n", __VA_ARGS__)
+#define ZENITH_PRINT_ERR(fmt, ...) fprintf(stderr, "Zenith Error: Z%04X" fmt "\n", __VA_ARGS__)
 
 /*!< error when any part of the code goes out of memory */
-#define ZenithOutOfMemory ZENITH_PRINT_ERR("", "Z0000");
+#define ZenithOutOfMemory ZENITH_PRINT_ERR("", 0000);
 
 /*!< error when a file is not found by any means*/
-#define ZenithFileNotFound(filename) ZENITH_PRINT_ERR(":\"%s\"", "Z0001", filename)
+#define ZenithFileNotFound(filename) ZENITH_PRINT_ERR(":\"%s\"", 0001, filename)
+
+
 
 #endif

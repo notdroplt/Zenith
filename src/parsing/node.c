@@ -1,8 +1,8 @@
-#include "types.h"
-#include <nodes.h>
-#include <stdlib.h>
-#include <optimizing.h>
 #include <string.h>
+#include <stdio.h>
+#include "types.h"
+#include "nodes.h"
+#include "optimizing.h"
 
 struct Node create_node(const enum NodeTypes type, const bool isconst) {
     return (struct Node){
@@ -61,29 +61,34 @@ struct Node * create_unarynode(struct Node * value, const enum TokenTypes token)
         .value = value
 	};
 
-	return (struct Node *)node;
+	return node;
 }
 
 struct Node * create_binarynode(struct Node * left, const enum TokenTypes token, struct Node * right){
+    struct Node * node = optimized_binarynode(left, token, right);
+    if (node) return node;
 
-    struct BinaryNode * node = malloc(sizeof(struct BinaryNode));
+    node = malloc(sizeof(struct BinaryNode));
     if (!node) return NULL;
-    *node = (struct BinaryNode) {
+    
+    *(struct BinaryNode *)node = (struct BinaryNode) {
         .base = create_node(Binary, right->isconst && left->isconst),
         .left = left,
         .right = right,
         .token = token
     };
 
-    return (struct Node *)node;
+    return node;
 }
 
 struct Node * create_ternarynode(struct Node * condition, struct Node * true_op, struct Node * false_op){
-    
+    struct Node * node = optimized_ternarynode(condition, true_op, false_op);
 
-    struct TernaryNode * node = malloc(sizeof(struct TernaryNode));
+    if (node) return node;
+    node = malloc(sizeof(struct TernaryNode));
+    
     if(!node) return NULL;
-    *node = (struct TernaryNode) {
+    *(struct TernaryNode *)node = (struct TernaryNode) {
         .base = create_node(Ternary, condition->isconst),
         .condition = condition,
         .trueop = true_op,
@@ -209,7 +214,8 @@ static void delete_stringnode(struct StringNode * node) {
 }
 
 static void delete_unarynode(struct UnaryNode * node) {
-    delete_node(node->value);
+    if (node->value)
+        delete_node(node->value);
     free(node);
 }
 
@@ -227,7 +233,8 @@ static void delete_ternarynode(struct TernaryNode* node) {
 }
 
 static void delete_expressionnode(struct ExpressionNode* node) {
-    delete_node(node->value);
+    if (node->value)
+        delete_node(node->value);
     free(node);
 }
 
@@ -282,6 +289,7 @@ static void delete_tasknode(struct TaskNode * node) {
 }
 
 void delete_node(struct Node * node) {
+    if (!node) return;
     switch(node->type){
         case Integer:
         case Double:
@@ -351,7 +359,7 @@ int node_equals(const struct Node * left, const struct Node * right) {
                 typecast(struct StringNode*, left)->value.string,
                 typecast(struct StringNode*, right)->value.string,
                 typecast(struct StringNode*, left)->value.size
-            );
+            ) == 0;
         case Unary:
             return typecast(struct UnaryNode *, left)->token == typecast(struct UnaryNode *, right)->token &&
                 node_equals(
@@ -387,7 +395,7 @@ int node_equals(const struct Node * left, const struct Node * right) {
                 typecast(struct ExpressionNode*, left)->name.string,
                 typecast(struct ExpressionNode*, right)->name.string,
                 typecast(struct ExpressionNode*, left)->name.size
-            ) && 
+            ) == 0 && 
             node_equals(
                 typecast(struct ExpressionNode*, left)->value,
                 typecast(struct ExpressionNode*, right)->value
@@ -412,7 +420,7 @@ int node_equals(const struct Node * left, const struct Node * right) {
                 typecast(struct LambdaNode*, left)->name.string,
                 typecast(struct LambdaNode*, right)->name.string,
                 typecast(struct LambdaNode*, left)->name.size
-            ) && node_equals(
+            ) == 0 && node_equals(
                 typecast(struct LambdaNode*, left)->expression,
                 typecast(struct LambdaNode*, left)->expression
             ) && array_compare(
@@ -435,7 +443,7 @@ int node_equals(const struct Node * left, const struct Node * right) {
                 typecast(struct DefineNode *, left)->name.string,
                 typecast(struct DefineNode *, right)->name.string,
                 typecast(struct DefineNode *, left)->name.size
-            ) && node_equals(
+            ) == 0 && node_equals(
                 typecast(struct DefineNode * , left)->cast, 
                 typecast(struct DefineNode * , right)->cast
             );
@@ -445,7 +453,7 @@ int node_equals(const struct Node * left, const struct Node * right) {
                 typecast(struct IncludeNode *, left)->fname.string,
                 typecast(struct IncludeNode *, right)->fname.string,
                 typecast(struct IncludeNode *, left)->fname.size
-            );
+            ) == 0;
         case Scope:
             return node_equals(
                 typecast(struct ScopeNode *, left)->parent, 
@@ -463,4 +471,49 @@ int node_equals(const struct Node * left, const struct Node * right) {
             break;
     }
     return false;
+}
+
+void node_format(FILE * file, const struct Node * root) {
+    switch (root->type) {
+        case Integer:
+            fprintf(file, "{\"type\":\"int\",\"value\":%ld}", ((struct NumberNode *)root)->number);
+            break;
+        case Double:
+            fprintf(file, "{\"type\":\"double\",\"value\":%lf}", ((struct NumberNode *)root)->value);
+            break;
+        case String:
+        case Identifier:
+            fprintf(file, "{\"type\":\"%s\",\"value\":%*s}", root->type == String ? "str" : "id", (int)((struct StringNode *)root)->value.size, ((struct StringNode *)root)->value.string);
+            break;
+        case Unary:
+            fprintf(file, "{\"type\":\"unary\",\"token\":%d,\"value\":", ((struct UnaryNode *)root)->token);
+            node_format(file, ((struct UnaryNode *)root)->value);
+            putc('}', file);
+            break;
+        case Binary:
+            fprintf(file, "{\"type\":\"binary\",\"token\":%d,\"left\":", ((struct BinaryNode *)root)->token);
+            node_format(file, ((struct BinaryNode *)root)->left);
+            fputs(",\"right\":", file);
+            node_format(file, ((struct BinaryNode *)root)->right);
+            putc('}', file);
+            break;
+        case Ternary:
+            fputs("{\"type\":\"ternary\",\"condition\":", file);
+            node_format(file, ((struct BinaryNode *)root)->right);
+            break;
+        case Expression:
+            fprintf(file, "{\"type\":\"expression\",\"name\":%*s,\"value\":", (int)((struct ExpressionNode *)root)->name.size, ((struct ExpressionNode *)root)->name.string);
+            node_format(file, ((struct ExpressionNode *)root)->value);
+        case List:
+        case Call:
+        case Lambda:
+        case Switch:
+        case Define:
+        case Index:
+        case Include:
+        case Scope:
+        case Task:
+        default:
+            break;
+    }
 }

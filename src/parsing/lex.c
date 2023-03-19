@@ -1,5 +1,5 @@
-#include <lex.h>
 #include <stdio.h>
+#include "lex.h"
 
 static char lexNext(struct lex_t *lex)
 {
@@ -59,7 +59,7 @@ static uint64_t strtoi(struct string_t string)
 	return value;
 }
 
-static double strtod(struct string_t str)
+static double sstrtod(struct string_t str)
 {
 	double value = 0.0;
 	size_t i = 0, div = 10;
@@ -102,7 +102,7 @@ static struct token_t lexNumber(struct lex_t *lex)
 	if (dot)
 	{
 		tok.type = TT_Double;
-		tok.val.number = strtod(tok.string);
+		tok.val.number = sstrtod(tok.string);
 	}
 	else
 	{

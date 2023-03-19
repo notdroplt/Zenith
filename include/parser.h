@@ -1,6 +1,7 @@
 #pragma once
 #ifndef ZENITH_PARSER_H
 #define ZENITH_PARSER_H
+
 #include "nodes.h"
 #include "types.h"
 

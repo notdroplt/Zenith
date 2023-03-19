@@ -1,7 +1,4 @@
-#include "lex.h"
 #include "parser.h"
-#include <nodes.h>
-#include <types.h>	
 
 /**
  * @defgroup optmizfunc optimization functions
@@ -23,7 +20,7 @@
 struct Node * optimized_unarynode(struct Node * value, const enum TokenTypes token) {
 	if (token == TT_Plus) return value; /* this is what "discarted" means */
 
-
+	
 	if (value->isconst && value->type == Integer) {
 		struct NumberNode * numnode = (struct NumberNode *)value;
 		switch(token) {
@@ -77,6 +74,44 @@ struct Node * optimized_unarynode(struct Node * value, const enum TokenTypes tok
 }
 
 struct Node * optimized_binarynode(struct Node * left, const enum TokenTypes token, struct Node * right){
+	if (node_equals(left, right)) {
+		delete_node(right);
+		switch (token) {
+			case TT_Minus:
+				delete_node(left);
+				return create_intnode(0);
+			case TT_Divide:
+				delete_node(left);
+				return create_intnode(1);
+			case TT_LessThan:
+				delete_node(left);
+				return create_intnode(0);
+			case TT_LessThanEqual:
+				delete_node(left);
+				return create_intnode(1);
+			case TT_CompareEqual:
+				delete_node(left);
+				return create_intnode(1);
+			case TT_NotEqual:
+				delete_node(left);
+				return create_intnode(0);
+			case TT_GreaterThan:
+				delete_node(left);
+				return create_intnode(0);
+			case TT_GreaterThanEqual:
+				delete_node(left);
+				return create_intnode(1);
+			case TT_BitwiseOr:
+				return left;
+			case TT_BitwiseAnd:
+				return left;
+			case TT_BitWiseXor:
+				delete_node(left);
+				return create_intnode(0);
+			default: 
+				break;
+			}
+	}
 	if (left->isconst && right->isconst && left->type == Integer && right->type == Integer) {
 		struct NumberNode * nleft = (struct NumberNode *)left;
 		struct NumberNode * nright = (struct NumberNode *)right;
@@ -158,7 +193,7 @@ opt_double_case:
 				nleft->value *= nright->value;
 				break;
 			case TT_Divide:
-				nleft->value *= nright->value;
+				nleft->value /= nright->value;
 				break;
 			case TT_LessThan:
 				nleft->value = nleft->value < nright->value;
@@ -192,4 +227,28 @@ opt_double_case:
         }
 	return NULL;
 }
+
+struct Node * optimized_ternarynode(struct Node * condition, struct Node * true_op, struct Node * false_op) {
+	if (node_equals(true_op, false_op)) {
+		delete_node(condition);
+		delete_node(false_op);
+		return true_op;
+	}
+
+	if (condition->isconst) {
+		uint64_t cond = condition->type == Integer 
+						? ((struct NumberNode *)condition)->number 
+						: ((struct NumberNode *)condition)->value;
+		delete_node(condition);
+		if (cond) {
+			delete_node(false_op);
+			return true_op;
+		} 
+		delete_node(true_op);
+		return false_op;
+	}
+
+	return NULL;
+}
+
 /* @} */ /* end of group optmizfunc*/

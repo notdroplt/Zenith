@@ -2,9 +2,8 @@
 #ifndef ZENITH_ELF_CREATOR
 #define ZENITH_ELF_CREATOR 1
 
-#include <platform.h>
-#include <types.h>
-#include <stdint.h>
+#include "platform.h"
+#include "types.h"
 
 /**
  * @brief symbol counting

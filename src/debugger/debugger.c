@@ -1,7 +1,6 @@
-#include "platform.h"
 #include <stdio.h>
-#include <stdlib.h>
-#include <zenithvm.h>
+#include "platform.h"
+#include "zenithvm.h"
 
 #define color_old(old, new) ((old) > (new) ? Color_Green : ((new) > (old) ? Color_Red : ""))
 #define color_new(old, new) ((old) < (new) ? Color_Green : ((new) < (old) ? Color_Red : ""))

@@ -16,14 +16,8 @@ add_compile_options(-Wall -Wextra -pedantic -Werror -Wunused -Wdeclaration-after
 include_directories(src/ include/)
 
 # include actual code
-add_subdirectory(src/debugger/)
-add_subdirectory(src/parsing/)
-add_subdirectory(src/virtualmachine)
-add_subdirectory(src/compiler)
-add_subdirectory(src/output)
-add_subdirectory(src/dotenv)
-add_subdirectory(src/types)
-
+add_subdirectory(src)
+add_subdirectory(src/types/)
 # add test suits
 enable_testing()
 add_subdirectory(test)

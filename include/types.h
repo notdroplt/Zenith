@@ -3,9 +3,6 @@
 #define ZENITH_TYPES_H 1
 
 #include "platform.h"
-#include <stdint.h>
-#include <stddef.h>
-#include <stdbool.h>
 /* default: SipHash-2-4 */
 #ifndef cROUNDS
 #define cROUNDS 2
@@ -181,6 +178,22 @@ int list_append(struct List * list, void * item);
 struct Array * list_to_array(struct List * list);
 
 /**
+ * @brief returns array size
+ * 
+ * @param [in] list current list
+ * @return uint32_t list's size
+ */
+uint32_t list_size(const struct List * list);
+
+/**
+ * @brief get last value pointer
+ * 
+ * @param list 
+ * @return void* value at last point on the list
+ */
+void * list_get_tail_value(const struct List * list) ;
+
+/**
  * @brief deletes a list
  * 
  * @param [in] list list to be deleted
@@ -278,6 +291,15 @@ struct pair_t *map_getkey_s(const struct HashMap * map, const char * key);
  * @brief get a key:value from a map
 */
 struct pair_t *map_getkey_ss(const struct HashMap * map, const struct string_t key);
+
+/**
+ * @brief iterates over map keys
+ * 
+ * @param map map to iterate over
+ * @param value value to compare
+ * @param function compare function
+ */
+void map_iterate(struct HashMap * map, void *value, comparer_func function);
 
 /**
  * @brief deletes map and its entries

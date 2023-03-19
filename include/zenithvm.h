@@ -13,12 +13,9 @@
 #ifndef ZENITH_VIRTUAL_MACHINE_H
 #define ZENITH_VIRTUAL_MACHINE_H 1
 
-#include "platform.h"
-#include <stddef.h>
-#include <stdint.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
+#include "platform.h"
 
 /**
  * \defgroup virtset Virtual Instruction Set Emulation
@@ -92,8 +89,8 @@ struct virtmacheader_t {
  * - group 0: bitwise instructions, span opcodes `0x00` to `0x0F`,
  * - group 1: math instructions, span opcodes `0x10` to `0x1F`
  * - group 2: memory / control flow instructions, span opcodes `0x20` to `0x2F`
- * - group 3: other instructions, span opcodes `0x30` to `0x3F` (even if almost
- * all of them are reserved)
+ * - group 3: other instructions, span opcodes `0x30` to `0x3F` (even if some
+ * of them are reserved)
  *
  *
  * on groups 0 and 1, the LSB defines if the instruction is an R type (when 0)
@@ -341,7 +338,7 @@ uint32_t fetch32(struct thread_t *thread, uint64_t address)
  * @param address address to fetch
  * @return fetched value
  */
-uint64_t fetch64(struct thread_t *thread, uint64_t address) __attribute((hot));
+uint64_t fetch64(struct thread_t *thread, uint64_t address) __attribute__((hot));
 
 /**
  * @brief sets one byte of memory at a specified address

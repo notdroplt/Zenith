@@ -10,11 +10,10 @@
  */
 #pragma once
 #ifndef ZENITH_COMPILER_H
-#include <stdbool.h>
 
+#include "platform.h"
 #include "nodes.h"
 #include "zenithvm.h"
-#include "platform.h"
 #include "types.h"
 
 /**
@@ -26,8 +25,8 @@
  */
 enum register_status
 {
-    reg_trashed = 0, /*!< trashed status */
-    reg_used = 1     /*!< used status */
+	reg_trashed = 0, /*!< trashed status */
+	reg_used = 1     /*!< used status */
 };
 
 /**
@@ -39,13 +38,13 @@ enum register_status
  */
 struct Assembler
 {
-    const struct Array *parsed_nodes; /*!< array of nodes that have been parsed */
-    struct HashMap *table;            /*!< table of elements */
-    struct List *instructions;        /*!< compiled instructions */
-    uint64_t dot;                     /*!< current offset in the file */
-    uint64_t root_index;              /*!< how many root nodes have been parsed */
-    uint64_t entry_point;             /*!< where should the code start */
-    uint32_t registers;               /*!< register status */
+	struct Array *parsed_nodes;	/*!< array of nodes that have been parsed */
+	struct HashMap *table;		/*!< table of elements */
+	struct List *instructions;	/*!< compiled instructions */
+	uint64_t dot;				/*!< current offset in the file */
+	uint64_t root_index;		/*!< how many root nodes have been parsed */
+	uint64_t entry_point;		/*!< where should the code start */
+	uint32_t registers;			/*!< register status */
 };
 
 /**
@@ -55,7 +54,7 @@ struct Assembler
  * @return assembler struct
  *
  */
-struct Assembler *create_assembler(const struct Array *parsed_nodes);
+struct Assembler *create_assembler(struct Array *parsed_nodes);
 
 /**
  * @brief translates a compiling unit (a file)
@@ -67,5 +66,12 @@ struct Assembler *create_assembler(const struct Array *parsed_nodes);
  * Complexity: unpredictable (depends on every node traversing complexity)
  */
 struct Array *compile_unit(struct Assembler *assembler);
+
+/**
+ * @brief destroys an assembler object
+ * 
+ * @param assembler assembler to destrot
+ */
+void delete_assembler(struct Assembler * assembler);
 
 #endif

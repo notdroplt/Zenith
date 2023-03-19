@@ -31,7 +31,7 @@ union instruction_t LInstruction(const uint8_t opcode, const uint8_t r1, const u
 }
 
 static int64_t ssextend(uint64_t number) {
-    return (int64_t)number &  1L << 46 ? number | 0xffff800000000000 : number;
+    return (int64_t)number & -1LU << 46 ? number | 0xffff800000000000 : number;
 }
 
 void exec_instruction(register struct thread_t *thread)
