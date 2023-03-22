@@ -1,8 +1,8 @@
 #include <stdint.h>
-#include <types.h>
 #include <string.h>
 #include <stdlib.h>
 #include <time.h>
+#include "types.h"
 struct HashMap {
 	uint64_t size; //!< entries in the map
 	uint64_t capacity; //!< maximum possible map size 
