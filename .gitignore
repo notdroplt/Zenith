@@ -5,3 +5,5 @@
 build/*
 .cache/*
 doxydocs/*
+
+massif.out.*
