@@ -15,6 +15,7 @@
 
 #include <stdio.h>
 #include <string.h>
+
 #include "platform.h"
 
 /**
@@ -40,16 +41,16 @@
  * @note all positions should \b not consider the header offset
  */
 struct virtmacheader_t {
-  uint64_t magic;       //!< file magic "Zenithvm"
-  uint64_t version;     //!< current header version
-  uint64_t data_size;   //!< initialized data size
-  uint64_t data_start;  //!< data section start on the file
-  uint64_t data_offset; //!< data section start on memory
-  uint64_t code_size;   //!< runnable code size
-  uint64_t code_start;  //!< code section start on the file
-  uint64_t code_offset; //!< code section start on memory
-  uint64_t entry_point; //!< code entry point
-  uint64_t pad;         //!< padding value
+    uint64_t magic;        //!< file magic "Zenithvm"
+    uint64_t version;      //!< current header version
+    uint64_t data_size;    //!< initialized data size
+    uint64_t data_start;   //!< data section start on the file
+    uint64_t data_offset;  //!< data section start on memory
+    uint64_t code_size;    //!< runnable code size
+    uint64_t code_start;   //!< code section start on the file
+    uint64_t code_offset;  //!< code section start on memory
+    uint64_t entry_point;  //!< code entry point
+    uint64_t pad;          //!< padding value
 };
 
 /**
@@ -98,91 +99,91 @@ struct virtmacheader_t {
  * (which is L type) group 3 is always L type (lmfao L)
  */
 enum instruction_prefixes {
-  /* group 0*/
-  andr_instrc = 0x00, /*!< `and r#, r#, r#` : R type */
-  andi_instrc = 0x01, /*!< `and r#, r#, imm` : S type */
-  xorr_instrc = 0x02, /*!< `xor r#, r#, r#` : R type */
-  xori_instrc = 0x03, /*!< `xor r#, r#, imm` : S type */
+    /* group 0*/
+    andr_instrc = 0x00, /*!< `and r#, r#, r#` : R type */
+    andi_instrc = 0x01, /*!< `and r#, r#, imm` : S type */
+    xorr_instrc = 0x02, /*!< `xor r#, r#, r#` : R type */
+    xori_instrc = 0x03, /*!< `xor r#, r#, imm` : S type */
 
-  orr_instrc = 0x04, /*!< `or r#, r#, r#` : R type */
-  ori_instrc = 0x05, /*!< `or r#, r#, imm` : S type */
-  Reserved = 0x06,
-  Reserved = 0x07,
+    orr_instrc = 0x04, /*!< `or r#, r#, r#` : R type */
+    ori_instrc = 0x05, /*!< `or r#, r#, imm` : S type */
+    Reserved = 0x06,
+    Reserved = 0x07,
 
-  llsr_instrc = 0x08, /*!< `lls r#, r#, r#` : R type */
-  llsi_instrc = 0x09, /*!< `lls r#, r#, imm` : S type */
-  lrsr_instrc = 0x0A, /*!< `lrs r#, r#, r#` : Rtype */
-  lrsi_instrc = 0x0B, /*!< `lrs r#, r#, imm` : S type */
+    llsr_instrc = 0x08, /*!< `lls r#, r#, r#` : R type */
+    llsi_instrc = 0x09, /*!< `lls r#, r#, imm` : S type */
+    lrsr_instrc = 0x0A, /*!< `lrs r#, r#, r#` : Rtype */
+    lrsi_instrc = 0x0B, /*!< `lrs r#, r#, imm` : S type */
 
-  alsr_instrc = 0x0C, /*!< `als r#, r#, r#` : R type */
-  alsi_instrc = 0x0D, /*!< `als r#, r#, imm` : S type */
-  arsr_instrc = 0x0E, /*!< `ars r#, r#, r#` : R type */
-  arsi_instrc = 0x0F, /*!< `ars r#, r#, imm` : S type */
+    alsr_instrc = 0x0C, /*!< `als r#, r#, r#` : R type */
+    alsi_instrc = 0x0D, /*!< `als r#, r#, imm` : S type */
+    arsr_instrc = 0x0E, /*!< `ars r#, r#, r#` : R type */
+    arsi_instrc = 0x0F, /*!< `ars r#, r#, imm` : S type */
 
-  /* group 1 */
-  addr_instrc = 0x10, /*!< `add r#, r#, r#` : R type */
-  addi_instrc = 0x11, /*!< `add r#, r#, imm` : S type */
-  subr_instrc = 0x12, /*!< `sub r#, r#, r#` : R type */
-  subi_instrc = 0x13, /*!< `sub r#, r#, imm` : S type */
+    /* group 1 */
+    addr_instrc = 0x10, /*!< `add r#, r#, r#` : R type */
+    addi_instrc = 0x11, /*!< `add r#, r#, imm` : S type */
+    subr_instrc = 0x12, /*!< `sub r#, r#, r#` : R type */
+    subi_instrc = 0x13, /*!< `sub r#, r#, imm` : S type */
 
-  umulr_instrc = 0x14, /*!< `umul r#, r#, r#` : R type */
-  umuli_instrc = 0x15, /*!< `umul r#, r#, imm` : S type */
-  smulr_instrc = 0x16, /*!< `smul r#, r#, r#` : R type */
-  smuli_instrc = 0x17, /*!< `smul r#, r#, imm` : S type */
+    umulr_instrc = 0x14, /*!< `umul r#, r#, r#` : R type */
+    umuli_instrc = 0x15, /*!< `umul r#, r#, imm` : S type */
+    smulr_instrc = 0x16, /*!< `smul r#, r#, r#` : R type */
+    smuli_instrc = 0x17, /*!< `smul r#, r#, imm` : S type */
 
-  udivr_instrc = 0x18, /*!< `udiv r#, r#, r#` : R type */
-  udivi_instrc = 0x19, /*!< `udiv r#, r#, imm` : S type */
-  sdivr_instrc = 0x1A, /*!< `sdiv r#, r#, r#` : R type */
-  sdivi_instrc = 0x1B, /*!< `sdiv r#, r#, imm` : S type */
+    udivr_instrc = 0x18, /*!< `udiv r#, r#, r#` : R type */
+    udivi_instrc = 0x19, /*!< `udiv r#, r#, imm` : S type */
+    sdivr_instrc = 0x1A, /*!< `sdiv r#, r#, r#` : R type */
+    sdivi_instrc = 0x1B, /*!< `sdiv r#, r#, imm` : S type */
 
-  popcnt_instrc = 0x1C, /*!< `popcnt r#, r#, r#` : R type */
-  Reserved = 0x1D,      /*!< `unused r#, r#, imm` : S type */
-  Reserved = 0x1E,      /*!< `unused r#, r#, r#` : R type */
-  Reserved = 0x1F,      /*!< `unused r#, r#, imm` : S type */
+    popcnt_instrc = 0x1C, /*!< `popcnt r#, r#, r#` : R type */
+    Reserved = 0x1D,      /*!< `unused r#, r#, imm` : S type */
+    Reserved = 0x1E,      /*!< `unused r#, r#, r#` : R type */
+    Reserved = 0x1F,      /*!< `unused r#, r#, imm` : S type */
 
-  /* group 2 */
-  ld_byte_instrc = 0x20, /*!< `ldb r#, r#, imm` : S type */
-  ld_half_instrc = 0x21, /*!< `ldh r#, r#, imm` : S type */
-  ld_word_instrc = 0x22, /*!< `ldw r#, r#, imm` : S type */
-  ld_dwrd_instrc = 0x23, /*!< `ldd r#, r#, imm` : S type */
+    /* group 2 */
+    ld_byte_instrc = 0x20, /*!< `ldb r#, r#, imm` : S type */
+    ld_half_instrc = 0x21, /*!< `ldh r#, r#, imm` : S type */
+    ld_word_instrc = 0x22, /*!< `ldw r#, r#, imm` : S type */
+    ld_dwrd_instrc = 0x23, /*!< `ldd r#, r#, imm` : S type */
 
-  st_byte_instrc = 0x24, /*!< `stb r#, r#, imm` : S type */
-  st_half_instrc = 0x25, /*!< `sth r#, r#, imm` : S type */
-  st_word_instrc = 0x26, /*!< `stw r#, r#, imm` : S type */
-  st_dwrd_instrc = 0x27, /*!< `std r#, r#, imm` : S type */
+    st_byte_instrc = 0x24, /*!< `stb r#, r#, imm` : S type */
+    st_half_instrc = 0x25, /*!< `sth r#, r#, imm` : S type */
+    st_word_instrc = 0x26, /*!< `stw r#, r#, imm` : S type */
+    st_dwrd_instrc = 0x27, /*!< `std r#, r#, imm` : S type */
 
-  jal_instrc = 0x28,  /*!< `jal r#, imm`      : L type */
-  jalr_instrc = 0x29, /*!< `jalr r#, r#, imm` : S type */
-  je_instrc = 0x2A,   /*!< `je r#, r#, imm`   : S type */
-  jne_instrc = 0x2B,  /*!< `jne r#, r#, imm`  : S type */
+    jal_instrc = 0x28,  /*!< `jal r#, imm`      : L type */
+    jalr_instrc = 0x29, /*!< `jalr r#, r#, imm` : S type */
+    je_instrc = 0x2A,   /*!< `je r#, r#, imm`   : S type */
+    jne_instrc = 0x2B,  /*!< `jne r#, r#, imm`  : S type */
 
-  jlu_instrc = 0x2C,  /*!< `jlu r#, r#, imm`  : S type */
-  jls_instrc = 0x2D,  /*!< `jls r#, r#, imm`  : S type */
-  jleu_instrc = 0x2E, /*!< `jleu r#, r#, imm` : S type */
-  jles_instrc = 0x2F, /*!< `jles r#, r#, imm` : S type */
+    jlu_instrc = 0x2C,  /*!< `jlu r#, r#, imm`  : S type */
+    jls_instrc = 0x2D,  /*!< `jls r#, r#, imm`  : S type */
+    jleu_instrc = 0x2E, /*!< `jleu r#, r#, imm` : S type */
+    jles_instrc = 0x2F, /*!< `jles r#, r#, imm` : S type */
 
-  /* other instructions, 0x30 - 0x32 */
-  setleur_instrc = 0x30, /*!< `setleu r#, r#, r#`: R type */
-  setleui_instrc = 0x31, /*!< `setleu r#, r#, imm`: S type */
-  setlesr_instrc = 0x32, /*!< `setles r#, r#, r#`: R type */
-  setlesi_instrc = 0x33, /*!< `setles r#, r#, imm`: S type */
+    /* other instructions, 0x30 - 0x32 */
+    setleur_instrc = 0x30, /*!< `setleu r#, r#, r#`: R type */
+    setleui_instrc = 0x31, /*!< `setleu r#, r#, imm`: S type */
+    setlesr_instrc = 0x32, /*!< `setles r#, r#, r#`: R type */
+    setlesi_instrc = 0x33, /*!< `setles r#, r#, imm`: S type */
 
-  setlur_instrc = 0x34, /*!< `setlu r#, r#, r#`: R type */
-  setlui_instrc = 0x35, /*!< `setlu r#, r#, imm`: S type */
-  setlsr_instrc = 0x36, /*!< `setls r#, r#, r#`: R type */
-  setlsi_instrc = 0x37, /*!< `setls r#, r#, imm`: S type */
+    setlur_instrc = 0x34, /*!< `setlu r#, r#, r#`: R type */
+    setlui_instrc = 0x35, /*!< `setlu r#, r#, imm`: S type */
+    setlsr_instrc = 0x36, /*!< `setls r#, r#, r#`: R type */
+    setlsi_instrc = 0x37, /*!< `setls r#, r#, imm`: S type */
 
-  lui_instrc = 0x38,    /*!< `lu r#, imm` : L type */
-  auipc_instrc = 0x39,  /*!< `auipc r#, imm` : L type */
-  ecall_instrc = 0x3A,  /*!< `ecall r#, imm` : L type */
-  ebreak_instrc = 0x3B, /*!< `ebreak 0` : L type */
+    lui_instrc = 0x38,    /*!< `lu r#, imm` : L type */
+    auipc_instrc = 0x39,  /*!< `auipc r#, imm` : L type */
+    ecall_instrc = 0x3A,  /*!< `ecall r#, imm` : L type */
+    ebreak_instrc = 0x3B, /*!< `ebreak 0` : L type */
 
-  // [unused] outb_instrc = 0x3C, /*!< `outb, r#, r#, 0` S type */
-  // [unused] outh_instrc = 0x3D, /*!< `outw, r#, r#, 0` S type */
-  // [unused] inb_instrc = 0x3E, /*!< `inb, r#, r#, 0` S type */
-  // [unused] inh_instrc = 0x3F /*!< `inw, r#, r#, 0` S type */
+    // [unused] outb_instrc = 0x3C, /*!< `outb, r#, r#, 0` S type */
+    // [unused] outh_instrc = 0x3D, /*!< `outw, r#, r#, 0` S type */
+    // [unused] inb_instrc = 0x3E, /*!< `inb, r#, r#, 0` S type */
+    // [unused] inh_instrc = 0x3F /*!< `inw, r#, r#, 0` S type */
 
-  /*! TODO: group 4, parallel operation instructions */
+    /*! TODO: group 4, parallel operation instructions */
 
 };
 
@@ -192,11 +193,11 @@ enum instruction_prefixes {
  * Size : 8 bytes
  */
 struct r_block_t {
-  uint32_t opcode : 8; /*!< operation code */
-  uint32_t r1 : 5;     /*!< first operand register */
-  uint32_t r2 : 5;     /*!< second operand register */
-  uint32_t rd : 5;     /*!< destination register */
-  uint64_t pad : 41;   /*!< padding, ignored but should be zero */
+    uint64_t opcode : 8; /*!< operation code */
+    uint64_t r1 : 5;     /*!< first operand register */
+    uint64_t r2 : 5;     /*!< second operand register */
+    uint64_t rd : 5;     /*!< destination register */
+    uint64_t pad : 41;   /*!< padding, ignored but should be zero */
 } __attribute__((packed));
 
 /**
@@ -205,10 +206,10 @@ struct r_block_t {
  * Size : 8 bytes
  */
 struct s_block_t {
-  uint32_t opcode : 8;     /*!< operation code */
-  uint32_t r1 : 5;         /*!< first operand register */
-  uint32_t rd : 5;         /*!< destination register */
-  uint64_t immediate : 46; /*!< immediate value */
+    uint64_t opcode : 8;     /*!< operation code */
+    uint64_t r1 : 5;         /*!< first operand register */
+    uint64_t rd : 5;         /*!< destination register */
+    uint64_t immediate : 46; /*!< immediate value */
 } __attribute__((packed));
 
 /**
@@ -217,9 +218,11 @@ struct s_block_t {
  * Size : 8 bytes
  */
 struct l_block_t {
-  uint32_t opcode : 8;     /*!< operation code */
-  uint32_t r1 : 5;         /*!< first operand register */
-  uint64_t immediate : 51; /*!< immediate value */
+    uint64_t opcode : 8;     /*!< operation code */
+    unsigned : 0;            /* alignment */
+    uint64_t r1 : 5;         /*!< first operand register */
+    unsigned : 0;            /* alignment */
+    uint64_t immediate : 51; /*!< immediate value */
 } __attribute__((packed));
 
 /**
@@ -229,10 +232,10 @@ struct l_block_t {
  * Size : 8 bytes
  */
 union instruction_t {
-  uint64_t value;         /*!< raw instruction */
-  struct r_block_t rtype; /*!< parsed block: 'r' */
-  struct s_block_t stype; /*!< parsed block: 's' */
-  struct l_block_t ltype; /*!< parsed block: 'l' */
+    uint64_t value;         /*!< raw instruction */
+    struct r_block_t rtype; /*!< parsed block: 'r' */
+    struct s_block_t stype; /*!< parsed block: 's' */
+    struct l_block_t ltype; /*!< parsed block: 'l' */
 };
 
 /**
@@ -245,8 +248,7 @@ union instruction_t {
  *
  * @return formatted instruction
  */
-union instruction_t RInstruction(const uint8_t opcode, const uint8_t r1,
-                                 const uint8_t r2, const uint8_t rd);
+union instruction_t RInstruction(const uint8_t opcode, const uint8_t r1, const uint8_t r2, const uint8_t rd);
 
 /**
  * @brief S-type instruction constructor
@@ -257,8 +259,7 @@ union instruction_t RInstruction(const uint8_t opcode, const uint8_t r1,
  * @param immediate immediate argument
  * @return formatted instruction
  */
-union instruction_t SInstruction(const uint8_t opcode, const uint8_t r1,
-                                 const uint8_t rd, const uint64_t immediate);
+union instruction_t SInstruction(const uint8_t opcode, const uint8_t r1, const uint8_t rd, const uint64_t immediate);
 /**
  * @brief L-type instruction constructor
  *
@@ -267,8 +268,7 @@ union instruction_t SInstruction(const uint8_t opcode, const uint8_t r1,
  * @param immediate immediate argument
  * @return formatted instruction
  */
-union instruction_t LInstruction(const uint8_t opcode, const uint8_t r1,
-                                 const uint64_t immediate);
+union instruction_t LInstruction(const uint8_t opcode, const uint8_t r1, const uint64_t immediate);
 
 /**
  * @brief defines a thread that will run vm code
@@ -292,11 +292,11 @@ union instruction_t LInstruction(const uint8_t opcode, const uint8_t r1,
  * Size: 288 bytes (aligned)
  */
 struct thread_t {
-  uint64_t registers[32];   /*!< thread registers */
-  uint64_t program_counter; /*!< thread instructon pointer */
-  uint64_t memory_size;     /*!< thread memory size */
-  uint8_t *memory;          /*!< thread memory pointer */
-  uint8_t halt_sig;         /*!< defines when program should stop */
+    uint64_t registers[32];   /*!< thread registers */
+    uint64_t program_counter; /*!< thread instructon pointer */
+    uint64_t memory_size;     /*!< thread memory size */
+    uint8_t *memory;          /*!< thread memory pointer */
+    uint8_t halt_sig;         /*!< defines when program should stop */
 };
 
 /**
@@ -316,8 +316,7 @@ uint8_t fetch8(struct thread_t *thread, uint64_t address) __attribute__((hot));
  * @param address address to fetch
  * @return fetched value
  */
-uint16_t fetch16(struct thread_t *thread, uint64_t address)
-    __attribute__((hot));
+uint16_t fetch16(struct thread_t *thread, uint64_t address) __attribute__((hot));
 
 /**
  * @brief fetches four bytes from a memory address
@@ -327,8 +326,7 @@ uint16_t fetch16(struct thread_t *thread, uint64_t address)
  * @param address address to fetch
  * @return fetched value
  */
-uint32_t fetch32(struct thread_t *thread, uint64_t address)
-    __attribute__((hot));
+uint32_t fetch32(struct thread_t *thread, uint64_t address) __attribute__((hot));
 
 /**
  * @brief fetches eight bytes from a memory address
@@ -400,8 +398,7 @@ void print_status(struct thread_t *thread);
  *
  * @return exit code
  */
-int run(const char *filename, int argc, char **argv,
-        void (*debugger)(struct thread_t *));
+int run(const char *filename, int argc, char **argv, void (*debugger)(struct thread_t *));
 
 /**
  * @brief defines a debugger to the virtual machine

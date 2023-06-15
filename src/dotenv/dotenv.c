@@ -1,18 +1,18 @@
-#include <stdio.h>
-#include <string.h>
-#include <ctype.h>
-#include <stdarg.h>
 #include "dotenv.h"
 
-#define set_without_overwrite(key, value) \
-	if (!getenv(key))                     \
-	setenv(key, value, 0)
+#include <ctype.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <string.h>
 
-static int do_nothing_function(const char * format __attribute_maybe_unused__, ...) {
+#define set_without_overwrite(key, value) \
+    if (!getenv(key)) setenv(key, value, 0)
+
+static int do_nothing_function(const char *format __attribute_maybe_unused__, ...) {
     return 0;
 }
 
-static int vprintf_function(const char * format_string, ...) {
+static int vprintf_function(const char *format_string, ...) {
     va_list args;
     int ret = 0;
     va_start(args, format_string);
@@ -20,80 +20,70 @@ static int vprintf_function(const char * format_string, ...) {
     ret = vfprintf(stderr, format_string, args);
 
     va_end(args);
-    
+
     return ret;
 }
 
+char *strip(char *str) {
+    char *end = NULL;
+    if (!str) return NULL;
 
-char *strip(char *str)
-{
-	char *end = NULL;
-	if (!str) return NULL;
+    end = str + strlen(str) - 1;
 
-	end = str + strlen(str) - 1;
+    if (end < str) return str;
 
-	if (end < str)
-		return str;
+    while (end > str && isspace(*end)) --end;
 
-	while (end > str && isspace(*end))
-		--end;
+    end[1] = 0;
+    while (isspace(*str)) ++str;
 
-	end[1] = 0;
-	while (isspace(*str))
-		++str;
-
-	return str;
+    return str;
 }
 
-void set_default(void)
-{
-	set_without_overwrite(env_output, "output.zvm");
-	set_without_overwrite(env_input, "source.znh");
-	set_without_overwrite(env_debug, "1");
-	set_without_overwrite(env_verbose, "0");
-	set_without_overwrite(env_compile_virtmac, "1");	
-	set_without_overwrite(env_compile_ihex, "0");		
-	set_without_overwrite(env_dump_json, "0");		
-	set_without_overwrite(env_print_disassemble, "0");	
+void set_default(void) {
+    set_without_overwrite(env_output, "output.zvm");
+    set_without_overwrite(env_input, "source.znh");
+    set_without_overwrite(env_debug, "1");
+    set_without_overwrite(env_verbose, "0");
+    set_without_overwrite(env_compile_virtmac, "1");
+    set_without_overwrite(env_compile_ihex, "0");
+    set_without_overwrite(env_dump_json, "0");
+    set_without_overwrite(env_print_disassemble, "0");
 }
 
-int load_dotenv(void)
-{
-	char key[64] = {0}, value[64] = {0}, *skey = NULL, *svalue = NULL;
-	FILE *fp;
-	char *line = NULL;
-	size_t len = 0;
+int load_dotenv(void) {
+    char key[64] = {0}, value[64] = {0}, *skey = NULL, *svalue = NULL;
+    FILE *fp;
+    char *line = NULL;
+    size_t len = 0;
 
-	set_default();
-	fp = fopen(".env", "r");
-	if (!fp)
-		return 0; //.env's are cool but not actually necessary
+    set_default();
+    fp = fopen(".env", "r");
+    if (!fp) return 0;  //.env's are cool but not actually necessary
 
-	while (getline(&line, &len, fp) != -1)
-	{
-		sscanf(line, "%[^=]=%[^\n;#]", key, value);
-		if (!*key || !*line) break;
-		skey = strip(key);
-		svalue = strip(value);
+    while (getline(&line, &len, fp) != -1) {
+        if (line == NULL) break;
+        sscanf(line, "%[^=]=%[^\n;#]", key, value);
+        if (!*key || !*line) break;
 
-		if (strlen(strip(line)) == 0 || *strip(line) == '#' || *strip(line) == ';')
-			continue;
-		else if (strcasecmp(svalue, "true") == 0 || strcasecmp(svalue, "yes") == 0)
-			setenv(skey, "1", 1);
-		else if (strcasecmp(svalue, "false") == 0 || strcasecmp(svalue, "no") == 0)
-			setenv(skey, "0", 1);
-		else
-			setenv(skey, svalue, 1);
-	}
-	free(line);
-	fclose(fp);
+        skey = strip(key);
+        svalue = strip(value);
 
-	vrprintf = *getenv(env_verbose) == '1' ? vprintf_function : do_nothing_function;
-	
-	
-	return 0;
+        if (strlen(strip(line)) == 0 || *skey == '#' || *skey == ';')
+            continue;
+        else if (strcasecmp(svalue, "true") == 0 || strcasecmp(svalue, "yes") == 0)
+            setenv(skey, "1", 1);
+        else if (strcasecmp(svalue, "false") == 0 || strcasecmp(svalue, "no") == 0)
+            setenv(skey, "0", 1);
+        else
+            setenv(skey, svalue, 1);
+    }
+    free(line);
+    fclose(fp);
+
+    vrprintf = *getenv(env_verbose) == '1' ? vprintf_function : do_nothing_function;
+
+    return 0;
 }
-
 
 verbose_printf vrprintf;
-

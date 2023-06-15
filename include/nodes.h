@@ -21,26 +21,25 @@
  *
  * size: 1 byte
  */
-enum NodeTypes
-{
-	Unused = 0,					/*!< used on Node's default constructor */
-	Integer = TT_Int,			/*!< Integer Nodes */
-	Double = TT_Double,			/*!< Double Nodes */
-	String = TT_String,			/*!< String Nodes */
-	Identifier = TT_Identifier, /*!< Identifier Nodes */
-	Unary,						/*!< Unary operation nodes */
-	Binary,						/*!< Binary operation nodes */
-	Ternary,					/*!< Ternary operation nodes */
-	Expression,					/*!< Top-level expression nodes */
-	List,						/*!< List nodes */
-	Call,						/*!< variable call nodes */
-	Lambda,						/*!< Lambda Function Nodes */
-	Switch,						/*!< Switch Nodes */
-	Define,						/*!< Type definintion nodes */
-	Index,						/*!< Index nodes */
-	Include,					/*!< Include nodes */
-	Scope,						/*!< Scope nodes */
-	Task						/*!< Task nodes */
+enum NodeTypes {
+    Unused = 0,                 /*!< used on Node's default constructor */
+    Integer = TT_Int,           /*!< Integer Nodes */
+    Double = TT_Double,         /*!< Double Nodes */
+    String = TT_String,         /*!< String Nodes */
+    Identifier = TT_Identifier, /*!< Identifier Nodes */
+    Unary,                      /*!< Unary operation nodes */
+    Binary,                     /*!< Binary operation nodes */
+    Ternary,                    /*!< Ternary operation nodes */
+    Expression,                 /*!< Top-level expression nodes */
+    List,                       /*!< List nodes */
+    Call,                       /*!< variable call nodes */
+    Lambda,                     /*!< Lambda Function Nodes */
+    Switch,                     /*!< Switch Nodes */
+    Index,                      /*!< Index nodes */
+    Include,                    /*!< Include nodes */
+    Scope,                      /*!< Scope nodes */
+    Task,                       /*!< Task nodes */
+    Type,                       /*!< type nodes */
 };
 
 /**
@@ -48,10 +47,9 @@ enum NodeTypes
  * from and to another nodes, depending on `type`
  * 
  */
-struct Node
-{
-	enum NodeTypes type; /*!< current node @ref NodeTypes "type" */
-	bool isconst;		 /*!< defines if a node is const at parse-time */
+struct Node {
+    enum NodeTypes type; /*!< current node @ref NodeTypes "type" */
+    bool isconst;        /*!< defines if a node is const at parse-time */
 };
 /**
  * @brief constructs a default node
@@ -66,7 +64,6 @@ struct Node
  * Complexity: depends on malloc
  */
 struct Node create_node(const enum NodeTypes type, const bool isconst);
-
 
 /**
  * @typedef node_pointer
@@ -84,7 +81,7 @@ typedef struct Node *node_pointer;
  * @return 1 when the same
  * @return 0 when not the same
  */
-int node_equals(const struct Node * left, const struct Node * right);
+int node_equals(const struct Node *left, const struct Node *right);
 
 /**
  * @struct NumberNode
@@ -97,11 +94,10 @@ int node_equals(const struct Node * left, const struct Node * right);
  * @todo implement @a NumberNode as an union or similar, as a number is either an integer or a float
  * (in computers, of course)
  */
-struct NumberNode
-{
-	struct Node base; /*!< base node struct Node */
-	uint64_t number;  /*!< integer number value */
-	double value;	  /*!< decimal number value */
+struct NumberNode {
+    struct Node base; /*!< base node struct Node */
+    uint64_t number;  /*!< integer number value */
+    double value;     /*!< decimal number value */
 };
 
 /**
@@ -111,7 +107,7 @@ struct NumberNode
  *
  * Complexity: depends on `malloc`
  */
-struct Node * create_intnode(const uint64_t value);
+struct Node *create_intnode(const uint64_t value);
 
 /**
  * @brief Constructs a number node, from a double
@@ -120,7 +116,7 @@ struct Node * create_intnode(const uint64_t value);
  *
  * Complexity: depends on `malloc`
  */
-struct Node * create_doublenode(const double value);
+struct Node *create_doublenode(const double value);
 
 /**
  * @struct StringNode
@@ -135,10 +131,9 @@ struct Node * create_doublenode(const double value);
  * @todo implement @a StringNode 's constness while a identifier
  * also, as the identifiers @b might be compile-time resolvable
  */
-struct StringNode
-{
-	struct Node base;	   /*!< base node */
-	struct string_t value; /*!< string value */
+struct StringNode {
+    struct Node base;      /*!< base node */
+    struct string_t value; /*!< string value */
 };
 
 /**
@@ -150,7 +145,7 @@ struct StringNode
  * Complexity: depends on `malloc`
  * string_view's default copy constructor only does a shallow copy of the string
  */
-struct Node * create_stringnode(struct string_t value, const enum NodeTypes type);
+struct Node *create_stringnode(struct string_t value, const enum NodeTypes type);
 
 /**
  * @struct UnaryNode
@@ -183,11 +178,10 @@ struct Node * create_stringnode(struct string_t value, const enum NodeTypes type
  *
  * @todo implement `--`, `++` and `~` unary operations
  */
-struct UnaryNode
-{
-	struct Node base;	   /*!< base node */
-	struct Node * value;	   /*!< main node value */
-	enum TokenTypes token; /*!< unary operation token */
+struct UnaryNode {
+    struct Node base;      /*!< base node */
+    struct Node *value;    /*!< main node value */
+    enum TokenTypes token; /*!< unary operation token */
 };
 
 /**
@@ -198,7 +192,7 @@ struct UnaryNode
  *
  * Complexity: depends on `malloc`
  */
-struct Node * create_unarynode(struct Node * value, const enum TokenTypes token);
+struct Node *create_unarynode(struct Node *value, const enum TokenTypes token);
 
 /**
  * @struct BinaryNode
@@ -220,12 +214,11 @@ struct Node * create_unarynode(struct Node * value, const enum TokenTypes token)
  *
  * @todo implement `|`, `&`, `^`, `<<`, `>>`, and `<=>` (or any multi comparision operator)
  */
-struct BinaryNode
-{
-	struct Node base;	   /*!< base node */
-	struct Node * left;	   /*!< left node value */
-	struct Node * right;	   /*!< right node value */
-	enum TokenTypes token; /*!< binary token */
+struct BinaryNode {
+    struct Node base;      /*!< base node */
+    struct Node *left;     /*!< left node value */
+    struct Node *right;    /*!< right node value */
+    enum TokenTypes token; /*!< binary token */
 };
 
 /**
@@ -237,7 +230,7 @@ struct BinaryNode
  *
  * Complexity: depends on `malloc`
  */
-struct Node * create_binarynode(struct Node * left, const enum TokenTypes token, struct Node * right);
+struct Node *create_binarynode(struct Node *left, const enum TokenTypes token, struct Node *right);
 
 /**
  * @struct TernaryNode
@@ -266,12 +259,11 @@ struct Node * create_binarynode(struct Node * left, const enum TokenTypes token,
  *
  * @todo implement `... if ... else ...` and `if ... then ... else` syntax
  */
-struct TernaryNode
-{
-	struct Node base;		/*!< base node*/
-	struct Node * condition; /*!< conditional node */
-	struct Node * trueop;	/*!< true node, node value in case @ref condition evaluates to true */
-	struct Node * falseop;	/*!< false node, node value in case @ref condition evaluates to fasle */
+struct TernaryNode {
+    struct Node base;       /*!< base node*/
+    struct Node *condition; /*!< conditional node */
+    struct Node *trueop;    /*!< true node, node value in case @ref condition evaluates to true */
+    struct Node *falseop;   /*!< false node, node value in case @ref condition evaluates to fasle */
 };
 
 /**
@@ -283,7 +275,7 @@ struct TernaryNode
  *
  * Complexity: depends on `malloc`
  */
-struct Node * create_ternarynode(struct Node * condition, struct Node * true_op, struct Node * false_op);
+struct Node *create_ternarynode(struct Node *condition, struct Node *true_op, struct Node *false_op);
 
 /**
  * @struct ExpressionNode
@@ -301,11 +293,10 @@ struct Node * create_ternarynode(struct Node * condition, struct Node * true_op,
  * @todo implement "volatile" or similar, as registers can be assigned and may or may not change
  * values by themselves
  */
-struct ExpressionNode
-{
-	struct Node base;		/*!< base node*/
-	struct string_t name;	/*!< expression name */
-	struct Node * value;		/*!< expression value */
+struct ExpressionNode {
+    struct Node base;     /*!< base node*/
+    struct string_t name; /*!< expression name */
+    struct Node *value;   /*!< expression value */
 };
 
 /**
@@ -316,7 +307,7 @@ struct ExpressionNode
  *
  * Complexity: depends on `malloc`
  */
-struct Node * create_expressionnode(struct string_t name, struct Node * value);
+struct Node *create_expressionnode(struct string_t name, struct Node *value);
 
 /**
  * @struct ListNode
@@ -335,10 +326,9 @@ struct Node * create_expressionnode(struct string_t name, struct Node * value);
  *
  * @todo actually make it usable
  */
-struct ListNode
-{
-	struct Node base;	 /*!< base node*/
-	struct Array *nodes; /*!< array of node pointers */
+struct ListNode {
+    struct Node base;    /*!< base node*/
+    struct Array *nodes; /*!< array of node pointers */
 };
 
 /**
@@ -347,7 +337,7 @@ struct ListNode
  * @param node_array array of elements
  * Complexity: depends on `malloc`
  */
-struct Node * create_listnode(struct Array *node_array);
+struct Node *create_listnode(struct Array *node_array);
 
 /**
  * @struct CallNode
@@ -367,11 +357,10 @@ struct Node * create_listnode(struct Array *node_array);
  * no indexer throws an error
  */
 
-struct CallNode
-{
-	struct Node base;		 /*!< base node */
-	struct Array *arguments; /*!< array of arguments */
-	struct Node * expr;		 /*!< expression to call / index */
+struct CallNode {
+    struct Node base;        /*!< base node */
+    struct Array *arguments; /*!< array of arguments */
+    struct Node *expr;       /*!< expression to call / index */
 };
 
 /**
@@ -383,7 +372,7 @@ struct CallNode
  *
  * Complexity: depends on `malloc`
  */
-struct Node * create_callnode(struct Node * expr, struct Array *arg_array, const enum NodeTypes type);
+struct Node *create_callnode(struct Node *expr, struct Array *arg_array, const enum NodeTypes type);
 
 /**
  * @struct SwitchNode
@@ -405,11 +394,10 @@ struct Node * create_callnode(struct Node * expr, struct Array *arg_array, const
  * @todo make the compiler smart enough to detect whether or not the default case is needed (e.g.:
  * enums)
  */
-struct SwitchNode
-{
-	struct Node base;	 /*!< base node */
-	struct Array *cases; /*!< array of cases */
-	struct Node * expr;	 /*!< switch expression */
+struct SwitchNode {
+    struct Node base;    /*!< base node */
+    struct Array *cases; /*!< array of cases */
+    struct Node *expr;   /*!< switch expression */
 };
 
 /**
@@ -420,7 +408,7 @@ struct SwitchNode
  *
  * Complexity: depends on `malloc`
  */
-struct Node * create_switchnode(struct Node * expr, struct Array *cases);
+struct Node *create_switchnode(struct Node *expr, struct Array *cases);
 
 /**
  * @struct LambdaNode
@@ -443,12 +431,11 @@ struct Node * create_switchnode(struct Node * expr, struct Array *cases);
  * @todo implement case where calling a lambda derived expression doesn't throw any errors
  *
  */
-struct LambdaNode
-{
-	struct Node base;		 /*!< base node */
-	struct Array *params;	 /*!< function parameters */
-	struct string_t name;	 /*!< function name */
-	struct Node * expression; /*!< function expression */
+struct LambdaNode {
+    struct Node base;        /*!< base node */
+    struct Array *params;    /*!< function parameters */
+    struct string_t name;    /*!< function name */
+    struct Node *expression; /*!< function expression */
 };
 
 /**
@@ -460,48 +447,7 @@ struct LambdaNode
  *
  * Complexity: depends on `malloc`
  */
-struct Node * create_lambdanode(struct string_t name, struct Node * expression, struct Array *params_arr);
-
-/**
- * @struct DefineNode
- * @brief a struct that holds domain definitions
- *
- * Size: 32 bytes
- *
- * `DN`, in short, is what is (hopefully going to be) the main standout point of the whole language,
- * as of now, it is discarted as there is no way to use it as intended. In the future, it should:
- * - strongly type functions and variables: `identity_function : (x) -> x`
- * - accept math expressions to reduce types: `naturals_up_to_10 : {x in N | x < 10}`
- * - clone types: `irrationals := complex`
- * - template types: `int_list := list<int>`
- *
- * syntax:
- * @code
- * [type_name] : [domain definition]
- * [type_name] := [other domain]
- * @endcode
- *
- * the concept of how types will actually be defined is yet to be implemented
- *
- * @warning types should not use it yet as it just slows down compilation time
- * @todo implement strong typing, math casting, clone typing and templates
- */
-struct DefineNode
-{
-	struct Node base;		/*!< base node */
-	struct Node * cast;		/*!< node that type is casted to */
-	struct string_t name;	/*!< type name */
-};
-
-/**
- * @brief Construct a new Define Node object
- *
- * @param name type name
- * @param cast type cast
- *
- * Complexity: depends on `malloc`
- */
-struct Node * create_definenode(struct string_t name, struct Node * cast);
+struct Node *create_lambdanode(struct string_t name, struct Node *expression, struct Array *params_arr);
 
 /**
  * @struct IncludeNode
@@ -522,11 +468,10 @@ struct Node * create_definenode(struct string_t name, struct Node * cast);
  *
  * @todo implement loading libraries and including files
  */
-struct IncludeNode
-{
-	struct Node base;		/*!< node base*/
-	struct string_t fname;	/*!< the file name */
-	bool binary;			/*!< test to see if it is a binary or a normal file */
+struct IncludeNode {
+    struct Node base;      /*!< node base*/
+    struct string_t fname; /*!< the file name */
+    bool binary;           /*!< test to see if it is a binary or a normal file */
 };
 
 /**
@@ -537,7 +482,7 @@ struct IncludeNode
  *
  * Complexity: depends on `malloc`
  */
-struct Node * create_includenode(struct string_t fname, bool binary);
+struct Node *create_includenode(struct string_t fname, bool binary);
 
 /**
  * @struct ScopeNode
@@ -554,11 +499,10 @@ struct Node * create_includenode(struct string_t fname, bool binary);
  *
  * @todo implement scoping with higher precedence
  */
-struct ScopeNode
-{
-	struct Node base; /*!< base node */
-	struct Node * parent; /*!< node that holds the scope */
-	struct Node * child;	 /*!< node that is going to be get from the scope */
+struct ScopeNode {
+    struct Node base;    /*!< base node */
+    struct Node *parent; /*!< node that holds the scope */
+    struct Node *child;  /*!< node that is going to be get from the scope */
 };
 
 /**
@@ -569,7 +513,7 @@ struct ScopeNode
  *
  * Complexity: depends on `malloc`
  */
-struct Node * create_scopenode(struct Node * parent, struct Node * child);
+struct Node *create_scopenode(struct Node *parent, struct Node *child);
 
 /**
  * @struct TaskNode
@@ -578,12 +522,11 @@ struct Node * create_scopenode(struct Node * parent, struct Node * child);
  * Size: 32 bytes
  *
  */
-struct TaskNode
-{
-	struct Node base;
-	/*!< TODO: actually implement as a unordered multimap, so tasks don't
+struct TaskNode {
+    struct Node base;
+    /*!< TODO: actually implement as a unordered multimap, so tasks don't
 		 need to be synchronized and follow what the programmer wrote */
-	struct Array *tasks; /*!< tasks to do */
+    struct Array *tasks; /*!< tasks to do */
 };
 
 /**
@@ -593,7 +536,29 @@ struct TaskNode
  *
  * Complexity: depends on `malloc`
  */
-struct Node * create_tasknode(struct Array *array);
+struct Node *create_tasknode(struct Array *array);
+
+struct TypeNode {
+    struct Node base;                                                               /*!< base node */
+    enum { ti_domain, ti_array, ti_pointer, ti_structure, ti_interval } type_index; /*!< index of which type is being used */
+    struct string_t name;                                                           /*!< name of current type */
+    union {                                                                         /*=====*/
+        enum DomainTypes domain;                                                    /*!< if name is a simple domain */
+        struct {                                                                    /*=====*/
+            uint64_t size;                                                          /*!< amount of elements in array */
+            struct TypeNode *type;                                                  /*!< array element type */
+        } array;                                                                    /*!< element_type[size] array type */
+        struct TypeNode *pointer;                                                   /*!< pointer to type */
+        struct {                                                                    /*=====*/
+            uint64_t size;          /*!< amount of elements inside the structure */
+            struct TypeNode *types; /*!< type of each element on the structure */
+        } structure;                /*!< arbitrary data structure*/
+        struct {                    /*=====*/
+            double start;           /*!< start of the interval */
+            double end;             /*!< end of the interval */
+        } interval;                 /* [start, end] interval type*/
+    };
+};
 
 /**
  * @brief deletes any kind of node

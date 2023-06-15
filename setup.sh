@@ -31,24 +31,24 @@ while [ -n $1 ]; do
 		check_exec "cmake"
 		check_exec "ctest"
 	fi
-	
+
 	if [ $1 = "config" ]; then
 		cmake -B ./build
 	fi
-	
+
 	if [ $1 = "clean" ]; then
 		cmake --build ./build --target clean
 	fi
-	
+
 	if [ $1 = "build" ]; then
 		cmake --build ./build
 	fi
-	
+
 	if [ $1 = "test" ]; then
 		cd build && ctest
 	fi
 
-	if [ $1 = "run" ]; then 
+	if [ $1 = "run" ]; then
 		./build/zenith
 	fi
 	shift 1
