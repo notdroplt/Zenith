@@ -1,5 +1,5 @@
 /* sip hash function, with very small modifications to fit its purpose on the code*/
-#include "types.h"
+#include <types/types.h>
 
 
 #define ROTL(x, b) (uint64_t)(((x) << (b)) | ((x) >> (64 - (b))))
@@ -56,8 +56,8 @@ uint64_t siphash(const void *in, const size_t inlen, const void *k) {
     uint64_t v3 = UINT64_C(0x7465646279746573);
     uint64_t k0 = U8TO64_LE(kk);
     uint64_t k1 = U8TO64_LE(kk + 8);
-    uint64_t m;
-    int i;
+    uint64_t m = 0;
+    int i = 0;
     const unsigned char *end = ni + inlen - (inlen % sizeof(uint64_t));
     const int left = inlen & 7;
     uint64_t b = ((uint64_t)inlen) << 56;
@@ -70,8 +70,9 @@ uint64_t siphash(const void *in, const size_t inlen, const void *k) {
         m = U8TO64_LE(ni);
         v3 ^= m;
 
-        for (i = 0; i < cROUNDS; ++i)
+        for (i = 0; i < cROUNDS; ++i) {
             SIPROUND;
+}
 
         v0 ^= m;
     }
@@ -104,15 +105,17 @@ uint64_t siphash(const void *in, const size_t inlen, const void *k) {
 
     v3 ^= b;
 
-    for (i = 0; i < cROUNDS; ++i)
+    for (i = 0; i < cROUNDS; ++i) {
         SIPROUND;
+}
 
     v0 ^= b;
 
     v2 ^= 0xff;
 
-    for (i = 0; i < dROUNDS; ++i)
+    for (i = 0; i < dROUNDS; ++i) {
         SIPROUND;
+}
 
     return v0 ^ v1 ^ v2 ^ v3;
 }

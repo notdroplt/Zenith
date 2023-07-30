@@ -1,2 +1,1 @@
-add_library(compiler compiler.c)
-target_link_libraries(compiler vm)
+add_library(compile STATIC compiler.cc)

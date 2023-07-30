@@ -1,0 +1,1 @@
+add_library(parse STATIC  parser.cc lex.cc)

@@ -1,6 +1,4 @@
 
-#include <stdlib.h>
-#include <string.h>
 
 #include "formats.h"
 struct linked_symbol;
@@ -9,27 +7,28 @@ struct linked_section;
 struct linked_symbol {
     struct zst_symbol_t symbol; 
     struct linked_section * parent;
-    struct Array * content;
-    struct Array * references;
-};
+    struct array_t * content;
+    struct array_t * references;
+} __attribute__((aligned(128)));
 
 struct linked_section {
     struct zst_section_t section;
     struct linked_symbol ** symbols;
-};
+} __attribute__((aligned(64)));
 
 struct zst_layout_t {
     struct zst_header_t header;
     struct HashMap * section_map;
     struct HashMap * symbol_map;
-};
+} __attribute__((aligned(128)));
 
 /* not everything here is implemented yet */
 
 struct zst_layout_t * create_layout(uint8_t prealloc) {
     struct zst_layout_t * layout = malloc(sizeof(struct zst_layout_t));
     struct zst_header_t * header = NULL;;
-    if (!layout) return NULL;
+    if (!layout) { return NULL;
+}
 
     layout->section_map = create_map(prealloc);
     if (!layout->section_map) {
@@ -59,7 +58,8 @@ struct zst_layout_t * create_layout(uint8_t prealloc) {
 struct zst_section_t * create_section(struct zst_layout_t* layout, char * section_name) {
     struct zst_section_t * section = NULL;
     struct linked_section * lsect = malloc(sizeof(struct linked_section));
-    if (!lsect) return NULL;
+    if (!lsect) { return NULL;
+}
     section = &lsect->section;
     
     section->name = section_name;
@@ -78,11 +78,12 @@ struct zst_section_t * create_section(struct zst_layout_t* layout, char * sectio
     return section;
 }
 
-struct zst_symbol_t * create_symbol_on_section(struct zst_layout_t *layout, char *name, struct Array *data, struct Array *references, char * section_name) {
+struct zst_symbol_t * create_symbol_on_section(struct zst_layout_t *layout, char *name, struct array_t *data, struct array_t *references, char * section_name) {
     struct linked_symbol * lsym = malloc(sizeof(struct linked_symbol));
     struct zst_symbol_t * symbol = NULL;
     void * section = NULL;
-    if (!lsym) return NULL;
+    if (!lsym) { return NULL;
+}
     
     symbol = &lsym->symbol;
     symbol->name = name;

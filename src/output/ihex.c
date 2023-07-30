@@ -1,4 +1,3 @@
-#include <stdio.h>
 #include "formats.h"
 
 static uint8_t calculate_checksum(uint16_t address,  uint64_t first, uint64_t second) {
@@ -19,7 +18,7 @@ static uint8_t calculate_checksum(uint16_t address,  uint64_t first, uint64_t se
 }
 
 int ihex_create_file(void * data, uint64_t data_size, const char * filename) {
-    FILE * fp;
+    FILE * fp = NULL;
     uint16_t address = 0;
     uint64_t * castdata = data;
     unsigned int i = 0;
@@ -29,9 +28,10 @@ int ihex_create_file(void * data, uint64_t data_size, const char * filename) {
         return 1;
     }
 
-    fp = fopen(filename, "w");
+    fp = fopen(filename, "we");
 
-    if (!fp) return 1;
+    if (!fp) { return 1;
+}
 
     for (; i < (data_size >> 4) << 1; i += 2) {
         fprintf(fp, ":10%04X00%016lX%016lX%02X\n", address, castdata[i + 0], castdata[i + 1], calculate_checksum(address, castdata[i + 0], castdata[i + 1]));

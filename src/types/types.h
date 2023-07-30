@@ -2,7 +2,8 @@
 #ifndef ZENITH_TYPES_H
 #define ZENITH_TYPES_H 1
 
-#include "platform.h"
+#include <string.h>
+#include <platform.h>
 /* default: SipHash-2-4 */
 #ifndef cROUNDS
 #define cROUNDS 2
@@ -25,8 +26,12 @@
  * 
  * in this case, the array elements are sequential
  */
-struct Array;
-
+struct array_t
+{
+    void **ptr;
+    uint32_t size;
+    uint32_t type;
+} __attribute__((aligned(16)));
 /**
  * @brief struct for a list type
  * 
@@ -60,7 +65,7 @@ typedef int (*comparer_func)(const void *v1, const void *v2);
  * @param size size to create the array (entries)
  * @return 
  */
-struct Array *create_array(uint32_t size);
+struct array_t *create_array(uint32_t size);
 
 /**
  * @brief index an item in the array
@@ -71,7 +76,7 @@ struct Array *create_array(uint32_t size);
  * @param index index of the array
  * @return void* value at desired index
  */
-const void *array_index(const struct Array *array, const uint64_t index);
+const void *array_index(const struct array_t *array, const uint64_t index);
 
 /**
  * @brief sets a value at an index in a array
@@ -80,7 +85,7 @@ const void *array_index(const struct Array *array, const uint64_t index);
  * @param index index to be set
  * @param value value to be set
  */
-void array_set_index(struct Array *arr, const uint64_t index, void *value);
+void array_set_index(struct array_t *arr, const uint64_t index, void *value);
 
 /**
  * @brief returns the size of an array
@@ -90,7 +95,7 @@ void array_set_index(struct Array *arr, const uint64_t index, void *value);
  * @param arr array to check size
  * @return uint32_t size of array
  */
-uint32_t array_size(const struct Array *arr);
+uint32_t array_size(const struct array_t *arr);
 
 /**
  * @brief finds an item in the array
@@ -104,7 +109,7 @@ uint32_t array_size(const struct Array *arr);
  * @returns -1 if not found
  * @returns index if found
 */
-int32_t array_find(const struct Array *arr, const void *val, comparer_func comp);
+int32_t array_find(const struct array_t *arr, const void *cmp, comparer_func comp);
 
 /**
  * @brief copies like memcpy
@@ -118,7 +123,7 @@ int32_t array_find(const struct Array *arr, const void *val, comparer_func comp)
  * @returns 0 on success
  * @returns 1 on error 
  */
-int array_copy_ptr(struct Array *arr, void **ptr, uint64_t size);
+int array_copy_ptr(struct array_t *arr, void **ptr, uint64_t size);
 
 /**
  * @brief returns ther raw pointer to the array's start
@@ -128,7 +133,7 @@ int array_copy_ptr(struct Array *arr, void **ptr, uint64_t size);
  * @param arr array pointer
  * @return void* raw pointer
  */
-void *array_get_ptr(const struct Array *arr);
+void *array_get_ptr(const struct array_t *arr);
 
 /**
  * @brief compares two arrays
@@ -139,7 +144,7 @@ void *array_get_ptr(const struct Array *arr);
  * @return true when same
  * @return false when different 
  */
-bool array_compare(const struct Array *left, const struct Array *right, comparer_func comp);
+bool array_compare(const struct array_t *left, const struct array_t *right, comparer_func comp);
 
 /**
  * @brief deletes an object array
@@ -147,7 +152,7 @@ bool array_compare(const struct Array *left, const struct Array *right, comparer
  * @param [in] array array to be deleted 
  * @param [in] deleter deleter function
  */
-void delete_array(struct Array *array, deleter_func deleter);
+void delete_array(struct array_t *array, deleter_func deleter);
 
 /**
  * @brief creates a list object
@@ -171,11 +176,11 @@ int list_append(struct List *list, void *item);
  * @brief transforms a linked list into an array
  * 
  * @param [in] list ist to be transformed
- * @return struct Array* returned array
+ * @return struct array_t* returned array
  * 
  * @note the function does delete the list after finishing
  */
-struct Array *list_to_array(struct List *list);
+struct array_t *list_to_array(struct List *list);
 
 /**
  * @brief returns array size
@@ -236,24 +241,26 @@ uint64_t siphash(const void *in, const size_t inlen, const void *k);
 struct HashMap *create_map(uint64_t prealloc);
 
 /**
- * @brief adds an integer key into the map
+ * @brief adds an integer key, with a "typed" value, into the map
  * 
  * @param [in,out] map map to add key
  * @param key key to index
+ * @param type value type
  * @param [in] value value to set
  * @returns -1 on fail, key value on success
  */
-int map_addi_key(struct HashMap *map, uint64_t key, void *value);
+int map_addit_key(struct HashMap *map, uint64_t key, uint64_t type, void *value);
 
 /**
- * @brief adds a string key into the map
+ * @brief adds a string key, with a "typed" value, into the map
  * 
  * @param [in,out] map map to add key
  * @param [in] key key to index
+ * @param type value type
  * @param [in] value value to set
  * @returns -1 on fail, key value on success
  */
-int map_adds_key(struct HashMap *map, const char *key, void *value);
+int map_addst_key(struct HashMap *map, const char *key, uint64_t type, void *value);
 
 /**
  * @brief adds a string_t key into the map
@@ -264,7 +271,38 @@ int map_adds_key(struct HashMap *map, const char *key, void *value);
  *  
  * @returns -1 on fail, key value on success
  */
-int map_addss_key(struct HashMap *map, struct string_t key, void *value);
+int map_addsst_key(struct HashMap *map, struct string_t key, uint64_t type, void *value);
+
+/**
+ * @brief adds an integer key into the map
+ * 
+ * @param [in,out] map map to add key
+ * @param key key to index
+ * @param [in] value value to set
+ * @returns -1 on fail, key value on success
+ */
+#define map_addi_key(map, key, value) map_addit_key(map, key, 0, value)
+
+/**
+ * @brief adds a string key into the map
+ * 
+ * @param [in,out] map map to add key
+ * @param [in] key key to index
+ * @param [in] value value to set
+ * @returns -1 on fail, key value on success
+ */
+#define map_adds_key(map, key, value) map_addst_key(map, key, 0, value)
+
+/**
+ * @brief adds a string_t key into the map
+ * 
+ * @param [in,out] map map to add key
+ * @param key key to index
+ * @param [in] value to be added
+ *  
+ * @returns -1 on fail, key value on success
+ */
+#define map_addss_key(map, key, value) map_addsst_key(map, key, 0, value)
 
 /**
  * @brief get a key:value from a map, using an integer
