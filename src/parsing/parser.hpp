@@ -3,7 +3,6 @@
 #define ZENITH_PARSER_HPP 1
 
 #include "platform.h"
-#include <types/types.hpp>
 
 #include <algorithm>
 #include <cassert>

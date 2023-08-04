@@ -322,29 +322,49 @@ returns<comp_status> Compiler::compile_identifier(const nodep &node)
         return make_unexpected<returns<comp_status>>(val.error());
 
     if (std::holds_alternative<region_entry>(*val))
-        return std::get<region_entry>(*val).allocated_at;
-
-    return std::get<lambda_entry>(*val).allocated_at;
+    {
+        if (std::get<region_entry>(*val).is_register)
+        {
+            this->_registers.unfree(std::get<region_entry>(*val).allocated_at);
+            return make_expected<returns<comp_status>, reg_status>(std::get<region_entry>(*val).allocated_at);
+        }
+        return make_expected<returns<comp_status>, uint64_t>(std::get<region_entry>(*val).allocated_at);
+    }
+    return make_expected<returns<comp_status>>(std::get<lambda_entry>(*val).allocated_at);
 }
 
-returns<comp_status> Compiler::compile_lambda(const nodep &node)
+returns<comp_status> Compiler::compile_lambda(const nodep &node, std::string_view name)
 {
     auto &lambda = node->as<LambdaNode>();
 
     context lambda_context = context(&this->_global_context);
-    lambda_entry current_entry;
+
+    lambda_context.parent() = this->_global_context;
+    this->_current_context = lambda_context;
+
+    lambda_entry current_entry = {
+        .allocated_at = this->_dot,
+        .argument_count = 0,
+        .constant = false,
+    };
+
     if (lambda.args())
     {
         if (lambda.args()->type() == Identifier)
         {
+            current_entry.argument_count = 1;
             auto &arg = lambda.args()->as<StringNode>();
-
+            region_entry arg_entry = {
+                .allocated_at = *this->_registers.alloc(),
+                .constant = false,
+                .is_register = true};
             /* we can be sure that requesting a register here is going to work */
-            lambda_context.add_to_context(arg.value(), *this->_registers.alloc());
+            lambda_context.add_to_context(arg.value(), arg_entry);
         }
         else
         {
-            auto & args = lambda.args()->as<ListNode>().nodes();
+            auto &args = lambda.args()->as<ListNode>().nodes();
+            current_entry.argument_count = args.size();
             for (auto &&argument : args)
             {
                 region_entry argument_entry;
@@ -353,16 +373,65 @@ returns<comp_status> Compiler::compile_lambda(const nodep &node)
 
                 auto reg = this->_registers.alloc();
 
-                if (!reg) return make_unexpected<returns<comp_status>>(reg.error());
+                if (!reg)
+                    return make_unexpected<returns<comp_status>>(reg.error());
 
                 argument_entry.allocated_at = *reg;
                 argument_entry.constant = false;
                 argument_entry.is_register = true;
 
-                current_entry.arguments[argument->as<StringNode>().value()]
+                lambda_context.add_to_context(argument->as<StringNode>().value(), argument_entry);
             }
         }
     }
+    else
+    {
+        current_entry.argument_count = 0;
+    }
 
-argument_end:
+    auto regs = this->compile(lambda.expr());
+    if (!regs)
+        return regs;
+
+    this->_current_context = this->_global_context;
+    this->_registers.reset();
+
+    this->_global_context.add_to_context(name, lambda_context);
+
+    return make_expected<returns<comp_status>>(this->_registers);
+}
+
+returns<comp_status> Compiler::compile_ternary(const Parsing::nodep & node){
+    auto & ternary = node->as<TernaryNode>();
+
+    comp_status cond;
+    if (ternary.cond()->type() == Binary) {
+        auto v = this->compile_binary(ternary.cond(), true);
+        if (!v) return v;
+        cond = *v;
+    } else {
+        auto v = this->compile(ternary.cond());
+        if (!v) return v;
+
+        if (std::holds_alternative<uint64_t>(*v)) {
+            if (std::get<uint64_t>(*v)) 
+                return this->compile(ternary.ontrue());
+            return this->compile(ternary.onfalse());
+        }  
+
+        this->append_instruction(SInstruction(je_instrc, std::get<reg_status>(*v).index(), 0, 0));
+        cond = *v;
+    }
+    
+    instruction_t & last_instruction = *(this->_instructions.end());
+
+    if (std::holds_alternative<uint64_t>(*value)) {
+        if (std::get<uint64_t>(*value)) 
+            return this->compile(ternary.ontrue());
+        return this->compile(ternary.onfalse());
+    }
+
+    auto used_true = this->compile(ternary.ontrue());
+
+    this->append_instruction()
 }

@@ -21,7 +21,7 @@
  *
  * bitwise representation:
  * @code
- * [63-25][24-20][19-15][14-9][8-0]
+ * [63-24][23-19][18-14][13-8][7-0]
  *    |      |      |     |      |
  *  [pad]  [r2]   [r1]   [rd] [opcode]
  * @endcode
@@ -30,7 +30,7 @@
  *
  * bitwise representation:
  * @code
- * [63-20][19-15][14-9][8-0]
+ * [63-19][18-14][13-8][7-0]
  *    |      |     |     |
  *  [imm]  [r1]  [rd] [opcode]
  * @endcode
@@ -39,7 +39,7 @@
  *
  * bitwise representation:
  * @code
- * [63-15][14-9][8-0]
+ * [63-14][13-8][7-0]
  *    |     |     |
  *  [imm]  [rd] [opcode]
  * @endcode
@@ -67,7 +67,7 @@ enum instruction_prefixes
 
     orr_instrc = 0x04, /*!< `or r#, r#, r#`   : R type */
     ori_instrc = 0x05, /*!< `or r#, r#, imm`  : S type */
-    not_instrc = 0x06, /*!< `not r#, r#, r#`: R type */
+    not_instrc = 0x06, /*!< `not r#, r#, r#`  : R type */
     cnt_instrc = 0x07, /*!< `cnt r#, r#, imm` : S type */
 
     llsr_instrc = 0x08, /*!< `lls r#, r#, r#`  : R type */

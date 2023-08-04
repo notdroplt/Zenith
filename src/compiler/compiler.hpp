@@ -39,6 +39,8 @@ namespace Compiling
 
         }
 
+        inline constexpr void unfree(uint8_t idx) {this->_reg[idx] = false; }
+
         inline constexpr void free(uint8_t idx) { this->_reg[idx] = true; }
 
         inline constexpr void reset() { this->_reg = ~(0b111U << 29); }
@@ -64,23 +66,27 @@ namespace Compiling
 
         struct lambda_entry {
             uint64_t allocated_at;
-            std::map<std::string_view, region_entry> arguments;
+            uint8_t argument_count;
             bool constant;
         };
 
-        using context_types = std::variant<region_entry, lambda_entry>;     
 
         struct context {
             private:
-            context * _parent;
+            using context_types = std::variant<region_entry, lambda_entry, context>;
             std::map<std::string, context_types> _symbols;
+            context * _parent;
             public: 
             context(context * parent = nullptr, std::map<std::string, context_types> symbols = {}) {
                 this->_parent = parent;
                 this->_symbols = symbols;
             }
 
-            void add_to_context(std::string_view name, context_type symbol) {
+            auto & parent() {
+                return *this->_parent;
+            }
+
+            void add_to_context(std::string_view name, context_types symbol) {
                 this->_symbols[std::string(name)] = symbol;
             }
 
@@ -105,14 +111,14 @@ namespace Compiling
         
         uint64_t calculate_string_byte_offset(uint64_t index) {
             uint64_t acc = 0;
-            for (int i = 0; i < index - 1; ++i)
+            for (uint64_t i = 0; i < index - 1; ++i)
                 acc = this->_strings[i].length() + 1;
 
             return acc;            
         }
 
         uint64_t get_string(std::string_view str) {
-            for(int i = 0; i < this->_strings.size(); ++i)
+            for(uint64_t i = 0; i < this->_strings.size(); ++i)
                 if (this->_strings[i] == str)
                     return calculate_string_byte_offset(i);
             
@@ -141,7 +147,9 @@ namespace Compiling
         returns<comp_status> compile_unary(const Parsing::nodep &unary);
         returns<comp_status> compile_binary(const Parsing::nodep &binary, bool jumping);
         returns<comp_status> compile_identifier(const Parsing::nodep &identifier);
-        returns<comp_status> compile_lambda(const Parsing::nodep &lambda);
+        returns<comp_status> compile_lambda(const Parsing::nodep &lambda, std::string_view name);
+        returns<comp_status> compile_ternary(const Parsing::nodep & ternary);
+        
 
         returns<comp_status> compile(const Parsing::nodep &node);
 
