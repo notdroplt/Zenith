@@ -1,8 +1,5 @@
-#include <formats.h>
+#include <output/formats.h>
 
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
 
 static const char * expected_string = 
 ":10000000AAAAAAAAAAAAAAAAABABABABABABABAB48\n"
@@ -19,46 +16,47 @@ int main(void) {
         0x0123456789ABCDEF,        
     };
     
-    FILE * fp = NULL;
-    size_t size = 0, status = 0; 
+    FILE * fpointer = NULL;
+    size_t size = 0;
+    size_t status = 0; 
     const char * string = NULL;
 
     ihex_create_file(array1, sizeof(array1), "test.hex");
 
-    fp = fopen("test.hex", "r");
+    fpointer = fopen("test.hex", "re");
 
-    fseek(fp, 0, SEEK_END);
-    size = ftell(fp);
-    fseek(fp, 0, SEEK_SET);
+    (void)fseek(fpointer, 0, SEEK_END);
+    size = ftell(fpointer);
+    (void)fseek(fpointer, 0, SEEK_SET);
 
     string = calloc(sizeof(char), size + 1);
     
     if (!string) {
-        fclose(fp);
-        fputs("could not allocate enough space to compare strings", stderr);
+        (void)fclose(fpointer);
+        (void)fputs("could not allocate enough space to compare strings", stderr);
         return 1;
     }
 
-    status = 0;
-    if ((status = fread((void*) string, 1, size, fp)) != size) {
-        fclose(fp);
+    status = fread((void*) string, 1, size, fpointer);
+    if (status != size) {
+        (void)fclose(fpointer);
         free((void *)string);
-        fprintf(stderr, "invalid read on file \"test.hex\" returned %ld and expected %ld", status, size);
+        (void)fprintf(stderr, "invalid read on file \"test.hex\" returned %ld and expected %ld", status, size);
         return 1;
     }
 
 
-    if(strcmp(expected_string, string)) {
-        fclose(fp);
-        fprintf(stderr, "expected result and current result don't match\nexpected string:\n%s\ncurrent result:\n%s\n", expected_string, string);
+    if(strcmp(expected_string, string) != 0) {
+        (void)fclose(fpointer);
+        (void)fprintf(stderr, "expected result and current result don't match\nexpected string:\n%s\ncurrent result:\n%s\n", expected_string, string);
         free((void*)string);
         return 1;
     }
 
     free((void *)string);
 
-    fclose(fp);
-    remove("test.hex");
+    (void)fclose(fpointer);
+    (void)remove("test.hex");
 
     return 0;
 }

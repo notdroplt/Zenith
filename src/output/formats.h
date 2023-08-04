@@ -2,8 +2,9 @@
 #ifndef ZENITH_ELF_CREATOR
 #define ZENITH_ELF_CREATOR 1
 
-#include "platform.h"
-#include "types.h"
+#include <stdio.h>
+#include <platform.h>
+#include <types/types.h>
 
 /**
  * @brief symbol counting
@@ -122,14 +123,14 @@ struct zst_layout_t *create_layout(uint8_t prealloc);
 
 struct zst_section_t *create_section(struct zst_layout_t *layout, char *section_name);
 
-struct zst_symbol_t *create_symbol_on_section(struct zst_layout_t *layout, char *name, struct Array *data, struct Array *references, char * section_name);
+struct zst_symbol_t *create_symbol_on_section(struct zst_layout_t *layout, char *name, struct array_t *data, struct array_t *references, char * section_name);
 
 /**
  * @brief transforms a layout into a written array and deletes the given layout,
  *
  * the function
 */
-struct Array * zsf_link_and_relocate(struct zst_layout_t * layout);
+struct array_t * zsf_link_and_relocate(struct zst_layout_t * layout);
 
 /**
  * @brief writes raw data into  .ihex file

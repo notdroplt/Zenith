@@ -11,10 +11,10 @@
 #pragma once
 #ifndef ZENITH_COMPILER_H
 
-#include "platform.h"
-#include "nodes.h"
-#include "zenithvm.h"
-#include "types.h"
+#include <platform.h>
+#include <types/types.h>
+#include <parsing/nodes.h>
+#include <virtualmachine/zenithvm.h>
 
 /**
  * @brief defines statuses for registers, which can either be:
@@ -38,7 +38,7 @@ enum register_status
  */
 struct Assembler
 {
-	struct Array *parsed_nodes;	/*!< array of nodes that have been parsed */
+	struct array_t *parsed_nodes;	/*!< array of nodes that have been parsed */
 	struct HashMap *table;		/*!< table of elements */
 	struct List *instructions;	/*!< compiled instructions */
 	uint64_t dot;				/*!< current offset in the file */
@@ -54,7 +54,7 @@ struct Assembler
  * @return assembler struct
  *
  */
-struct Assembler *create_assembler(struct Array *parsed_nodes);
+struct Assembler *create_assembler(struct array_t *parsed_nodes);
 
 /**
  * @brief translates a compiling unit (a file)
@@ -65,7 +65,7 @@ struct Assembler *create_assembler(struct Array *parsed_nodes);
  *
  * Complexity: unpredictable (depends on every node traversing complexity)
  */
-struct Array *compile_unit(struct Assembler *assembler);
+struct array_t *compile_unit(struct Assembler *assembler);
 
 /**
  * @brief destroys an assembler object

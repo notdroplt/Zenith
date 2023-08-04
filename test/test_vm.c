@@ -1,5 +1,4 @@
-#include <zenithvm.h>
-#include <stdlib.h>
+#include <virtualmachine/zenithvm.h>
 
 static int status = 0;
 
@@ -10,7 +9,7 @@ int test_memory_fetch (struct thread_t * thread) {
     uint32_t rand3 = rand() + rand();
     uint64_t rand4 = (uint64_t)rand() << 32L | rand();
 
-    *(uint8_t *)thread->memory = rand1;
+    *thread->memory = rand1;
 
     if (fetch8(thread, 0x0000) != rand1) {
         fprintf(stderr, "function `fetch8` returned %d instead of %d\n", fetch8(thread, 0x0000), rand1);
@@ -48,8 +47,8 @@ int test_memory_set(struct thread_t * thread) {
     uint64_t rand4 = (uint64_t)rand() << 32L | rand();
 
     set_memory_8(thread, 0x0000, rand1);
-    if (*(uint8_t *)thread->memory != rand1) {
-        fprintf(stderr, "function `set_memory_8` set %d instead of %d\n", *(uint8_t *)thread->memory, rand1);
+    if (*thread->memory != rand1) {
+        fprintf(stderr, "function `set_memory_8` set %d instead of %d\n", *thread->memory, rand1);
         return 1;
     }
 
@@ -74,8 +73,10 @@ int test_memory_set(struct thread_t * thread) {
 }
 
 void test_debugger(struct thread_t * thread) {
-    if((status = test_memory_fetch(thread))) return;
-    if((status = test_memory_set(thread))) return;
+    if((status = test_memory_fetch(thread))) { return;
+}
+    if((status = test_memory_set(thread))) { return;
+}
 }
 
 int main(void) {
