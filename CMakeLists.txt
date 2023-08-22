@@ -40,7 +40,6 @@ set_property(GLOBAL PROPERTY CTEST_TARGETS_ADDED 1)
 include(CTest)
 enable_testing()
 
-set(CMAKE_C_CLANG_TIDY "")
 #  add_executable(test_ihex test/test_ihex.c)
 #  add_executable(test_vm test/test_vm.c)
 #  add_executable(test_lex test/test_lex.c)
