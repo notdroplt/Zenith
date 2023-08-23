@@ -37,6 +37,8 @@ registers that dont have a defined designation are used as function parameters, 
 ## `ecall 0`
 only `ecall 0` is hardware/vm defined, all the other $2^{51}-1$ possible interrupts are programmable with a call to `ecall 0`:
 
+every `ecall 0` that implies emulation should not be implemented on hardware and always just return
+
 ### `ecall 0`, `r31 = ptr`, `r30 = count`, `r29 = 0`:
 - sets address on `r31` as the interrupt vector with entry count set on `r30`.
 - note: an interrupt entry has 24 bytes instead of 8 for a pointer.
