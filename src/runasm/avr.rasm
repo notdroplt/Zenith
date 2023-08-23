@@ -1,0 +1,88 @@
+ISA supernova:64
+
+width 64bit
+
+registers 32
+	r0:64 r1:64
+	r2:64 r3:64
+	r4:64 r5:64
+	r6:64 r7:64
+	r8:64 r9:64
+	r10:64 r11:64
+	r12:64 r13:64
+	r14:64 r15:64
+	r16:64 r17:64
+	r18:64 r19:64
+	r20:64 r21:64
+	r22:64 r23:64
+	r24:64 r25:64
+	r26:64 r27:64
+	r28:64 r29:64
+	r30:64 r31:64
+registers 
+
+reg_properties
+	r0 fixed 0
+reg_properties
+
+format r_instruction as
+	00000000000000000000000000000000000000000rrrrrRRRRRdddddoooooooo
+	where
+		0 : padding	
+		r : r2
+		R : r1
+		d : rd 
+		o : opcode 
+	properties
+		: 3re
+
+format s_instruction as
+	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiirrrrrdddddoooooooo
+	where 
+		i : imm 
+		r : r1 
+		d : rd 
+		o : opcode 
+	properties
+		: i2r
+
+format l_instruction as 
+	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiidddddoooooooo
+	where 
+		i : imm
+		d : rd 
+		o : opcode 
+	properties
+		: ir
+
+instruction ANDR uses r_instruction does
+	rd <- r1 & r2 
+ends
+
+instruction ANDI uses s_instruction does 
+	rd <- r1 & 0:imm
+ends 
+
+instruction XORR uses r_instruction does 
+	rd <- r1 ^ r2 
+ends 
+
+instruction XORI uses s_instruction does 
+	rd <- r1 ^ 0:imm 
+ends 
+
+instruction ORR uses r
+
+instruction ADDR uses r_instruction does
+	rd <- r1 + r2 
+ends
+
+instruction ADDI uses s_instruction does 
+	rd <- r1 + imm 
+ends
+
+instruction 
+
+
+implement (A + B) as
+	

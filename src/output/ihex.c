@@ -29,7 +29,7 @@ int ihex_create_file(void * data, uint64_t data_size, const char * filename) {
 
     fp = fopen(filename, "we");
 
-    if (!fp)  return 1;
+    if (!fp) return 1;
 
     for (; i < (data_size >> 4) << 1; i += 2) {
         fprintf(fp, ":10%04X00%016lX%016lX%02X\n", address, castdata[i + 0], castdata[i + 1], calculate_checksum(address, castdata[i + 0], castdata[i + 1]));
