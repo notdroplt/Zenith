@@ -12,14 +12,14 @@ env:
   BUILD_TYPE: Debug
 
 jobs:
-  build:
+  build_and_test:
     # because the only thing the action is here for is to test on commits, ubuntu is really fine
     runs-on: ubuntu-latest
 
     steps:      
-    - uses: actions/checkout@v3
-      with:
-        submodules: true
+
+    - name: Chechout
+      uses: actions/checkout@v3
       
     - name: Configure 
       run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
@@ -29,3 +29,5 @@ jobs:
 
     - name: Test
       run: ctest --test-dir ${{github.workspace}}/build -C ${{env.BUILD_TYPE}} --output-on-failure
+
+    

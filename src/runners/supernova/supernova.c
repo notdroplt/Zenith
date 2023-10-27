@@ -78,6 +78,19 @@ static int64_t ssextend(uint64_t number)
 
 #define fetch(size, thread, address) (*(uint##size##_t *)((thread)->memory + (address)))
 
+static void dispatch_pcall(register struct thread_t * thread, uint64_t pcall_number) 
+{
+
+}
+
+static void pcall_execute(register struct thread_t * thread, register struct l_block_t instruction)
+{
+    if (ssextend(instruction.immediate) != -1ULL) {
+        thread->program_counter = fetch(64, thread, thread->int_vector + instruction.immediate * 8);
+    }
+}
+
+
 void exec_instruction(register struct thread_t *thread)
 {
     register union instruction_t instruction = {0};
@@ -319,13 +332,12 @@ void exec_instruction(register struct thread_t *thread)
     case auipc_instrc:
         thread->registers[instruction.ltype.r1] = thread->program_counter + (instruction.ltype.immediate << 17);
         break;
-    case ecall_instrc:
-        if (instruction.ltype.immediate)
-        {
-            thread->halt_sig = 1;
-        }
+    case pcall_instrc:
+        if (instruction.ltype.immediate == 0)
+        /* set pcall 0:0 as "no pcall 0 defined"*/
+            thread->registers[31] = 0;
         break;
-    case ebreak_instrc:
+    case pbreak_instrc:
         break;
     default:
         break;
@@ -367,12 +379,6 @@ int run(const char *filename, int argc, char **argv, void (*debugger)(struct thr
     thread->registers[0] = 0;
     thread->registers[thread_count - 1] = argc;
     thread->halt_sig = 0;
-
-    if (!filename)
-    {
-        debugger(thread);
-        return (int)thread->registers[1];
-    }
 
     if (!thread->memory)
     {

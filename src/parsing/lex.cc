@@ -16,7 +16,6 @@ char Lexer::next()
     ++this->_pos.index;
     ++this->_pos.column;
 
-
     if (this->_char == '\n')
     {
         this->_pos.column = 1;
@@ -27,24 +26,25 @@ char Lexer::next()
     return this->_char;
 }
 
-std::optional<Token> Lexer::string()
+returns<Token> Lexer::string()
 {
     size_t start = this->_pos.index + 1;
-
+    pos_t pos_start = this->_pos;
     do
         this->next();
     while (this->_char != '"');
     this->next();
+    pos_t pos_end = this->_pos;
     if (!this->_char)
-        return std::nullopt;
-    return Token(this->_content.substr(start, this->_pos.index - start - 1));
+        return make_unexpected<returns<Token>>("syntax", "expected string to end until end of file");
+    return Token(this->_content.substr(start, this->_pos.index - start - 1), pos_start, pos_end);
 }
 
 uint64_t Lexer::strtoi(std::string_view str)
 {
-    uint64_t value = 0;
+    uint64_t value = *(str.end() - 1) - '0';
 
-    for (unsigned i = 0; i < str.size(); ++i)
+    for (unsigned i = 1; i < str.size(); ++i)
     {
         value = value * 10 + (str[str.size() - i] - '0');
     }
@@ -74,16 +74,16 @@ double Lexer::strtod(std::string_view str)
     return value;
 }
 
-std::optional<Token> Lexer::number()
+returns<Token> Lexer::number()
 {
     bool dot = false;
-    size_t start = this->_pos.index, count = 0;
-
+    size_t start = this->_pos.index - 1, count = 0;
+    pos_t pos_start = this->_pos;
     do
     {
         if (this->_char == '.' && dot)
         {
-            return std::nullopt;
+            return make_unexpected<returns<Token>>("syntax", "multiple '.' on a single number literal");
         }
         if (this->_char == '.')
         {
@@ -91,27 +91,29 @@ std::optional<Token> Lexer::number()
         }
         count++;
     } while (this->next() && (isdigit(this->_char) || this->_char == '.'));
-
     auto substr = this->_content.substr(start, count);
 
-    return dot ? Token(Lexer::strtod(substr)) : Token(Lexer::strtoi(substr));
+    return dot 
+        ? Token(Lexer::strtod(substr), pos_start, this->_pos)
+        : Token(Lexer::strtoi(substr), pos_start, this->_pos);
 }
 
-std::optional<Token> Lexer::token(const enum TokenTypes val)
+returns<Token> Lexer::token(const enum TokenID val)
 {
+    pos_t start = this->_pos;
     this->next();
-    return Token(val);
+    return Token(val, start, this->_pos);
 }
 
-std::optional<Token> Lexer::identifier()
+returns<Token> Lexer::identifier()
 {
-    Token tok = TT_Identifier;
+    Token tok = Token(TT_Identifier, this->_pos);
     uint64_t offset = 0;
     uint64_t start = this->_pos.index;
     int i = 0;
 
     static std::string_view keywords[] = {"var", "function", "as", "do", "switch", "default", "if", "then",
-                                          "else", "end", "return", "include", "type", "define", "is", ""};
+                                          "else", "end", "return", "import", "type", "define", "is", "struct", "extern", ""};
     static std::string_view domains[] = {"byte", "hword", "word", "dword", "char", "short", "int", "long"};
 
     do
@@ -121,7 +123,8 @@ std::optional<Token> Lexer::identifier()
 
     offset = this->_pos.index - start;
 
-    tok.val = this->_content.substr(start, offset);
+    tok.end = this->_pos;
+    tok.val = this->_content.substr(start, offset - 1);
 
     const auto view = tok.get<std::string_view>();
 
@@ -129,7 +132,7 @@ std::optional<Token> Lexer::identifier()
     {
         if (view == keywords[i])
         {
-            tok.type = TT_Keyword;
+            tok.id = TT_Keyword;
             tok.val = static_cast<enum KeywordTypes>(i);
             return tok;
         }
@@ -139,36 +142,39 @@ std::optional<Token> Lexer::identifier()
     {
         if (view == domains[i])
         {
-            tok.type = TT_Domain;
+            tok.id = TT_Domain;
             tok.val = static_cast<enum KeywordTypes>(i);
         }
     }
 
+    this->next();
+
     return tok;
 }
 
-std::optional<Token> Lexer::compare(char c, enum TokenTypes type)
+returns<Token> Lexer::compare(char c, enum TokenID type)
 {
-    Token tok = type;
+    Token tok = Token(type, this->_pos);
     this->next();
 
     if (this->_char == '=')
     {
-        tok.type = static_cast<enum TokenTypes>(type + 1);
+        tok.id = static_cast<enum TokenID>(type + 1);
         this->next();
     }
     else if (this->_char == c)
     {
-        tok.type = static_cast<enum TokenTypes>(type + 2);
+        tok.id = static_cast<enum TokenID>(type + 2);
         this->next();
     }
 
+    tok.end = this->_pos;
     return tok;
 }
 
-std::optional<Token> Lexer::equal()
+returns<Token> Lexer::equal()
 {
-    Token tok = TT_Equal;
+    Token tok = Token(TT_Equal, this->_pos);
     this->next();
 
     if (this->_char == '=')
@@ -182,12 +188,13 @@ std::optional<Token> Lexer::equal()
         this->next();
     }
 
+    tok.end = this->_pos;
     return tok;
 }
 
-std::optional<Token> Lexer::donot()
+returns<Token> Lexer::donot()
 {
-    Token tok = TT_Not;
+    Token tok = Token(TT_Not, this->_pos);
 
     if (this->_char == '=')
     {
@@ -195,32 +202,40 @@ std::optional<Token> Lexer::donot()
         this->next();
     }
 
+    tok.end = this->_pos;
     return tok;
 }
 
-std::optional<Token> Lexer::repeat(char c, enum TokenTypes type)
+returns<Token> Lexer::repeat(char c, enum TokenID type)
 {
     Token tok = type;
+    pos_t start = this->_pos;
+
+    this->next();
 
     if (this->_char == c)
     {
-        tok = static_cast<enum TokenTypes>(type + 1);
+        tok = static_cast<enum TokenID>(type + 1);
         this->next();
     }
+
+    tok.start = start;
+    tok.end = this->_pos;
 
     return tok;
 }
 
-std::optional<Token> Lexer::next_token()
+returns<Token> Lexer::next_token()
 {
-    if (isalpha(this->_char) || this->_char == '_' ) {
+    if (isalpha(this->_char) || this->_char == '_')
+    {
         return this->identifier();
     }
 
     switch (this->_char)
     {
     case '\0':
-        return std::nullopt;
+        return make_unexpected<returns<Token>>("syntax", "premature end of file", this->_pos, this->_pos);
     case '\n':
     case '\t':
     case '\v':
@@ -254,7 +269,7 @@ std::optional<Token> Lexer::next_token()
     case '?':
         return this->token(TT_Question);
     case ':':
-        return this->token(TT_Colon);
+        return this->repeat(':', TT_Colon);
     case '>':
         return this->compare('<', TT_GreaterThan);
     case '<':

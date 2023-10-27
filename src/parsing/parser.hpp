@@ -1,28 +1,41 @@
+/**
+ * @file parser.hpp
+ * @author droplt
+ * @brief parse files
+ * @version 0.1
+ * @date 2023-09-29
+ *
+ * @copyright Copyright (c) 2023
+ *
+ */
+
 #pragma once
 #ifndef ZENITH_PARSER_HPP
 #define ZENITH_PARSER_HPP 1
 
-#include "platform.h"
-
+#include "../platform.hpp"
+#include "../typing/typing.hpp"
 #include <algorithm>
 #include <cassert>
 #include <cctype>
 #include <expected>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <type_traits>
 #include <unordered_map>
 #include <variant>
 #include <vector>
+#include <stack>
 
 /**
- * @enum TokenTypes
+ * @enum TokenID
  * @brief All possible token types
  *
  * size : 1 byte
  */
-enum TokenTypes
+enum TokenID
 {
     TT_Unknown,            /*!< used as the default token in case of errors */
     TT_Int,                /*!< integer numbers */
@@ -47,6 +60,7 @@ enum TokenTypes
     TT_GreaterThanEqual,   /*!< ">=" */
     TT_Question,           /*!< "?" */
     TT_Colon,              /*!< ":" */
+    TT_TypeDefine,         /*!< "::" */
     TT_Equal,              /*!< "=" */
     TT_Not,                /*!< "!" */
     TT_LeftParentesis,     /*!< "(" */
@@ -91,10 +105,11 @@ enum KeywordTypes
     KW_else,     /*!< "else" */
     KW_end,      /*!< "end" */
     KW_return,   /*!< "return" */
-    KW_include,  /*!< "include" */
+    KW_import,   /*!< "import" */
     KW_type,     /*!< "type" */
     KW_define,   /*!< "define" */
-    KW_is        /*!< "is" */
+    KW_is,       /*!< "is" */
+    KW_struct
 };
 
 /**
@@ -148,86 +163,126 @@ struct Token
     //!< - a string
     std::variant<uint64_t, double, enum KeywordTypes, std::string_view> val;
 
-    enum TokenTypes type; /*!< specify token type */
+    //!< start of token
+    pos_t start;
+
+    //!< end of token
+    pos_t end;
+
+    //!< token id
+    enum TokenID id;
 
     /**
      * @brief Construct a token as normal token
-     *
+     * @param type token id
      */
-    constexpr Token(enum TokenTypes type) : type(type)
-    {
-    }
+    constexpr Token(enum TokenID id, pos_t start = pos_t{}, pos_t end = pos_t{}) : start(start), end(end), id(id) {}
 
     /**
      * @brief Construct a token as an Integer
-     * @param integer
+     * @param integer integer value
      */
-    constexpr Token(uint64_t integer) : Token(TT_Int)
-    {
-        this->val = integer;
-    }
+    constexpr Token(uint64_t integer, pos_t start = pos_t{}, pos_t end = pos_t{}) : Token(TT_Int, start, end) { this->val = integer; }
 
-    constexpr Token(double decimal) : Token(TT_Double)
-    {
-        this->val = decimal;
-    }
+    /**
+     * @brief Construct a token as a Double
+     * @param decimal decimal value
+     */
+    constexpr Token(double decimal, pos_t start = pos_t{}, pos_t end = pos_t{}) : Token(TT_Double, start, end) { this->val = decimal; }
 
-    constexpr Token(std::string_view string) : Token(TT_String)
-    {
-        this->val = string;
-    }
+    /**
+     * @brief Construct a token as a String
+     * @param string string value
+     */
+    constexpr Token(std::string_view string, pos_t start = pos_t{}, pos_t end = pos_t{}) : Token(TT_String, start, end) { this->val = string; }
 
+    /**
+     * @brief Get a token value as a desired type
+     * @tparam T type included on the tuple
+     * @returns value of type in the tuple
+     */
     template <typename T>
-    constexpr auto get() const
+    constexpr auto get() const { return std::get<T>(val); }
+
+    constexpr std::partial_ordering operator<=>(const Token &other) const
     {
-        return std::get<T>(val);
+        if (auto cmp = this->id <=> other.id; cmp != 0)
+            return cmp;
+        return this->val <=> other.val;
     }
 
+    /**
+     * @brief Check if token is a type
+     *
+     * @returns true if types are equal
+     * @returns false if types are different
+     */
     template <typename T>
-    constexpr bool is() const noexcept
-    {
-        return std::get_if<T>(&this->val) != nullptr;
-    }
+    constexpr bool is() const noexcept { return std::holds_alternative<T>(this->val); }
 };
 
 namespace Parsing
 {
-
+    /**
+     * @brief Generate tokens on a file
+     */
     class Lexer
     {
     private:
+        //!< position on the current file
         struct pos_t _pos
         {
-            0, 0, 0, 0
+            0, 0, 1, 1
         };
+
+        //!< full content on file
         std::string_view _content;
+
+        //!< current char on file
         char _char;
 
+        //!< tokenize a new token
         char next();
-        std::optional<Token> string();
-        std::optional<Token> number();
-        std::optional<Token> token(const enum TokenTypes);
-        std::optional<Token> identifier();
-        std::optional<Token> compare(char c, TokenTypes type);
-        std::optional<Token> equal();
-        std::optional<Token> donot();
 
-        std::optional<Token> repeat(char c, TokenTypes type);
+        /**
+         * @brief try to tokenize a string on the file
+         *
+         * @returns Token(TT_String) in case of a successful token
+         * @returns a nullopt in case of an error while tokenizing
+         */
+        returns<Token> string();
+
+        /**
+         * @brief try to tokenize a number on the file
+         *
+         * @returns Token(TT_Integer) in case of a successful integer token
+         * @returns Token(TT_Double) in case of a successful decmial token
+         * @returns nullopt in case of any error while tokenizing
+         */
+        returns<Token> number();
+
+        returns<Token> token(const enum TokenID);
+        returns<Token> identifier();
+        returns<Token> compare(char c, TokenID type);
+        returns<Token> equal();
+        returns<Token> donot();
+
+        returns<Token> repeat(char c, TokenID type);
 
     public:
         Lexer(std::string_view content) : _content(content), _char(content[0]){};
         static uint64_t strtoi(std::string_view str);
         static double strtod(std::string_view str);
-        std::optional<Token> next_token();
+        returns<Token> next_token();
     };
 
     /**
-     * @enum NodeTypes
-     * @brief enum for identifying Node types
+     * @enum NodeID
+     * @brief enum for identifying Nodes
      *
      * size: 1 byte
      */
-    enum NodeTypes
+    enum NodeID
     {
         Unused = 0, /*!< used on Node's default constructor */
         Integer,    /*!< Integer Nodes */
@@ -246,33 +301,116 @@ namespace Parsing
         Include,    /*!< Include nodes */
         Scope,      /*!< Scope nodes */
         Task,       /*!< Task nodes */
-        Type,       /*!< type nodes */
+        Domain,     /*!< Domain nodes */
     };
 
+    /**
+     * @brief A representation of any node in the syntax tree
+     *
+     * A node has the following components
+     * - a node id to identify derived nodes without RTTI
+     * - a node type for later optimizations and type checking
+     * - a node flag to check when the current node is a constant
+     * - a start position in the file, for error formating
+     * - an end position in the file, for error formating
+     */
     struct Node
     {
     protected:
-        const enum NodeTypes _type;
-        const bool _const = false;
+        const enum NodeID _id;        //!< Node identificator
+        const Typing::Type _nodetype; //!< Node type
+        const bool _const = false;    //!< Node const flag
+        const pos_t _start = pos_t{}; //!< Node start position
+        const pos_t _end = pos_t{};   //< Node end position
 
     public:
-        using basetype = Node;
-        constexpr Node(const enum NodeTypes type = Unused, const bool is_const = false) : _type(type), _const(is_const) {}
+        /**
+         * @brief construct a base node
+         *
+         * @param id node identificator
+         * @param node_type node type
+         * @param is_const node const flag
+         * @param start start position
+         * @param end end position
+         */
+        Node(const enum NodeID id, Typing::Type node_type, const bool is_const = false, const pos_t start = pos_t{}, const pos_t end = pos_t{})
+            : _id(id), _nodetype(std::move(node_type)), _const(is_const), _start(start), _end(end) {}
 
+        /**
+         * @brief compare two nodes
+         *
+         * nodes are the same independently of the position they have in the syntax tree
+         *
+         * @param other node to compare
+         * @returns true when nodes are equal
+         * @returns false otherwise
+         */
         virtual constexpr bool operator==(const Node &other) const
         {
-            return this->_type == other._type && this->_const == other._const;
+            return this->_id == other._id && this->_const == other._const && this->_nodetype == other._nodetype;
         };
 
-        auto type() const { return this->_type; }
-        auto constant() const { return this->_const; }
-
-        template <typename T>
-        constexpr auto &as() const
+        /**
+         * @brief check if node against only its ID
+         *
+         *
+         * @param id id to check
+         * @returns true if IDs are equal
+         * @returns false otherwise
+         */
+        constexpr bool operator==(const NodeID id) const
         {
-            static_assert(std::is_base_of_v<Node, T>, "Expected <T> to be derived from node");
-            return *static_cast<const T *>(this);
+            return this->_id == id;
+        };
+
+        /**
+         * @brief type getter
+         *
+         * @return node id
+         */
+        constexpr auto type() const { return this->_id; }
+
+        /**
+         * @brief const flag getter
+         *
+         * @returns true if node is constant
+         * @returns false if not
+         */
+        constexpr auto constant() const { return this->_const; }
+
+        /**
+         * @brief node type getter
+         *
+         * @returns node type
+         */
+        constexpr auto &node_type() const { return this->_nodetype; }
+
+        /**
+         * @brief start position getter
+         *
+         * @returns pos_t start position
+         */
+        constexpr auto &start() const { return this->_start; }
+
+        /**
+         * @brief
+         */
+        auto &end() const { return this->_end; }
+
+        /**
+         * @brief cast a node into any of its derived classes
+         *
+         * @tparam DerivedNode derived class to cast
+         * @return current node as
+         */
+        template <typename DerivedNode>
+            requires(std::is_base_of_v<Node, DerivedNode>)
+        constexpr auto &as() const noexcept
+        {
+            return *static_cast<const DerivedNode *>(this);
         }
+
+        constexpr bool is(NodeID id) { return this->_id == id; }
 
         virtual ~Node() = default;
     };
@@ -282,12 +420,12 @@ namespace Parsing
     struct NumberNode final : public Node
     {
     protected:
-        static_assert(sizeof(uint64_t) == sizeof(double), "expected <int64_t> to be same size as <dobule>");
-        std::variant<uint64_t, double> _val;
+        std::variant<int64_t, uint64_t, double> _val;
 
     public:
-        constexpr NumberNode(const uint64_t value) : Node(Integer, true), _val(value) {}
-        constexpr NumberNode(const double value) : Node(Double, true), _val(value) {}
+        NumberNode(const uint64_t value) : Node(Integer, make_unique_variant<Typing::Type, Typing::RangeType>(value), true), _val(value) {}
+        NumberNode(const int64_t value) : Node(Integer, make_unique_variant<Typing::Type, Typing::RangeType>(value), true), _val(value) {}
+        NumberNode(const double value) : Node(Double, make_unique_variant<Typing::Type, Typing::RangeType>(value), true), _val(value) {}
 
         virtual constexpr bool operator==(const Node &other) const noexcept override
         {
@@ -304,7 +442,6 @@ namespace Parsing
         virtual ~NumberNode() = default;
     };
 
-    //!< TODO: add identifier
     struct StringNode final : public Node
     {
     protected:
@@ -312,7 +449,7 @@ namespace Parsing
         bool _is_identifier;
 
     public:
-        constexpr StringNode(std::string_view str, const TokenTypes id) : Node(id == TT_Identifier ? Identifier : String, true), _value(str), _is_identifier(id == TT_Identifier) {}
+        StringNode(std::string_view str, const TokenID id) : Node(id == TT_Identifier ? Identifier : String, nullptr, true), _value(str), _is_identifier(id == TT_Identifier) {}
 
         virtual constexpr bool operator==(const Node &other) const noexcept override
         {
@@ -329,11 +466,11 @@ namespace Parsing
     {
     protected:
         const nodep _node;
-        const enum TokenTypes _op;
+        const enum TokenID _op;
 
     public:
-        constexpr UnaryNode(const enum TokenTypes token, nodep value) : Node(Unary, value->constant()),
-                                                                        _node(std::move(value)), _op(token) {}
+        UnaryNode(const enum TokenID token, nodep value) : Node(Unary, nullptr, value->constant()),
+                                                           _node(std::move(value)), _op(token) {}
 
         virtual constexpr bool operator==(const Node &other) const noexcept override
         {
@@ -353,11 +490,11 @@ namespace Parsing
     protected:
         const nodep _left;
         const nodep _right;
-        const enum TokenTypes _op;
+        const enum TokenID _op;
 
     public:
-        constexpr BinaryNode(nodep left, const enum TokenTypes op, nodep right) : Node(Binary, left->constant() && right->constant()),
-                                                                                  _left(std::move(left)), _right(std::move(right)), _op(op) {}
+        BinaryNode(nodep left, const enum TokenID op, nodep right) : Node(Binary, nullptr, left->constant() && right->constant()),
+                                                                     _left(std::move(left)), _right(std::move(right)), _op(op) {}
 
         virtual constexpr bool operator==(const Node &other) const noexcept override
         {
@@ -382,8 +519,8 @@ namespace Parsing
         const nodep _onfalse;
 
     public:
-        constexpr TernaryNode(nodep cond, nodep ontrue, nodep onfalse) : Node(Ternary, cond->constant()),
-                                                                         _cond(std::move(cond)), _ontrue(std::move(ontrue)), _onfalse(std::move(onfalse)) {}
+        TernaryNode(nodep cond, nodep ontrue, nodep onfalse) : Node(Ternary, nullptr, cond->constant()),
+                                                               _cond(std::move(cond)), _ontrue(std::move(ontrue)), _onfalse(std::move(onfalse)) {}
 
         virtual constexpr bool operator==(const Node &other) const noexcept override
         {
@@ -407,8 +544,8 @@ namespace Parsing
         const std::string_view _name;
 
     public:
-        constexpr ExpressionNode(const std::string_view name, nodep expression) : Node(Expression, expression->constant()),
-                                                                                  _expr(std::move(expression)), _name(name) {}
+        ExpressionNode(const std::string_view name, nodep expression) : Node(Expression, nullptr, expression->constant()),
+                                                                        _expr(std::move(expression)), _name(name) {}
 
         virtual constexpr bool operator==(const Node &other) const noexcept override
         {
@@ -429,7 +566,7 @@ namespace Parsing
         const std::vector<nodep> _nodes;
 
     public:
-        ListNode(std::vector<nodep> array) : Node(List, false),
+        ListNode(std::vector<nodep> array) : Node(List, nullptr, false),
                                              _nodes(std::move(array)) {}
 
         virtual constexpr bool operator==(const Node &other) const noexcept override
@@ -450,8 +587,8 @@ namespace Parsing
         const bool _index;
 
     public:
-        constexpr CallNode(nodep expr, nodep args, NodeTypes index) : Node(Call, false),
-                                                                      _args(std::move(args)), _expr(std::move(expr)), _index(index == Index) {}
+        CallNode(nodep expr, nodep args, NodeID index) : Node(Call, nullptr, false),
+                                                         _args(std::move(args)), _expr(std::move(expr)), _index(index == Index) {}
 
         virtual constexpr bool operator==(const Node &other) const noexcept override
         {
@@ -473,8 +610,8 @@ namespace Parsing
         const nodep _expr;
 
     public:
-        constexpr SwitchNode(nodep expr, std::vector<std::pair<nodep, nodep>> cases) : Node(Switch, expr->constant()),
-                                                                                       _cases(std::move(cases)), _expr(std::move(expr)) {}
+        SwitchNode(nodep expr, std::vector<std::pair<nodep, nodep>> cases) : Node(Switch, nullptr, expr->constant()),
+                                                                             _cases(std::move(cases)), _expr(std::move(expr)) {}
 
         virtual constexpr bool operator==(const Node &other) const noexcept override
         {
@@ -496,7 +633,7 @@ namespace Parsing
         const nodep _expr;
 
     public:
-        constexpr LambdaNode(nodep args, nodep expr) : Node(Lambda, false), _args(std::move(args)), _expr(std::move(expr)) {}
+        LambdaNode(nodep args, nodep expr) : Node(Lambda, nullptr, false), _args(std::move(args)), _expr(std::move(expr)) {}
 
         virtual constexpr bool operator==(const Node &other) const noexcept override
         {
@@ -517,7 +654,7 @@ namespace Parsing
         const std::string_view _name;
 
     public:
-        constexpr IncludeNode(std::string_view name) : Node(Include, false), _name(name) {}
+        IncludeNode(std::string_view name) : Node(Include, nullptr, false), _name(name) {}
 
         virtual constexpr bool operator==(const Node &other) const noexcept override
         {
@@ -536,8 +673,8 @@ namespace Parsing
         const nodep _child;
 
     public:
-        constexpr ScopeNode(nodep &parent, nodep &child) : Node(Scope, parent->constant()),
-                                                           _parent(std::move(parent)), _child(std::move(child)) {}
+        ScopeNode(nodep &parent, nodep &child) : Node(Scope, nullptr, parent->constant()),
+                                                 _parent(std::move(parent)), _child(std::move(child)) {}
 
         virtual constexpr bool operator==(const Node &other) const noexcept override
         {
@@ -557,8 +694,8 @@ namespace Parsing
         const std::vector<nodep> _tasks;
 
     public:
-        constexpr TaskNode(std::vector<nodep> &tasks) : Node(Task, false),
-                                                        _tasks(std::move(tasks)) {}
+        TaskNode(std::vector<nodep> &tasks) : Node(Task, nullptr, false),
+                                              _tasks(std::move(tasks)) {}
 
         virtual constexpr bool operator==(const Node &other) const noexcept override
         {
@@ -570,76 +707,88 @@ namespace Parsing
         virtual ~TaskNode() = default;
     };
 
-    // struct TypeNode final : public Node
-    // {
-    // public:
-    //     enum class Alternatives
-    //     {
-    //         unknown,
-    //         domain,
-    //         array,
-    //         pointer,
-    //         structure,
-    //         function,
-    //         interval
-    //     };
-    // protected:
-    //     const std::string_view _name;
-    //     const enum Alternatives _meta = Alternatives::unknown;
-    //     const enum DomainTypes _domain = DM_unknown;
-    //     const struct array_tType
-    //     {
-    //         std::unique_ptr<TypeNode> _type = nullptr;
-    //         uint64_t _size = 0;
-    //         constexpr ArrayType() = default;
-    //         constexpr ArrayType(std::unique_ptr<TypeNode> &type, uint64_t size) :
-    //             _type(std::move(type)), _size(size) {}
-    //     } _array;
-    //     const std::vector<std::unique_ptr<TypeNode>> _struct = {};
-    //     const struct FunctionType
-    //     {
-    //         std::vector<std::unique_ptr<TypeNode>> arguments = {};
-    //         std::unique_ptr<TypeNode> return_type = nullptr;
-    //     } _function;
-    //     const std::unique_ptr<TypeNode> _ptr = nullptr;
-    //     const struct IntervalTypes
-    //     {
-    //         double start = 0;
-    //         double end = 0;
-    //     } _interval;
+    struct TypeNode final : public Node
+    {
+    public:
+        enum class Alternatives
+        {
+            unknown,
+            domain,
+            array,
+            pointer,
+            structure,
+            function,
+            interval
+        };
 
-    // public:
-    //     constexpr TypeNode(const std::string_view name, const enum DomainTypes domain) :
-    //         Node(Type, true), _name(name), _meta(Alternatives::domain), _domain(domain) {}
+    protected:
+        const std::string_view _name;
+        const enum Alternatives _meta = Alternatives::unknown;
+        struct ArrayType
+        {
+            std::unique_ptr<TypeNode> _type = nullptr;
+            nodep _size = nullptr;
+        };
 
-    //     constexpr TypeNode(const std::string_view name, std::unique_ptr<TypeNode> &type, uint64_t size) :
-    //         Node(Type, true), _name(name), _meta(Alternatives::array), _array(type, size) {}
+        using StructType = std::vector<std::unique_ptr<TypeNode>>;
 
-    //     constexpr TypeNode(const std::string_view name, std::vector<std::unique_ptr<TypeNode>> &structure) :
-    //         Node(Type, true), _name(name), _meta(Alternatives::structure), _struct(std::move(structure)) {};
+        const struct FunctionType
+        {
+            std::vector<std::unique_ptr<TypeNode>> arguments = {};
+            std::unique_ptr<TypeNode> return_type = nullptr;
+        } _function;
 
-    //     constexpr auto &domain() { return this->_domain; }
-    //     constexpr auto &array() { return this->_array; }
-    //     constexpr auto &structure() { return this->_struct; }
-    //     constexpr auto &interval() { return this->_interval; }
-    //     virtual ~TypeNode() = default;
-    // };
+        using PointerType = std::unique_ptr<TypeNode>;
+
+        struct IntervalType
+        {
+            using Delimiter = Typing::RangeType::Delimiter;
+            nodep start = nullptr;
+            nodep end = nullptr;
+            bool closed_started = true;
+            bool close_ended = false;
+        };
+
+        using Types = std::variant<ArrayType, StructType, FunctionType, PointerType, IntervalType>;
+
+        Types _type;
+
+    public:
+        TypeNode(const std::string_view name, std::unique_ptr<TypeNode> &type, nodep &size)
+            : Node(Domain, nullptr, true), _name(name), _meta(Alternatives::array), _type(ArrayType{std::move(type), std::move(size)})
+        {
+        }
+
+        TypeNode(const std::string_view name, std::vector<std::unique_ptr<TypeNode>> &structure)
+            : Node(Domain, nullptr, true), _name(name), _meta(Alternatives::structure), _type(std::move(structure))
+        {
+        }
+
+        TypeNode(const std::string_view name, nodep range_start, nodep range_end, bool close_start, bool close_end)
+            : Node(Domain, nullptr, true), _name(name), _type(IntervalType{std::move(range_start), std::move(range_end), close_start, close_end})
+        {
+        }
+
+        virtual ~TypeNode() = default;
+    };
 
     class Parser
     {
-        std::optional<Token> _tok; //!< current parsed token
-        struct pos_t _pos;         //!< current cursor position
-        struct Lexer _lex;         //!< tokenizer instance
+        returns<Token> _tok = TT_Unknown; //!< current parsed token
+        std::unordered_map<std::string, Typing::Type &> types;
+        std::stack<pos_t> start_positions;
+        Lexer _lex; //!< tokenizer instance
 
-        /// TODO: make this buffer not destroy after parser is complete
-        ///       or make it so strings are actually references to other tables
+        /// TODO: make this buffer not destroy itself after parsing is complete
+        ///       or make it so strings are actually references on other tables
         std::string _buf;   //!< file buffer
         std::string _fname; //!< name of file to translate
 
         inline void next() noexcept;
-        returns<nodep> _comma(const enum TokenTypes end_token) noexcept;
+
+        returns<nodep> _comma(const enum TokenID end_token, const enum TokenID delim) noexcept;
         returns<nodep> _number() noexcept;
-        returns<nodep> _string(const enum TokenTypes id) noexcept;
+        returns<nodep> _string(const enum TokenID id) noexcept;
         returns<nodep> _array() noexcept;
         returns<nodep> _switch() noexcept;
         returns<nodep> _task() noexcept;
@@ -649,8 +798,10 @@ namespace Parsing
         returns<nodep> _term() noexcept;
         returns<nodep> _factor() noexcept;
         returns<nodep> _comparisions() noexcept;
+        returns<nodep> _type(const std::string_view name) noexcept;
         returns<nodep> _top_level() noexcept;
         returns<nodep> _statement() noexcept;
+        void _generate_types();
 
     public:
         Parser(const char *filename);
@@ -662,8 +813,6 @@ namespace Parsing
          * @return std::nullopt in case an error was thrown
          */
         std::optional<std::vector<nodep>> parse();
-
-        std::optional<nodep> parse_threaded();
     };
 } // namespace Parsing
 

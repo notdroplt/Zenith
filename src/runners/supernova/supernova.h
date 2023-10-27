@@ -133,17 +133,17 @@ enum instruction_prefixes
     setlesr_instrc = 0x36, /*!< `setles r#, r#, r#`  : R type */
     setlesi_instrc = 0x37, /*!< `setles r#, r#, imm` : S type */
 
-    lui_instrc = 0x38,    /*!< `lu r#, imm`    : L type */
+    lui_instrc = 0x38,    /*!< `lui r#, imm`   : L type */
     auipc_instrc = 0x39,  /*!< `auipc r#, imm` : L type */
-    ecall_instrc = 0x3A,  /*!< `ecall r#, imm` : L type */
-    ebreak_instrc = 0x3B, /*!< `ebreak 0`      : L type */
+    pcall_instrc = 0x3A,  /*!< `pcall r#, imm` : L type */
+    pbreak_instrc = 0x3B, /*!< `pbreak 0`      : L type */
 
-    outb_instrc = 0x3C, /*!< `outb, r#, r#, 0` S type */
-    outh_instrc = 0x3D, /*!< `outw, r#, r#, 0` S type */
-    inb_instrc = 0x3E,  /*!< `inb, r#, r#, 0`  S type */
-    inh_instrc = 0x3F   /*!< `inw, r#, r#, 0`  S type */
+    out_instrc = 0x3C, /*!< `outb, r#, r#, 0` S type */
+    in_instrc = 0x3D, /*!< `outw, r#, r#, 0` S type */
+    bout_instrc = 0x3E,  /*!< `inb, r#, r#, 0`  S type */
+    bin_instrc = 0x3F   /*!< `inw, r#, r#, 0`  S type */
 
-    /*! TODO: group 4, parallel operation instructions */
+    /*! TODO: group 4, floating point operation instructions */
 
 };
 
@@ -232,6 +232,17 @@ union instruction_t SInstruction(const uint8_t opcode, const uint8_t r1, const u
  */
 union instruction_t LInstruction(const uint8_t opcode, const uint8_t r1, const uint64_t immediate);
 
+/**
+ * 
+*/
+struct thread_config_t {
+    uint64_t has_interrupts;
+    uint64_t interrupt_count;
+    uint64_t page_level;
+    uint64_t page_size;
+    uint64_t model_name[4];
+    uint64_t io_address_space;
+};
 
 /**
  * @brief defines a thread that will run vm code
@@ -244,16 +255,19 @@ union instruction_t LInstruction(const uint8_t opcode, const uint8_t r1, const u
  * r1: 1st return register
  * r2: stack pointer
  * r3: base pointer
- * r4: interrupt vector pointer
  *
+ * r28: second processor call argument (function switch)
+ * r29: first processor call argument (interrupt space)
+ * 
  * r31 going upwards: function arguments
  *
- * Size: 288 bytes (aligned)
+ * Size: 296 bytes (aligned)
  */
 struct thread_t
 {
     uint64_t registers[32];   /*!< thread registers */
     uint64_t program_counter; /*!< thread instructon pointer */
+    uint64_t int_vector;      /*!< interrupt vector pointer*/
     uint64_t memory_size;     /*!< thread memory size */
     uint8_t *memory;          /*!< thread memory pointer */
     uint8_t halt_sig;         /*!< defines when program should stop */

@@ -2,6 +2,6 @@
 .git
 .vscode
 build
-docs 
+*docs*
 test
 *.zv*

@@ -1,25 +1,26 @@
 #include "parser.hpp"
 #include <fstream>
+#include <limits>
+
 #include <iostream>
 using namespace Parsing;
-
+using namespace Typing;
 
 Parser::Parser(const char *filename) : _lex("")
 {
-    assert(filename != NULL);
-
     this->_fname = filename;
 
-    FILE * fp = fopen(filename, "r");
+    FILE *fp = fopen(filename, "r");
 
     fseek(fp, 0, SEEK_END);
     size_t size = ftell(fp);
     fseek(fp, 0, SEEK_SET);
-    
-    auto buf = new char[size + 1];
+
+    auto buf = new char[size + 2];
     fread(buf, size, 1, fp);
 
-    buf[size] = '\0';
+    buf[size] = '\n';
+    buf[size + 1] = '\0';
 
     this->_buf = std::string(buf);
     delete[] buf;
@@ -28,6 +29,26 @@ Parser::Parser(const char *filename) : _lex("")
     this->_lex = Lexer(std::string_view(this->_buf));
 
     this->next();
+    this->_generate_types();
+}
+
+void Parser::_generate_types()
+{
+    // this->types.insert({
+    // {"bool", make_unique_variant<Type, RangeType>(std::numeric_limits<bool>::max())},
+    // {"char", make_unique_variant<Type, RangeType>(std::numeric_limits<char>::min(), std::numeric_limits<char>::max())},
+    // {"s8",  make_unique_variant<Type, RangeType>(std::numeric_limits<int8_t>::min(), std::numeric_limits<int8_t>::max())},
+    // {"u8",  make_unique_variant<Type, RangeType>(std::numeric_limits<uint8_t>::max())},
+    // {"s16", make_unique_variant<Type, RangeType>(std::numeric_limits<int16_t>::min(), std::numeric_limits<int16_t>::max())},
+    // {"s32", make_unique_variant<Type, RangeType>(std::numeric_limits<int32_t>::min(), std::numeric_limits<int32_t>::max())},
+    // {"s64", make_unique_variant<Type, RangeType>(std::numeric_limits<int64_t>::min(), std::numeric_limits<int64_t>::max())},
+    // {"u16", make_unique_variant<Type, RangeType>(std::numeric_limits<uint16_t>::max())},
+    // {"u32", make_unique_variant<Type, RangeType>(std::numeric_limits<uint32_t>::max())},
+    // {"u64", make_unique_variant<Type, RangeType>(std::numeric_limits<uint64_t>::max())},
+    // {"flt", make_unique_variant<Type, RangeType>(std::numeric_limits<float>::lowest(), std::numeric_limits<float>::max())},
+    // {"dbl", make_unique_variant<Type, RangeType>(std::numeric_limits<double>::lowest(), std::numeric_limits<double>::max())}
+
+    // });
 }
 
 void Parser::next() noexcept
@@ -37,49 +58,51 @@ void Parser::next() noexcept
 
 returns<nodep> Parser::_number() noexcept
 {
-    if (!this->_tok)
-    {
-        return make_unexpected<returns<nodep>>("syntax", "invalid token");
-    }
+    return this->_tok.transform([this](Token tok){
+        if (tok.id == TT_Int) {
+            auto val = tok.get<uint64_t>();
 
-    if (this->_tok->type == TT_Int)
-    {
-        return make_expected_unique<returns<nodep>, NumberNode>(this->_tok->get<uint64_t>());
-    }
+            this->next();
 
-    return make_expected_unique<returns<nodep>, NumberNode>(this->_tok->get<double>());
+            return std::make_unique<NumberNode>(val);
+        }
+
+        auto val = this->_tok->get<double>();
+
+        this->next();
+
+        return std::make_unique<NumberNode>(val);
+    });
 }
 
-returns<nodep> Parser::_string(const enum TokenTypes id) noexcept
+returns<nodep> Parser::_string(const enum TokenID id) noexcept
 {
-    if (!this->_tok)
-    {
-        return make_unexpected<returns<nodep>>("syntax", "invalid token");
-    }
-    auto token = *this->_tok;
-
-    this->next();
-
-    return make_expected_unique<returns<nodep>, StringNode>(token.get<std::string_view>(), id);
+    return this->_tok.transform([this, id](Token & tok){
+        this->next();
+        return std::make_unique<StringNode>(tok.get<std::string_view>(), id);
+    });    
 }
 
-returns<nodep> Parser::_comma(const enum TokenTypes end_token) noexcept
+returns<nodep> Parser::_comma(const enum TokenID end_token, const enum TokenID delim = TT_Comma) noexcept
 {
     std::vector<nodep> nodes;
 
-    while (this->_tok && this->_tok->type != end_token)
+    while (this->_tok && this->_tok->id != end_token)
     {
         auto expression = this->_top_level();
+
         if (!expression)
             return expression;
+
         nodes.emplace_back(std::move(expression.value()));
 
-        if (!this->_tok || this->_tok->type != TT_Comma)
+        if (!this->_tok || this->_tok->id != delim)
         {
             break;
         }
 
-        this->next();
+        if (end_token != TT_Unknown)
+            this->next();
     }
 
     return make_expected_unique<returns<nodep>, ListNode>(std::move(nodes));
@@ -89,19 +112,15 @@ returns<nodep> Parser::_array() noexcept
 {
     this->next();
 
-    auto array = this->_comma(TT_RightSquareBracket);
+    return this->_comma(TT_RightSquareBracket)
+        .and_then([this](nodep node) -> returns<nodep> {
+        if (this->_tok->id != TT_RightSquareBracket) {
+            return make_unexpected<returns<nodep>>("syntax", "expected ']' after a comma to initalizate an array");
+        }
 
-    if (!array)
-        return array;
-
-    if (this->_tok->type != TT_RightSquareBracket)
-    {
-        return make_unexpected<returns<nodep>>("syntax", "expected ']' after a comma to initalizate an array");
-    }
-
-    this->next();
-
-    return array;
+        this->next();
+        return node;
+    });
 }
 
 returns<nodep> Parser::_switch() noexcept
@@ -118,22 +137,23 @@ returns<nodep> Parser::_switch() noexcept
     }
 
     auto switch_expr = this->_top_level();
+
     if (!switch_expr)
         return switch_expr;
 
-    while (this->_tok->type != TT_Keyword && this->_tok->get<KeywordTypes>() != KW_end)
+    while (this->_tok->id != TT_Keyword && this->_tok->get<KeywordTypes>() != KW_end)
     {
         if (!this->_tok)
         {
             return make_unexpected<returns<nodep>>("syntax", "\"switch\" was incomplete before EOF");
         }
 
-        if (this->_tok->type != TT_Colon || !(this->_tok->is<KeywordTypes>() && this->_tok->get<KeywordTypes>() == KW_default))
+        if (this->_tok->id != TT_Colon || !(this->_tok->is<KeywordTypes>() && this->_tok->get<KeywordTypes>() == KW_default))
         {
             return make_unexpected<returns<nodep>>("syntax", "expected ':' or \"default\" as a case expression starter");
         }
 
-        if (this->_tok->type == TT_Colon)
+        if (this->_tok->id == TT_Colon)
         {
             this->next();
 
@@ -149,7 +169,7 @@ returns<nodep> Parser::_switch() noexcept
             case_expr.value() = NULL;
         }
 
-        if (this->_tok->type != TT_Equal)
+        if (this->_tok->id != TT_Equal)
         {
             return make_unexpected<returns<nodep>>("syntax", "expected '=' after case expression");
         }
@@ -181,17 +201,37 @@ returns<nodep> Parser::_atom() noexcept
     returns<nodep> node;
     if (!this->_tok)
     {
-        return make_unexpected<returns<nodep>>("syntax", "premature end of expression");
+        return returns<nodep>(std::unexpect, this->_tok.error());
     }
 
-    switch (this->_tok->type)
+    auto start = this->_tok->start;
+
+    switch (this->_tok->id)
     {
     case TT_Int:
     case TT_Double:
         return this->_number();
     case TT_String:
     case TT_Identifier:
-        return this->_string(this->_tok->type);
+    {
+        auto value = this->_string(this->_tok->id);
+
+        if (this->_tok->id != TT_Identifier || !value)
+            return value;
+
+        std::vector<nodep> arguments;
+        arguments.push_back(std::move(*value));
+
+        while (this->_tok && this->_tok->id == TT_Identifier)
+        {
+            auto arg = this->_string(this->_tok->id);
+            if (!arg)
+                return arg;
+            arguments.push_back(nodep(const_cast<nodep *>(&*arg)->release()));
+        }
+
+        return make_expected_unique<returns<nodep>, ListNode>(std::move(arguments));
+    }
     case TT_Keyword:
         if (this->_tok->get<KeywordTypes>() == KW_switch)
         {
@@ -201,39 +241,40 @@ returns<nodep> Parser::_atom() noexcept
         {
             return this->_task();
         }
-        return make_unexpected<returns<nodep>>("syntax", "unexpected keyword");
+        return make_unexpected<returns<nodep>>("syntax", "unexpected keyword", start, this->_tok->end);
     case TT_LeftParentesis:
         this->next();
 
         node = this->_top_level();
         if (!node)
             return node;
-
-        if (this->_tok->type == TT_Comma)
+        start = this->_tok->start;
+        if (this->_tok->id == TT_Comma)
         {
             this->next();
             std::vector<nodep> arglistv;
             auto args = this->_comma(TT_RightParentesis);
             if (!args)
                 return args;
-            if (!this->_tok || this->_tok->type != TT_RightParentesis)
-                return make_unexpected<returns<nodep>>("syntax", "expected ')'");
+            if (!this->_tok || this->_tok->id != TT_RightParentesis)
+                return make_unexpected<returns<nodep>>("syntax", "expected ')'", start, this->_tok->end);
 
             auto &arglist = (*args)->as<ListNode>().nodes();
             arglistv.push_back(std::move(*node));
 
             for (auto &e : arglist)
+            {
                 arglistv.push_back(nodep(const_cast<nodep *>(&e)->release()));
-            
+            }
 
             this->next();
 
             return make_expected_unique<returns<nodep>, ListNode>(std::move(arglistv));
         }
 
-        if (!this->_tok || this->_tok->type != TT_RightParentesis)
+        if (!this->_tok || this->_tok->id != TT_RightParentesis)
         {
-            return make_unexpected<returns<nodep>>("syntax", "expected ')'");
+            return make_unexpected<returns<nodep>>("syntax", "expected ')'", start, this->_tok->end);
         }
 
         this->next();
@@ -252,7 +293,7 @@ returns<nodep> Parser::_prefix() noexcept
     if (!this->_tok)
         return this->_atom();
 
-    auto type = this->_tok->type;
+    auto type = this->_tok->id;
     returns<nodep> node;
 
     if (type == TT_Plus)
@@ -274,11 +315,12 @@ returns<nodep> Parser::_prefix() noexcept
 
 returns<nodep> Parser::_postfix() noexcept
 {
+    auto start = this->_tok->start;
     auto node = this->_prefix();
     if (!node)
         return node;
 
-    if (this->_tok->type == TT_Dot)
+    if (this->_tok->id == TT_Dot)
     {
         this->next();
         returns<nodep> child = this->_postfix();
@@ -288,33 +330,36 @@ returns<nodep> Parser::_postfix() noexcept
         return make_expected_unique<returns<nodep>, ScopeNode>(*node, *child);
     }
 
-    if (this->_tok->type == TT_LeftSquareBracket)
+    if (this->_tok->id == TT_LeftSquareBracket)
     {
         this->next();
+        start = this->_tok->start;
         returns<nodep> index = this->_top_level();
         if (!index)
             return index;
         if (!this->_tok)
-            return make_unexpected<returns<nodep>>("syntax", "expected indexable expression");
-        if (this->_tok->type == TT_RightSquareBracket)
-            return make_unexpected<returns<nodep>>("syntax", "expected a ']' to close an indexable expression");
+            return make_unexpected<returns<nodep>>("syntax", "expected indexable expression", start, this->_tok->end);
+        if (this->_tok->id == TT_RightSquareBracket)
+            return make_unexpected<returns<nodep>>("syntax", "expected a ']' to close an indexable expression", start, this->_tok->end);
 
         this->next();
 
         return make_expected_unique<returns<nodep>, CallNode>(std::move(*node), std::move(*index), Index);
     }
 
-    if (this->_tok->type == TT_LeftParentesis)
+    if (this->_tok->id == TT_LeftParentesis)
     {
         this->next();
+
+        start = this->_tok->start;
 
         auto arguments = this->_comma(TT_RightParentesis);
         if (!arguments)
             return arguments;
 
-        if (!this->_tok || this->_tok->type != TT_RightParentesis)
+        if (!this->_tok || this->_tok->id != TT_RightParentesis)
         {
-            return make_unexpected<returns<nodep>>("syntax", "expected a ')' after function call");
+            return make_unexpected<returns<nodep>>("syntax", "expected a ')' after function call", start, this->_tok->end);
         }
         this->next();
 
@@ -327,10 +372,14 @@ returns<nodep> Parser::_postfix() noexcept
 returns<nodep> Parser::_term() noexcept
 {
     auto lside = this->_postfix();
-    if (!this->_tok || !lside)
+    
+    if (!this->_tok)
+        return returns<nodep>(std::unexpect, this->_tok.error());
+
+    if (!lside)
         return lside;
 
-    auto &type = this->_tok->type;
+    auto &type = this->_tok->id;
     while (this->_tok && (type == TT_Multiply || type == TT_Divide))
     {
         this->next();
@@ -338,7 +387,7 @@ returns<nodep> Parser::_term() noexcept
         if (!rside)
             return rside;
 
-        if ((*lside)->type() == String || (*rside)->type() == String)
+        if ((*lside)->is(String) || (*rside)->is(String))
         {
             return make_unexpected<returns<nodep>>("syntax", "cannot '*' or '/' a string literal");
         }
@@ -355,7 +404,7 @@ returns<nodep> Parser::_factor() noexcept
     if (!this->_tok || !lside)
         return lside;
 
-    auto &type = this->_tok->type;
+    auto &type = this->_tok->id;
     while (this->_tok && (type == TT_Plus || type == TT_Minus))
     {
         this->next();
@@ -363,7 +412,7 @@ returns<nodep> Parser::_factor() noexcept
         if (!rside)
             return rside;
 
-        if ((*lside)->type() == String || (*rside)->type() == String)
+        if ((*lside)->is(String) || (*rside)->is(String))
         {
             return make_unexpected<returns<nodep>>("syntax", "cannot '+' or '-' a string literal");
         }
@@ -377,10 +426,11 @@ returns<nodep> Parser::_factor() noexcept
 returns<nodep> Parser::_comparisions() noexcept
 {
     auto lside = this->_factor();
+
     if (!this->_tok || !lside)
         return lside;
 
-    auto &type = this->_tok->type;
+    auto &type = this->_tok->id;
     while (this->_tok && type >= TT_LessThan && type <= TT_GreaterThanEqual)
     {
         this->next();
@@ -388,7 +438,7 @@ returns<nodep> Parser::_comparisions() noexcept
         if (!rside)
             return rside;
 
-        if ((*lside)->type() == String || (*rside)->type() == String)
+        if ((*lside)->is(String) || (*rside)->is(String))
         {
             return make_unexpected<returns<nodep>>("syntax", "cannot '==', '!=', '>', '>=', '<', or '<=' a string literal (yet)");
         }
@@ -402,24 +452,25 @@ returns<nodep> Parser::_comparisions() noexcept
 returns<nodep> Parser::_top_level() noexcept
 {
     auto left_side = this->_comparisions();
+    auto start = this->_tok->start;
 
     if (!left_side || !this->_tok)
         return left_side;
 
-    if (this->_tok->type != TT_Arrow && this->_tok->type != TT_Question)
+    if (this->_tok->id != TT_Arrow && this->_tok->id != TT_Question)
         return left_side;
 
-    if (this->_tok->type == TT_Arrow)
+    if (this->_tok->id == TT_Arrow)
     {
         this->next();
 
         auto arg_type = (*left_side)->type();
 
         if (arg_type != Identifier && arg_type != List)
-            return make_unexpected<returns<nodep>>("syntax", "expected argument(s) to be either an identifier or a list of identifiers");
+            return make_unexpected<returns<nodep>>("syntax", "expected argument(s) to be either an identifier or a list of identifiers", start, this->_tok->end);
 
         if (!this->_tok)
-            return make_unexpected<returns<nodep>>("syntax", "expected lambda body after '=>'");
+            return make_unexpected<returns<nodep>>("syntax", "expected lambda body after '=>'", start, this->_tok->end);
 
         auto body = this->_comparisions();
         if (!body)
@@ -431,73 +482,117 @@ returns<nodep> Parser::_top_level() noexcept
     this->next();
 
     if (!this->_tok)
-        return make_unexpected<returns<nodep>>("syntax", "expected expression after '?'");
+        return make_unexpected<returns<nodep>>("syntax", "expected expression after '?'", start, this->_tok->end);
 
-    auto on_true = this->_comparisions();
-    if (!on_true)
+    start = this->_tok->start;
+
+    auto on_true = this->_comparisions().and_then([this, &start](nodep on_true) -> returns<nodep> {
+        if (this->_tok->id != TT_Colon)
+            return make_unexpected<returns<nodep>>("syntax", "expected ':' after expression", start, this->_tok->end);
+
+        this->next();
         return on_true;
+    });
 
-    if (this->_tok->type != TT_Colon)
-        return make_unexpected<returns<nodep>>("syntax", "expected ':' after expression");
 
-    this->next();
+    return monad_bind([](nodep condition, nodep on_true, nodep on_false) -> nodep {
+        return std::make_unique<TernaryNode>(std::move(condition), std::move(on_true), std::move(on_false));
+    }, std::move(left_side), std::move(on_true), this->_comparisions());
+}
 
-    auto on_false = this->_comparisions();
-    if (!on_false)
-        return on_false;
+returns<nodep> Parser::_type(std::string_view name) noexcept
+{
+    auto start = this->_tok->start;
 
-    return make_expected_unique<returns<nodep>, TernaryNode>(std::move(*left_side), std::move(*on_true), std::move(*on_false));
+    if (this->_tok->id == TT_LeftSquareBracket || this->_tok->id == TT_RightSquareBracket)
+    {
+        bool closed_started = this->_tok->id == TT_LeftSquareBracket;
+        this->next();
+        start = this->_tok->start;
+
+        if (this->_tok->id != TT_Int && this->_tok->id != TT_Double)
+            return make_unexpected<returns<nodep>>("syntax", "expected integer literal for starting type range", start, this->_tok->end);
+
+        auto range_start = this->_comparisions();
+
+        if (!range_start) return range_start;
+
+        if (this->_tok->id != TT_Comma)
+            return make_unexpected<returns<nodep>>("syntax", "expected a comma before ending range type", this->_tok->start, this->_tok->end);
+
+        this->next();
+
+        auto range_end = this->_comparisions();
+
+        if (!range_end) return range_end;
+
+        if (this->_tok->id != TT_RightSquareBracket && this->_tok->id != TT_LeftSquareBracket)
+            return make_unexpected<returns<nodep>>("syntax", "expected a ']' or a '[' to close a type range", this->_tok->start, this->_tok->end);
+
+        bool close_ended = this->_tok->id == TT_RightSquareBracket;
+
+        this->next();
+
+        return make_expected_unique<returns<nodep>, TypeNode>(name, std::move(*range_start), std::move(*range_end), closed_started, close_ended);
+    }
+
+    return make_unexpected<returns<nodep>>("syntax error", "type signature not implemented", start, this->_tok->end);
 }
 
 returns<nodep> Parser::_statement() noexcept
 {
+    auto start = this->_tok->start;
+
     if (!this->_tok)
-        return make_unexpected<returns<nodep>>("syntax", "expected either 'include' or name as a top level statement");
+        return make_unexpected<returns<nodep>>("syntax", "expected either 'include' or name as a top level statement", start, this->_tok->end);
 
-    if (this->_tok->is<KeywordTypes>() && this->_tok->get<KeywordTypes>() == KW_include)
-    {
-        auto file = this->_string(TT_String);
-        if (!file)
-            return file;
-        return make_expected_unique<returns<nodep>, IncludeNode>((*file)->as<StringNode>().value());
-    }
-
-    if (!this->_tok || this->_tok->type != TT_Identifier)
-        return make_unexpected<returns<nodep>>("syntax", "current token cannot be a name");
+    if (!this->_tok || this->_tok->id != TT_Identifier)
+        return make_unexpected<returns<nodep>>("syntax", "current token cannot be a name", start, this->_tok->end);
 
     auto name = this->_tok->get<std::string_view>();
     this->next();
 
-    if (this->_tok || this->_tok->type == TT_Arrow) {
-        auto body = this->_comparisions();
-
-        return make_expected_unique<returns<nodep>, LambdaNode>(nullptr, std::move(*body));
+    if (this->_tok && this->_tok->id == TT_Arrow)
+    {
+        this->next();
+        return this->_comparisions().transform([](nodep body){
+            return std::make_unique<LambdaNode>(nullptr, std::move(body));
+        });
     }
 
-    if (!this->_tok || this->_tok->type != TT_Equal)
-        return make_unexpected<returns<nodep>>("syntax", "expected '=' after name");
+    if (this->_tok && this->_tok->id == TT_TypeDefine)
+    {
+        this->next();
+        return this->_type(name);
+    }
+
+    if (!this->_tok || this->_tok->id != TT_Equal)
+        return make_unexpected<returns<nodep>>("syntax", "expected '=' after name", start, this->_tok->end);
 
     this->next();
 
-    auto value = this->_top_level();
-
-    if (!value)
-        return value;
-
-    return make_expected_unique<returns<nodep>, ExpressionNode>(name, std::move(*value));
+    return this->_top_level()
+        .transform([&name](nodep value){
+            return std::make_unique<ExpressionNode>(name, std::move(value));
+        });
 }
 
-std::optional<std::vector<nodep>> Parser::parse() {
+std::optional<std::vector<nodep>> Parser::parse()
+{
     std::vector<nodep> nodes;
 
-    while (this->_tok){
+    while (this->_tok)
+    {
         auto node = this->_statement();
-        if (!node) {
+        
+        if (node) {
+            nodes.push_back(std::move(*node));
+        } else {
             std::cout << node.error().to_string(this->_fname) << std::endl;
             return std::nullopt;
-        }
+        };
 
-        nodes.push_back(std::move(*node));
+
     }
 
     return nodes;
