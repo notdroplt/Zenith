@@ -1,13 +1,4 @@
-/**
- * @file supernova.h
- * @author notdroplt (117052412+notdroplt@users.noreply.github.com)
- * @brief custom ISA designed for Zenith (C and C++ conpatible)
- * @version 0.0.1
- * @date 2023-01-14
- *
- * @copyright Copyright (c) 2023
- *
- */
+
 
 #pragma once
 #ifndef ZENITH_SUPERNOVA_VM_H
@@ -16,28 +7,23 @@
 #include "supernova.h"
 #include <stdio.h>
 #include <string.h>
-#include <stdint.h>
 
-#ifndef doxygen
-#define CONCAT_IMPL(x, y) x##y
-#define MACRO_CONCAT(x, y) CONCAT_IMPL(x, y)
-#define xstr(s) str(s)
-#define str(s) #s
-#endif
+/**
+ * @brief macro for generating functions headers
+*/
+#define sninstr_func(instruction) \
+void supernova_##instruction##_dispatch_function(register struct thread_t *thread, const union instruction_t instr)
+
+//!< define a call to a dispatch insrtuction
+#define sninstr_func_call(op, thread, instruction) supernova_##op##_dispatch_function(thread, instruction)
 
 /**
  * \defgroup virtset Virtual Instruction Set Emulation
  *
- * \brief all the instruction prefixes used on the emulated vm cpu, all designed
- * by me
- *
- * instructions follow something like risc-v, but with some patches and
- * differences
- *
+ * \brief all the instruction prefixes used on the emulated vm cpu
+ * 
  * @{
  */
-
-
 
 /**
  * @brief defines a header for a runnable code on the virtual machine

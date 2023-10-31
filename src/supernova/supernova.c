@@ -1,4 +1,5 @@
 #include "supernova_private.h"
+#include "group1.h"
 #include <stdlib.h>
 
 uint8_t fetch8(register struct thread_t *thread, register uint64_t address)
@@ -41,7 +42,7 @@ void set_memory_64(register struct thread_t *thread, register uint64_t address, 
     *(uint64_t *)(thread->memory + address) = value;
 }
 
-union instruction_t RInstruction(const uint8_t opcode, const uint8_t r1, const uint8_t r2, const uint8_t rd)
+supernova_api union instruction_t RInstruction(const uint8_t opcode, const uint8_t r1, const uint8_t r2, const uint8_t rd)
 {
     union instruction_t instrc;
     instrc.rtype.opcode = opcode;
@@ -52,7 +53,7 @@ union instruction_t RInstruction(const uint8_t opcode, const uint8_t r1, const u
     return instrc;
 }
 
-union instruction_t SInstruction(const uint8_t opcode, const uint8_t r1, const uint8_t rd, const uint64_t immediate)
+supernova_api union instruction_t SInstruction(const uint8_t opcode, const uint8_t r1, const uint8_t rd, const uint64_t immediate)
 {
     union instruction_t instrc;
     instrc.stype.opcode = opcode;
@@ -62,7 +63,7 @@ union instruction_t SInstruction(const uint8_t opcode, const uint8_t r1, const u
     return instrc;
 }
 
-union instruction_t LInstruction(const uint8_t opcode, const uint8_t r1, const uint64_t immediate)
+supernova_api union instruction_t LInstruction(const uint8_t opcode, const uint8_t r1, const uint64_t immediate)
 {
     union instruction_t instrc;
     instrc.ltype.opcode = opcode;
@@ -80,15 +81,16 @@ static int64_t ssextend(uint64_t number)
 
 static void dispatch_pcall(register struct thread_t * thread, uint64_t pcall_number) 
 {
-
+    (void)thread;
+    (void)pcall_number;
 }
 
-static void pcall_execute(register struct thread_t * thread, register struct l_block_t instruction)
-{
-    if (ssextend(instruction.immediate) != -1ULL) {
-        thread->program_counter = fetch(64, thread, thread->int_vector + instruction.immediate * 8);
-    }
-}
+// static void pcall_execute(register struct thread_t * thread, register struct l_block_t instruction)
+// {
+//     if (ssextend(instruction.immediate) != -1LL) {
+//         thread->program_counter = fetch(64, thread, thread->int_vector + instruction.immediate * 8);
+//     }
+// }
 
 
 void exec_instruction(register struct thread_t *thread)
@@ -100,22 +102,17 @@ void exec_instruction(register struct thread_t *thread)
     }
     instruction.value = fetch(64, thread, thread->program_counter);
     thread->program_counter += 8;
+
+    if (thread )
+    thread->config->instructions[]
+
+
     switch (instruction.rtype.opcode)
     {
-    case andr_instrc:
-        thread->registers[instruction.rtype.rd] =
-            thread->registers[instruction.rtype.r1] & thread->registers[instruction.rtype.r2];
-        break;
-    case andi_instrc:
-        thread->registers[instruction.stype.rd] = thread->registers[instruction.stype.r1] & instruction.stype.immediate;
-        break;
-    case xorr_instrc:
-        thread->registers[instruction.rtype.rd] =
-            thread->registers[instruction.rtype.r1] ^ thread->registers[instruction.rtype.r2];
-        break;
-    case xori_instrc:
-        thread->registers[instruction.stype.rd] = thread->registers[instruction.stype.r1] ^ instruction.stype.immediate;
-        break;
+    case andr_instrc: sninstr_func_call(andr_instrc, thread, instruction); break;
+    case andi_instrc: sninstr_func_call(andi_instrc, thread, instruction); break;
+    case xorr_instrc: sninstr_func_call(xorr_instrc, thread, instruction); break;
+    case xori_instrc: sninstr_func_call(xori_instrc, thread, instruction); break;
     /**/
     case orr_instrc:
         thread->registers[instruction.rtype.rd] =
@@ -129,35 +126,29 @@ void exec_instruction(register struct thread_t *thread)
         break;
     /**/
     case llsr_instrc:
-        thread->registers[instruction.rtype.rd] =
-            thread->registers[instruction.rtype.r1] >> thread->registers[instruction.rtype.r2];
+        thread->registers[instruction.rtype.rd] = thread->registers[instruction.rtype.r1] >> thread->registers[instruction.rtype.r2];
         break;
     case llsi_instrc:
         thread->registers[instruction.stype.rd] = thread->registers[instruction.stype.r1] >> instruction.stype.immediate;
         break;
     case lrsr_instrc:
-        thread->registers[instruction.rtype.rd] = thread->registers[instruction.rtype.r1]
-                                                  << thread->registers[instruction.rtype.r2];
+        thread->registers[instruction.rtype.rd] = thread->registers[instruction.rtype.r1]  << thread->registers[instruction.rtype.r2];
         break;
     case lrsi_instrc:
         thread->registers[instruction.stype.rd] = thread->registers[instruction.stype.r1] << instruction.stype.immediate;
         break;
     /**/
     case alsr_instrc:
-        thread->registers[instruction.rtype.rd] =
-            (int64_t)thread->registers[instruction.rtype.r1] >> (int64_t)thread->registers[instruction.rtype.r2];
+        thread->registers[instruction.rtype.rd] =            (int64_t)thread->registers[instruction.rtype.r1] >> (int64_t)thread->registers[instruction.rtype.r2];
         break;
     case alsi_instrc:
-        thread->registers[instruction.stype.rd] =
-            (int64_t)thread->registers[instruction.stype.r1] >> (int64_t)instruction.stype.immediate;
+        thread->registers[instruction.stype.rd] =            (int64_t)thread->registers[instruction.stype.r1] >> (int64_t)instruction.stype.immediate;
         break;
     case arsr_instrc:
-        thread->registers[instruction.rtype.rd] = (int64_t)thread->registers[instruction.rtype.r1]
-                                                  << (int64_t)thread->registers[instruction.rtype.r2];
+        thread->registers[instruction.rtype.rd] = (int64_t)thread->registers[instruction.rtype.r1]                                                  << (int64_t)thread->registers[instruction.rtype.r2];
         break;
     case arsi_instrc:
-        thread->registers[instruction.stype.rd] = (int64_t)thread->registers[instruction.stype.r1]
-                                                  << (int64_t)instruction.stype.immediate;
+        thread->registers[instruction.stype.rd] = (int64_t)thread->registers[instruction.stype.r1]                                                  << (int64_t)instruction.stype.immediate;
         break;
     /**/
     case addr_instrc:
@@ -192,17 +183,25 @@ void exec_instruction(register struct thread_t *thread)
         break;
     /* TODO: implement divide by zero exception*/
     case udivr_instrc:
+        if (!thread->registers[instruction.rtype.r2]) 
+            goto division_by_zero_pcall;
         thread->registers[instruction.rtype.rd] =
             thread->registers[instruction.rtype.r1] / thread->registers[instruction.rtype.r2];
         break;
     case udivi_instrc:
+        if (!thread->registers[instruction.rtype.r2]) 
+            goto division_by_zero_pcall;
         thread->registers[instruction.stype.rd] = thread->registers[instruction.stype.r1] / instruction.stype.immediate;
         break;
     case sdivr_instrc:
+        if (!thread->registers[instruction.rtype.r2]) 
+            goto division_by_zero_pcall;
         thread->registers[instruction.rtype.rd] =
             (int64_t)thread->registers[instruction.rtype.r1] / (int64_t)thread->registers[instruction.rtype.r2];
         break;
     case sdivi_instrc:
+        if (!thread->registers[instruction.rtype.r2]) 
+            goto division_by_zero_pcall;
         thread->registers[instruction.stype.rd] =
             (int64_t)thread->registers[instruction.stype.r1] / (int64_t)instruction.stype.immediate;
         break;
@@ -343,6 +342,9 @@ void exec_instruction(register struct thread_t *thread)
         break;
     }
     thread->registers[0] = 0;
+    return;
+division_by_zero_pcall:
+    dispatch_pcall(thread, 0);
 }
 
 int run(const char *filename, int argc, char **argv, void (*debugger)(struct thread_t *thread))

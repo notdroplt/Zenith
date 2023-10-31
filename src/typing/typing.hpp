@@ -146,11 +146,45 @@ namespace Typing {
          * @returns false for all other cases
         */
         bool is_fundamental() const noexcept { return is_arithmetic() || is_void(); }
+
+        /**
+         * @brief define a scalar type
+         * 
+         * @returns true for any type that is somewhat scalar
+         * @returns false for all other cases
+        */
         bool is_scalar() const noexcept { return is_arithmetic() || is_enum() || is_pointer(); }
+
+        /**
+         * @brief define an object type
+         * 
+         * @returns true for any object type
+         * @returns false for all other cases
+        */
         bool is_object() const noexcept { return is_scalar() || is_array() || is_union() || is_struct(); }
+
+        /**
+         * @brief define a compound type
+         * 
+         * @returns true for non fundamental types
+         * @returns false for fundamentals
+        */
         bool is_compound() const noexcept { return !is_fundamental(); }
 
+        /**
+         * @brief mutable flag check
+         * 
+         * @returns true for non const elements
+         * @returns false otherwise
+        */
         virtual bool is_mutable() const noexcept { return false; };
+
+        /**
+         * @brief volatile flag check
+         * 
+         * @returns true for types that change value without the compiler's knowledge
+         * @returns false otherwise
+        */
         virtual bool is_volatile() const noexcept { return false; };
         virtual bool is_literal() const noexcept { return false; };
         virtual bool is_signed() const noexcept { return false; };
@@ -327,8 +361,8 @@ namespace Typing {
         constexpr bool end_is() const noexcept { return std::get_if<T>(&this->end) != nullptr; }
         private: 
             RangeSet superset;
-            Delimiter start;
-            Delimiter end;
+            Delimiter start = 0;
+            Delimiter end = 0;
 
             std::size_t type_id = 0;
     };

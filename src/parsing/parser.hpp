@@ -176,7 +176,7 @@ struct Token
      * @brief Construct a token as normal token
      * @param type token id
      */
-    constexpr Token(enum TokenID id, pos_t start = pos_t{}, pos_t end = pos_t{}) : start(start), end(end), id(id) {}
+    constexpr Token(enum TokenID id, pos_t start = pos_t{}, pos_t end = pos_t{}) : val{uint64_t(0)}, start(start), end(end), id(id) {}
 
     /**
      * @brief Construct a token as an Integer
@@ -732,11 +732,11 @@ namespace Parsing
 
         using StructType = std::vector<std::unique_ptr<TypeNode>>;
 
-        const struct FunctionType
+        struct FunctionType
         {
             std::vector<std::unique_ptr<TypeNode>> arguments = {};
             std::unique_ptr<TypeNode> return_type = nullptr;
-        } _function;
+        };
 
         using PointerType = std::unique_ptr<TypeNode>;
 
@@ -785,7 +785,7 @@ namespace Parsing
         std::string _fname; //!< name of file to translate
 
         inline void next() noexcept;
-
+        bool init_status = false;
         returns<nodep> _comma(const enum TokenID end_token, const enum TokenID delim) noexcept;
         returns<nodep> _number() noexcept;
         returns<nodep> _string(const enum TokenID id) noexcept;
@@ -804,6 +804,7 @@ namespace Parsing
         void _generate_types();
 
     public:
+        constexpr bool successful_init() {return this->init_status; }
         Parser(const char *filename);
 
         /**

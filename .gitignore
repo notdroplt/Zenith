@@ -3,7 +3,7 @@
 *.json
 *.zvm
 build/*
-.cache/*
+.xmake/*
 doxydocs/*
 
 massif.out.*

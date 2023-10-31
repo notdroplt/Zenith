@@ -8,15 +8,22 @@ using namespace Typing;
 
 Parser::Parser(const char *filename) : _lex("")
 {
-    this->_fname = filename;
-
+    ///TODO: remake this mess
     FILE *fp = fopen(filename, "r");
-
+    if (!fp) return;
+    this->_fname = filename;
+    
     fseek(fp, 0, SEEK_END);
     size_t size = ftell(fp);
     fseek(fp, 0, SEEK_SET);
 
     auto buf = new char[size + 2];
+    
+    if (!buf) {
+        fclose(fp);
+        return;
+    }
+
     fread(buf, size, 1, fp);
 
     buf[size] = '\n';
@@ -30,6 +37,8 @@ Parser::Parser(const char *filename) : _lex("")
 
     this->next();
     this->_generate_types();
+
+    init_status = true;
 }
 
 void Parser::_generate_types()
@@ -114,9 +123,9 @@ returns<nodep> Parser::_array() noexcept
 
     return this->_comma(TT_RightSquareBracket)
         .and_then([this](nodep node) -> returns<nodep> {
-        if (this->_tok->id != TT_RightSquareBracket) {
+        
+        if (this->_tok->id != TT_RightSquareBracket) 
             return make_unexpected<returns<nodep>>("syntax", "expected ']' after a comma to initalizate an array");
-        }
 
         this->next();
         return node;

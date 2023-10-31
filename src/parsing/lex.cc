@@ -59,9 +59,7 @@ double Lexer::strtod(std::string_view str)
     double div = 10;
 
     for (; str[i] != '.'; ++i)
-    {
-        value = value * 10.0 + str[i] - '0';
-    }
+        value = std::fma(value, 10.0, str[i] - '0');
 
     ++i;
 

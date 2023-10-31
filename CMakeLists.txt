@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.18.0)
-project(Zenith LANGUAGES C CXX)
+project(Zenith LANGUAGES C CXX VERSION 1.0.0)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -30,4 +30,14 @@ add_subdirectory(test)
 
 enable_testing()
 
-install(TARGETS zenith DESTINATION bin)
+set(CPACK_PACKAGE_VENDOR "notdroplt")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Zenith development kit")
+set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
+set(CPACK_RESOURCE_FILE_README "${CMAKE_CURRENT_SOURCE_DIR}/README.md")
+set(CPACK_STRIP_FILES TRUE)
+set(CPACK_BINARY_STGZ "ON")
+set(CPACK_BINARY_TBZ2 "ON")
+set(CPACK_BINARY_TGZ "ON")
+set(CPACK_BINARY_TXZ "ON")
+set(CPACK_BINARY_TZ "ON")
+include(CPack)

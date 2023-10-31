@@ -1,11 +1,37 @@
+/**
+ * @file supernova.h
+ * @author notdroplt (117052412+notdroplt@users.noreply.github.com)
+ * @brief custom ISA designed for Zenith (C and C++ compatible)
+ * @version 0.0.1
+ * @date 2023-01-14
+ *
+ * @copyright Copyright (c) 2023
+ *
+ */
+
 #pragma once
 #ifndef ZENITH_SUPERNOVA_H
+//!< Header guard
 #define ZENITH_SUPERNOVA_H 1
 
 #include <stdint.h>
 
+#ifndef doxygen
 #define CONCAT_IMPL(x, y) x##y
 #define MACRO_CONCAT(x, y) CONCAT_IMPL(x, y)
+#define xstr(s) str(s)
+#define str(s) #s
+#endif
+
+#if defined(_WIN32)
+#if defined(SUPERNOVA_EXPORT)
+#define supernova_api __declspec(dllexport)
+#else
+#define supernova_api __declspec(dllimport)
+#endif
+#else // non windows
+#define supernova_api
+#endif
 
 /**
  * @brief creates a uniquely "increasing" name for a reserved instruction,
@@ -44,18 +70,23 @@
  *  [imm]  [rd] [opcode]
  * @endcode
  *
- * base instructions are split into 4 groups (named after values at bits [5,4]):
+ * base instructions are split into 8 groups (named after values at bits [6,4]):
  *
+ * groups 0-3 make part of a "base" group, on which all thread models need to implement
+ * most of the operations, the exception being division and stack instructions on group 2.
+ * 
+ * groups 4-7 make part of an "extension" group, the cpu will have flags that can be checked
+ * to see if those operations are hardware-implemented
+ * 
  * - group 0: bitwise instructions, span opcodes `0x00` to `0x0F`,
  * - group 1: math / control flow instructions, span opcodes `0x10` to `0x1F`
  * - group 2: memory / control flow instructions, span opcodes `0x20` to `0x2F`
- * - group 3: other instructions, span opcodes `0x30` to `0x3F` (even if some
- * of them are reserved)
+ * - group 3: conditional set / interrupts / IO, span opcodes `0x30` to `0x3F`
  *
  *
  * on groups 0 and 1, the LSB defines if the instruction is an R type (when 0)
  * or an S type (when 1) group 2, has only S types and the `jal` instruction
- * (L type) group 3 is always L type 
+ * (L type) group 3 is always L type
  */
 enum instruction_prefixes
 {
@@ -138,13 +169,23 @@ enum instruction_prefixes
     pcall_instrc = 0x3A,  /*!< `pcall r#, imm` : L type */
     pbreak_instrc = 0x3B, /*!< `pbreak 0`      : L type */
 
-    out_instrc = 0x3C, /*!< `outb, r#, r#, 0` S type */
-    in_instrc = 0x3D, /*!< `outw, r#, r#, 0` S type */
-    bout_instrc = 0x3E,  /*!< `inb, r#, r#, 0`  S type */
-    bin_instrc = 0x3F   /*!< `inw, r#, r#, 0`  S type */
+    out_instrc = 0x3C,  /*!< `outb, r#, r#, 0` S type */
+    in_instrc = 0x3D,   /*!< `outw, r#, r#, 0` S type */
+    bout_instrc = 0x3E, /*!< `inb, r#, r#, 0`  S type */
+    bin_instrc = 0x3F,  /*!< `inw, r#, r#, 0`  S type */
 
     /*! TODO: group 4, floating point operation instructions */
 
+    flt_ld_instrc = 0x40,
+    flt_str_instrc = 0x41,
+    flt_abs_instrc = 0x42,
+    flt_sub_instrc = 0x43,
+
+    flt_
+
+    /*! TODO: group 5, conditional set / move instructions */
+    /*! TODO: group 6, memory fences */
+    /*! TODO: group 7, small  */
 };
 
 /**
@@ -210,7 +251,7 @@ union instruction_t
  *
  * @return formatted instruction
  */
-union instruction_t RInstruction(const uint8_t opcode, const uint8_t r1, const uint8_t r2, const uint8_t rd);
+supernova_api union instruction_t RInstruction(const uint8_t opcode, const uint8_t r1, const uint8_t r2, const uint8_t rd);
 
 /**
  * @brief S-type instruction constructor
@@ -221,7 +262,7 @@ union instruction_t RInstruction(const uint8_t opcode, const uint8_t r1, const u
  * @param immediate immediate argument
  * @return formatted instruction
  */
-union instruction_t SInstruction(const uint8_t opcode, const uint8_t r1, const uint8_t rd, const uint64_t immediate);
+supernova_api union instruction_t SInstruction(const uint8_t opcode, const uint8_t r1, const uint8_t rd, const uint64_t immediate);
 /**
  * @brief L-type instruction constructor
  *
@@ -230,18 +271,53 @@ union instruction_t SInstruction(const uint8_t opcode, const uint8_t r1, const u
  * @param immediate immediate argument
  * @return formatted instruction
  */
-union instruction_t LInstruction(const uint8_t opcode, const uint8_t r1, const uint64_t immediate);
+supernova_api union instruction_t LInstruction(const uint8_t opcode, const uint8_t r1, const uint64_t immediate);
+
+struct thread_t;
 
 /**
- * 
-*/
-struct thread_config_t {
-    uint64_t has_interrupts;
+ * @brief defines a function type related to interrupts
+ *
+ */
+typedef void (*interrupt_function_t)(int, struct thread_t *);
+
+/**
+ * @brief defines a function for generating instructions
+ */
+typedef void (*instr_dispatch_t)(register struct thread_t *, union instruction_t instruction);
+
+enum config_flags_1
+{
+    confflags_paging = 0,
+    confflags_stack,
+    confflags_intdiv,
+    confflags_interrupts,
+    confflags_floats,
+    confflags_fences,
+    confflags_condset,
+    confflags_condmove,
+    confflags_multi64,
+    confflags_multi128,
+    confflags_multi256,
+    confflags_multi512,
+    confflags_vector64,
+    confflags_vector128,
+    confflags_vector256,
+    confflags_vector512,
+}
+
+#define flag_bit(flag) (1 << (flag))
+
+struct thread_model_t
+{
+    uint64_t flags;
     uint64_t interrupt_count;
     uint64_t page_level;
     uint64_t page_size;
     uint64_t model_name[4];
     uint64_t io_address_space;
+    uint64_t last_instruction_index;
+    instr_dispatch_t instructions;
 };
 
 /**
@@ -258,7 +334,7 @@ struct thread_config_t {
  *
  * r28: second processor call argument (function switch)
  * r29: first processor call argument (interrupt space)
- * 
+ *
  * r31 going upwards: function arguments
  *
  * Size: 296 bytes (aligned)
@@ -270,8 +346,8 @@ struct thread_t
     uint64_t int_vector;      /*!< interrupt vector pointer*/
     uint64_t memory_size;     /*!< thread memory size */
     uint8_t *memory;          /*!< thread memory pointer */
-    uint8_t halt_sig;         /*!< defines when program should stop */
-
+    thread_model_t *model     /*!< thread model pointer */
+        uint8_t halt_sig;     /*!< defines when program should stop */
 };
 
 #undef CONCAT_IMPL
@@ -280,7 +356,7 @@ struct thread_t
 
 /**
  * @brief defines a function type related to interrupts
- * 
+ *
  */
 typedef void (*interrupt_function_t)(int, struct thread_t *);
 

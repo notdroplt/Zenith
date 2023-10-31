@@ -3,13 +3,13 @@ PROJECT_NUMBER         = 0.0.1
 PROJECT_BRIEF          = "simple, small and fast "
 OUTPUT_DIRECTORY       = ./doxydocs
 SHORT_NAMES            = YES
-INPUT                  = src/ src/compiler src/parsing src/typing
+INPUT                  = src/ src/compiler src/parsing src/typing src/runners/supernova
 FILE_PATTERNS          = *.h *.hpp
 ALPHABETICAL_INDEX     = YES
 HTML_OUTPUT            = .
 GENERATE_TREEVIEW      = YES
 SEARCHENGINE           = NO
+ENABLE_PREPROCESSING   = YES
 MACRO_EXPANSION        = YES 
-EXPAND_ONLY_PREDEF     = YES 
 PREDEFINED             = __attribute__(x)=
 PREDEFINED             = doxygen 
