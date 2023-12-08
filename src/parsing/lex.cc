@@ -177,12 +177,12 @@ returns<Token> Lexer::equal()
 
     if (this->_char == '=')
     {
-        tok = TT_CompareEqual;
+        tok.id = TT_CompareEqual;
         this->next();
     }
     else if (this->_char == '>')
     {
-        tok = TT_Arrow;
+        tok.id = TT_Arrow;
         this->next();
     }
 
@@ -193,16 +193,39 @@ returns<Token> Lexer::equal()
 returns<Token> Lexer::donot()
 {
     Token tok = Token(TT_Not, this->_pos);
+    this->next();
 
     if (this->_char == '=')
     {
-        tok = TT_NotEqual;
+        tok.id = TT_NotEqual;
         this->next();
     }
 
     tok.end = this->_pos;
     return tok;
 }
+
+returns<Token> Lexer::colon() 
+{
+    Token tok = Token(TT_Colon, this->_pos);
+    this->next();
+
+    if (this->_char == ':')
+    {
+        tok.id = TT_Namespace;
+        this->next();
+    }
+
+    else if (this->_char == '=')
+    {
+        tok.id = TT_TypeDefine;
+        this->next();
+    }
+
+    tok.end = this->_pos;
+    return tok;
+}
+
 
 returns<Token> Lexer::repeat(char c, enum TokenID type)
 {
@@ -267,7 +290,7 @@ returns<Token> Lexer::next_token()
     case '?':
         return this->token(TT_Question);
     case ':':
-        return this->repeat(':', TT_Colon);
+        return this->colon();
     case '>':
         return this->compare('<', TT_GreaterThan);
     case '<':
@@ -295,7 +318,7 @@ returns<Token> Lexer::next_token()
     case '&':
         return this->repeat('&', TT_BitwiseAnd);
     case '^':
-        return this->token(TT_BitWiseXor);
+        return this->token(TT_BitwiseXor);
     case '~':
         return this->token(TT_Tilda);
     case '0':

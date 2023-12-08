@@ -1,5 +1,5 @@
 #include "supernova_private.h"
-#include "group1.h"
+#include "group0.h"
 #include <stdlib.h>
 
 uint8_t fetch8(register struct thread_t *thread, register uint64_t address)
@@ -103,9 +103,6 @@ void exec_instruction(register struct thread_t *thread)
     instruction.value = fetch(64, thread, thread->program_counter);
     thread->program_counter += 8;
 
-    if (thread )
-    thread->config->instructions[]
-
 
     switch (instruction.rtype.opcode)
     {
@@ -114,42 +111,20 @@ void exec_instruction(register struct thread_t *thread)
     case xorr_instrc: sninstr_func_call(xorr_instrc, thread, instruction); break;
     case xori_instrc: sninstr_func_call(xori_instrc, thread, instruction); break;
     /**/
-    case orr_instrc:
-        thread->registers[instruction.rtype.rd] =
-            thread->registers[instruction.rtype.r1] | thread->registers[instruction.rtype.r2];
-        break;
-    case ori_instrc:
-        thread->registers[instruction.stype.rd] = thread->registers[instruction.stype.r1] | instruction.stype.immediate;
-        break;
-    case 0x06:
-    case 0x07:
-        break;
+    case orr_instrc: sninstr_func_call(orr_instrc, thread, instruction); break;
+    case ori_instrc: sninstr_func_call(ori_instrc, thread, instruction); break;
+    case not_instrc: sninstr_func_call(not_instrc, thread, instruction); break;
+    case cnt_instrc: sninstr_func_call(cnt_instrc, thread, instruction); break;
     /**/
-    case llsr_instrc:
-        thread->registers[instruction.rtype.rd] = thread->registers[instruction.rtype.r1] >> thread->registers[instruction.rtype.r2];
-        break;
-    case llsi_instrc:
-        thread->registers[instruction.stype.rd] = thread->registers[instruction.stype.r1] >> instruction.stype.immediate;
-        break;
-    case lrsr_instrc:
-        thread->registers[instruction.rtype.rd] = thread->registers[instruction.rtype.r1]  << thread->registers[instruction.rtype.r2];
-        break;
-    case lrsi_instrc:
-        thread->registers[instruction.stype.rd] = thread->registers[instruction.stype.r1] << instruction.stype.immediate;
-        break;
+    case llsr_instrc: sninstr_func_call(llsr_instrc, thread, instruction); break; 
+    case llsi_instrc: sninstr_func_call(llsi_instrc, thread, instruction); break; 
+    case lrsr_instrc: sninstr_func_call(lrsr_instrc, thread, instruction); break; 
+    case lrsi_instrc: sninstr_func_call(lrsi_instrc, thread, instruction); break; 
     /**/
-    case alsr_instrc:
-        thread->registers[instruction.rtype.rd] =            (int64_t)thread->registers[instruction.rtype.r1] >> (int64_t)thread->registers[instruction.rtype.r2];
-        break;
-    case alsi_instrc:
-        thread->registers[instruction.stype.rd] =            (int64_t)thread->registers[instruction.stype.r1] >> (int64_t)instruction.stype.immediate;
-        break;
-    case arsr_instrc:
-        thread->registers[instruction.rtype.rd] = (int64_t)thread->registers[instruction.rtype.r1]                                                  << (int64_t)thread->registers[instruction.rtype.r2];
-        break;
-    case arsi_instrc:
-        thread->registers[instruction.stype.rd] = (int64_t)thread->registers[instruction.stype.r1]                                                  << (int64_t)instruction.stype.immediate;
-        break;
+    case alsr_instrc: sninstr_func_call(alsr_instrc, thread, instruction); break;
+    case alsi_instrc: sninstr_func_call(alsi_instrc, thread, instruction); break;
+    case arsr_instrc: sninstr_func_call(arsr_instrc, thread, instruction); break;
+    case arsi_instrc: sninstr_func_call(arsi_instrc, thread, instruction); break;
     /**/
     case addr_instrc:
         thread->registers[instruction.rtype.rd] =

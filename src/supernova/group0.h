@@ -3,7 +3,7 @@
  * @author notdroplt (117052412+notdroplt@users.noreply.github.com)
  * @brief define the bitwise instruction group dispatch functions
  * @version 0.0.1
- * @date 2023-11-12
+ * @date 2023-10-28
  *
  * @copyright Copyright (c) 2023
  */
@@ -14,129 +14,127 @@
 #include "supernova_private.h"
 
 /**
- * @defgroup SNIG1 Supernova Instructions, Group 1
+ * @defgroup SNIG0 Supernova Instructions, Group 0
  *
- * @brief arithmetic instructions
+ * @brief bitwise instructions
  *
- * Group 1 instructions are instructions that perform basic arithimetic in signed and unsigned integers
- * 
- * @note Division instructions are implemented in the virtual machine, but don't need to be on real hardware
+ * Group 0 instructions are instructions that perform bitwise level operations between
+ * two registers (last bit unset) or a register and an immediate (last bit set)
  *
  * @{
  */
 
 /**
- * @brief add register:register
+ * @brief bitwise and register:register
  *
- * set `rd` to the sum of `r1` and `r2`
- *
- * ```
- * rd <- r1 + r2
- * ```
- *
- * @param [in, out] thread current working thread
- * @param instr executed instruction
- */
-sninstr_func(addr_instrc);
-
-/**
- * @brief add register:immediate
- *
- * set `rd` to the sum of `r1` and an immediate value
+ * set `rd` to the bitwise `and` between `r1` and `r2`
  *
  * ```
- * rd <- r1 + imm
+ * rd <- r1 & r2
  * ```
  *
  * @param [in, out] thread current working thread
  * @param instr executed instruction
  */
-sninstr_func(addi_instrc);
+sninstr_func(andr_instrc);
 
 /**
- * @brief subtract register:register
+ * @brief bitwise and register:immediate
  *
- * set `rd` to the result of subtracting `r2` from `r1`
+ * set `rd` to the bitwise `and` between `r1` and an immediate value
  *
  * ```
- * rd <- r1 - r2
+ * rd <- r1 & imm
  * ```
  *
  * @param [in, out] thread current working thread
  * @param instr executed instruction
  */
-sninstr_func(subr_instrc);
+sninstr_func(andi_instrc);
 
 /**
- * @brief subtract register:immediate
+ * @brief bitwise xor register:register
  *
- * set `rd` to the result of subtracting an immediate from `r1`
+ * set `rd` to the bitwise `exclusive or` between `r1` and `r2`
  *
  * ```
- * rd <- r1 - imm
+ * rd <- r1 ^ r2
  * ```
  *
  * @param [in, out] thread current working thread
  * @param instr executed instruction
  */
-sninstr_func(subi_instrc);
+sninstr_func(xorr_instrc);
 
 /**
- * @brief unsigned multiply register:register
+ * @brief bitwise xor register:immediate
  *
- * set `rd` to the multiplication between `r1` and `r2`, with both registers
- * being treated as unsigned integers
+ * set `rd` to the bitwise `exclusive or` between `r1` and an immediate
  *
  * ```
- * rd <- r1 * r2
+ * rd <- r1 ^ imm
  * ```
  *
  * @param [in, out] thread current working thread
  * @param instr executed instruction
  */
-sninstr_func(umulr_instrc);
+sninstr_func(xori_instrc);
 
 /**
- * @brief unsigned multiply register:immediate
+ * @brief bitwise or register:register
  *
- * set `rd` to the multiplication between `r1` and an immediate, both treated as unsigned integers
+ * set `rd` to the bitwise `or` between `r1` and `r2`
  *
  * ```
- * rd <- r1 * imm
+ * rd <- r1 | r2
  * ```
  *
  * @param [in, out] thread current working thread
  * @param instr executed instruction
  */
-sninstr_func(umuli_instrc);
+sninstr_func(orr_instrc);
 
 /**
- * @brief signed multiply register:register
+ * @brief bitwise or register:immediate
  *
- * set `rd` to the multiplication between `r1` and `r2`, both treated as signed integers
+ * set `rd` to the bitwise `or` between `r1` and an immediate
  *
  * ```
- * rd <- (signed)r1 * (signed)r2
+ * rd <- r1 | r2
+ * ```
+ *
+ * @param [in, out] thread current working thread
+ * @param instr executed instruction
+ */
+sninstr_func(ori_instrc);
+
+/**
+ * @brief bitwise not register
+ *
+ * set `rd` to the one's complement of `r1`, `r2` is unused
+ *
+ * ```
+ * rd <- ~r1
  * ```
  *
  * @param [in, out] thread current working thread
  * @param instr exectued instruction
  */
-sninstr_func(smulr_instrc);
+sninstr_func(not_instrc);
 
 /**
- * @brief signed multiply register:immediate
+ * @brief popcount register
  *
- * set `rd` to the multiplication between `r1` and an immediate, both treated as signed integers
+ * set `rd` to the amount of bits set in `r1`, immediate is unused
  *
  * ```
- * rd <- (signed)r1 * (signed)immediate
+ * rd <- popcnt(r1)
  * ```
  *
  * @param [in, out] thread current working thread
  * @param instr executed instruction
  */
-sninstr_func(smuli_instrc);
+sninstr_func(cnt_instrc);
 
 /**
  * @brief logical left shift by register
@@ -217,15 +215,18 @@ sninstr_func(lrsi_instrc);
 /**
  * @brief arithmetical left shift by register
  *
- * set `rd` to the value of `r1` (signed) shifted `r2` places to the left
+ * set `rd` to the value of `r1` (signed) shifted `r2` places to the left, signed here meaning the MSB is preserved and the rest are shifted
  *
  * in the case that `r2` is greater than the register size, `rd` is set to zero
  *
  * ```
  * if r2 > regsize
- *  rd <- 0
+ *  rd <- r1 & (2⁶³)
  * else
- *  rd <- r1 <<< r2
+ *  msb = r1 & (2⁶³)
+ *  r1 <- r1 & (2⁶³ - 1)
+ *  rd <- r1 << r2
+ *  rd <- rd & (2⁶³ - 1) | msb
  * ```
  *
  * @param [in, out] thread current working thread
@@ -242,9 +243,12 @@ sninstr_func(alsr_instrc);
  *
  * ```
  * if imm > regsize
- *  rd <- 0
+ *  rd <- r1 & (2⁶³)
  * else
- *  rd <- r1 <<< imm
+ *  msb = r1 & (2⁶³)
+ *  r1 <- r1 & (2⁶³ - 1)
+ *  rd <- r1 << imm
+ *  rd <- rd & (2⁶³ - 1) | msb
  * ```
  *
  * @param [in, out] thread current working thread
@@ -260,10 +264,13 @@ sninstr_func(alsi_instrc);
  * in the case that `r2` is greater than the register size, `rd` is set to zero
  *
  * ```
- * if r2 > regsize
- *  rd <- 0
+ * if imm > regsize
+ *  rd <- r1 & (2⁶³)
  * else
- *  rd <- r1 >>> r2
+ *  msb = r1 & (2⁶³)
+ *  r1 <- r1 & (2⁶³ - 1)
+ *  rd <- r1 >> r2
+ *  rd <- rd & (2⁶³ - 1) | msb
  * ```
  *
  * @param [in, out] thread current working thread
@@ -280,9 +287,12 @@ sninstr_func(arsr_instrc);
  *
  * ```
  * if imm > regsize
- *  rd <- 0
+ *  rd <- r1 & (2⁶³)
  * else
- *  rd <- r1 >>> imm
+ *  msb = r1 & (2⁶³)
+ *  r1 <- r1 & (2⁶³ - 1)
+ *  rd <- r1 >> imm
+ *  rd <- rd & (2⁶³ - 1) | msb
  * ```
  *
  * @param [in, out] thread current working thread

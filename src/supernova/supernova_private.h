@@ -8,13 +8,11 @@
 #include <stdio.h>
 #include <string.h>
 
-/**
- * @brief macro for generating functions headers
-*/
+//! macro for generating functions headers
 #define sninstr_func(instruction) \
-void supernova_##instruction##_dispatch_function(register struct thread_t *thread, const union instruction_t instr)
+void supernova_##instruction##_dispatch_function(struct thread_t *thread, const union instruction_t instr)
 
-//!< define a call to a dispatch insrtuction
+//! define a call to a dispatch insrtuction
 #define sninstr_func_call(op, thread, instruction) supernova_##op##_dispatch_function(thread, instruction)
 
 /**
@@ -31,16 +29,36 @@ void supernova_##instruction##_dispatch_function(register struct thread_t *threa
  * @note all positions should \b not consider the header offset
  */
 struct virtmacheader_t {
-    uint64_t magic;        //!< file magic "Zenithvm"
-    uint64_t version;      //!< current header version
-    uint64_t data_size;    //!< initialized data size
-    uint64_t data_start;   //!< data section start on the file
-    uint64_t data_offset;  //!< data section start on memory
-    uint64_t code_size;    //!< runnable code size
-    uint64_t code_start;   //!< code section start on the file
-    uint64_t code_offset;  //!< code section start on memory
-    uint64_t entry_point;  //!< code entry point
-    uint64_t pad;          //!< padding value
+    //! file magic "Zenithvm"
+    uint64_t magic;        
+
+    //! current header version
+    uint64_t version;      
+
+    //! initialized data size
+    uint64_t data_size;    
+
+    //! data section start on the file
+    uint64_t data_start;   
+
+    //! data section start on memory
+    uint64_t data_offset;  
+
+    //! runnable code size
+    uint64_t code_size;    
+
+    //! code section start on the file
+    uint64_t code_start;   
+
+    //! code section start on memory
+    uint64_t code_offset;  
+
+    //! code entry point
+    uint64_t entry_point;
+
+    //! padding value
+    uint64_t pad;     
+
 };
 
 

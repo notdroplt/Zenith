@@ -1,6 +1,6 @@
 include(GNUInstallDirs)
 
-set(supernovasrc supernova.c group1.c)
+set(supernovasrc supernova.c group0.c)
 
 add_library(supernova_obj OBJECT ${supernovasrc})
 

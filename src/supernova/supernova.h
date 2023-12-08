@@ -11,8 +11,9 @@
 
 #pragma once
 #ifndef ZENITH_SUPERNOVA_H
-//!< Header guard
+//!@cond
 #define ZENITH_SUPERNOVA_H 1
+//!@endcond
 
 #include <stdint.h>
 
@@ -74,10 +75,10 @@
  *
  * groups 0-3 make part of a "base" group, on which all thread models need to implement
  * most of the operations, the exception being division and stack instructions on group 2.
- * 
+ *
  * groups 4-7 make part of an "extension" group, the cpu will have flags that can be checked
  * to see if those operations are hardware-implemented
- * 
+ *
  * - group 0: bitwise instructions, span opcodes `0x00` to `0x0F`,
  * - group 1: math / control flow instructions, span opcodes `0x10` to `0x1F`
  * - group 2: memory / control flow instructions, span opcodes `0x20` to `0x2F`
@@ -169,19 +170,32 @@ enum instruction_prefixes
     pcall_instrc = 0x3A,  /*!< `pcall r#, imm` : L type */
     pbreak_instrc = 0x3B, /*!< `pbreak 0`      : L type */
 
-    out_instrc = 0x3C,  /*!< `outb, r#, r#, 0` S type */
-    in_instrc = 0x3D,   /*!< `outw, r#, r#, 0` S type */
-    bout_instrc = 0x3E, /*!< `inb, r#, r#, 0`  S type */
-    bin_instrc = 0x3F,  /*!< `inw, r#, r#, 0`  S type */
+    out_instrc = 0x3C,  /*!< `outb r#, r#, 0` S type */
+    in_instrc = 0x3D,   /*!< `outw r#, r#, 0` S type */
+    bout_instrc = 0x3E, /*!< `inb r#, r#, 0`  S type */
+    bin_instrc = 0x3F,  /*!< `inw r#, r#, 0`  S type */
 
-    /*! TODO: group 4, floating point operation instructions */
+    /*! group 4, floating point operation instructions */
 
-    flt_ld_instrc = 0x40,
-    flt_str_instrc = 0x41,
-    flt_abs_instrc = 0x42,
-    flt_sub_instrc = 0x43,
+    flt_ldu_instrc = 0x40, /*!< `fldu fr#, r#, 0` : R type */
+    flt_lds_instrc = 0x41, /*!< `flds fr#, r#, 0` : R type */
+    flt_stu_instrc = 0x42, /*!< `fstu r#, fr#, 0` : R type */
+    flt_sts_instrc = 0x43, /*!< `fsts r#, fr#, 0` : R type */
 
-    flt_
+    flt_add_instrc = 0x44, /*!< `fadd fr#, fr#, fr#` : R type */
+    flt_sub_instrc = 0x45, /*!< `fsub fr#, fr#, fr#` : R type */
+    flt_mul_instrc = 0x46, /*!< `fmul fr#, fr#, fr#` : R type */
+    flt_div_instrc = 0x47, /*!< `fdiv fr#, fr#, fr#` : R type */
+
+    flt_ceq_instrc = 0x48, /*!< `fcmpeq r#, fr#, fr#` : R type */
+    flt_cne_instrc = 0x49, /*!< `fcmpne r#, fr#, fr#` : R type */
+    flt_cgt_instrc = 0x4A, /*!< `fcmpgt r#, fr#, fr#` : R type */
+    flt_cle_instrc = 0x4B, /*!< `fcmple r#, fr#, fr#` : R type */
+
+    flt_rou_instrc = 0x4C, /*!< `fround fr#, fr#, imm` : S type */
+    flt_flr_instrc = 0x4D, /*!< `ffloor fr#, fr#, imm` : S type */
+    flt_cei_instrc = 0x4E, /*!< `fceil fr#, fr#, imm` : S type */
+    flt_trn_instrc = 0x4F, /*!< `ftrnc fr#, fr#, imm` : S type */
 
     /*! TODO: group 5, conditional set / move instructions */
     /*! TODO: group 6, memory fences */
@@ -288,23 +302,43 @@ typedef void (*instr_dispatch_t)(register struct thread_t *, union instruction_t
 
 enum config_flags_1
 {
-    confflags_paging = 0,
-    confflags_stack,
-    confflags_intdiv,
-    confflags_interrupts,
-    confflags_floats,
-    confflags_fences,
-    confflags_condset,
-    confflags_condmove,
-    confflags_multi64,
-    confflags_multi128,
-    confflags_multi256,
-    confflags_multi512,
-    confflags_vector64,
-    confflags_vector128,
-    confflags_vector256,
-    confflags_vector512,
-}
+    //! support for memory paging
+    confflags_paging = 0, 
+
+    //! support for stack instructions
+    confflags_stack,      
+
+    //! support for integer division instructions
+    confflags_intdiv,     
+
+    //! support for software interrupts
+    confflags_interrupts, 
+
+    //! support for hardware floating point
+    confflags_floats,     
+
+    //! support for memory fences
+    confflags_fences,     
+
+    //! support for conditional get/set
+    confflags_condset,    
+
+    //! support for conditional move
+    confflags_condmove,   
+
+    //! multiple execution instructions, 64 bit
+    confflags_multi64,    
+
+    //! multiple execution instructions, 128 bit
+    confflags_multi128,   
+
+    //! multiple execution instructions, 256 bit
+    confflags_multi256,   
+
+    //! multiple execution instructions, 512 bit
+    confflags_multi512,   
+
+};
 
 #define flag_bit(flag) (1 << (flag))
 
@@ -341,13 +375,13 @@ struct thread_model_t
  */
 struct thread_t
 {
-    uint64_t registers[32];   /*!< thread registers */
-    uint64_t program_counter; /*!< thread instructon pointer */
-    uint64_t int_vector;      /*!< interrupt vector pointer*/
-    uint64_t memory_size;     /*!< thread memory size */
-    uint8_t *memory;          /*!< thread memory pointer */
-    thread_model_t *model     /*!< thread model pointer */
-        uint8_t halt_sig;     /*!< defines when program should stop */
+    uint64_t registers[32];       /*!< thread registers */
+    uint64_t program_counter;     /*!< thread instructon pointer */
+    uint64_t int_vector;          /*!< interrupt vector pointer*/
+    uint64_t memory_size;         /*!< thread memory size */
+    uint8_t *memory;              /*!< thread memory pointer */
+    struct thread_model_t *model; /*!< thread model pointer */
+    uint8_t halt_sig;             /*!< defines when program should stop */
 };
 
 #undef CONCAT_IMPL

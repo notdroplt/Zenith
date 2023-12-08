@@ -509,7 +509,7 @@ returns<nodep> Parser::_top_level() noexcept
     }, std::move(left_side), std::move(on_true), this->_comparisions());
 }
 
-returns<nodep> Parser::_type(std::string_view name) noexcept
+returns<nodep> Parser::_toplevel_type() noexcept
 {
     auto start = this->_tok->start;
 
@@ -542,11 +542,12 @@ returns<nodep> Parser::_type(std::string_view name) noexcept
 
         this->next();
 
-        return make_expected_unique<returns<nodep>, TypeNode>(name, std::move(*range_start), std::move(*range_end), closed_started, close_ended);
+        return make_expected_unique<returns<nodep>, TypeNode>(std::move(*range_start), std::move(*range_end), closed_started, close_ended);
     }
 
     return make_unexpected<returns<nodep>>("syntax error", "type signature not implemented", start, this->_tok->end);
 }
+
 
 returns<nodep> Parser::_statement() noexcept
 {
@@ -572,7 +573,10 @@ returns<nodep> Parser::_statement() noexcept
     if (this->_tok && this->_tok->id == TT_TypeDefine)
     {
         this->next();
-        return this->_type(name);
+
+        auto value = this->_toplevel_type();
+        
+        return value;
     }
 
     if (!this->_tok || this->_tok->id != TT_Equal)

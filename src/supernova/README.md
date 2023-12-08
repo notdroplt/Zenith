@@ -261,34 +261,50 @@ registers that dont have a defined designation are used as function parameters, 
         - side effects:
             - if `rd + imm` is bigger than memory size, `pcall 4` is triggered
 
-    - std [opcode `0x25`, S type]
+    - std [opcode `0x27`, S type]
         - store half word from register into memory
         - executes: `u64[rd + imm] <- r2`
         - side effects:
             - if `rf + imm` is bigger than memory size, `pcall 4` is triggered
 
-    - jal [opcode `0x26`, L type]
+    - jal [opcode `0x28`, L type]
         - jump to a place in memory 
         - executes:
             - `rd <- pc + 8`
             - `pc <- pc + imm`
 
-    - jalr [opcode `0x27`, S type]
+    - jalr [opcode `0x29`, S type]
         - jump to a place in memory 
         - executes:
             - `rd <- pc + 8`
             - `pc <- pc + r1 + imm`
         
-    - je [opcode `0x28`, S type]
-        - jump to a place in memory when `rd ^ r1 = 0`
+    - je [opcode `0x2A`, S type]
+        - jump to a place in memory when `rd == r1`
         - executes: 
-            - `pc <- rd ^ pc ? pc + imm : pc `
+            - `pc <- rd ^ r1 ? pc + imm * 8 : pc + 8`
+
+    - jne [opcode `0x2B`, S type]
+        - jump to a place in memory when `rd != r1`
+        - executes:
+            - `pc <- rd ^ r1 ? ? pc + imm * 8 : pc + 8`
+
+    - jgu [opcode `0x2C`, S type]
+        - jump to a place in memory when `rd > r1`, both unsigned
+        - executes:
+            - `pc <- (rd - r1) & (sign bit) ? pc + 8 : pc + imm * 8`
+        
+    - jleu [opcode `0x2D`, S type]
+        - jump to a place in memory when `rd <= r1`
+        - executes:
+            - `pc <- (rd - r1) & (sign bit) ? pc + 8 : `
+
         
 ## interrupts
 
 ### default interrupts/exceptions used by the virtual machine
 
-* `pcall -1`: [see below](#pcall-0)
+* `pcall -1`: [see below](#pcall--1)
 * `pcall 0`: Divison by zero
 * `pcall 1`: General fault
 * `pcall 2`: Double fault
