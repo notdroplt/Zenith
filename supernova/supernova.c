@@ -2,6 +2,9 @@
 #include "group0.h"
 #include <stdlib.h>
 
+#pragma GCC diagnostic push
+// reading from a bitfield does not go out of bounds
+#pragma GCC diagnostic ignored "-Wanalyzer-out-of-bounds"
 uint8_t fetch8(register struct thread_t *thread, register uint64_t address)
 {
     return *(thread->memory + address);
@@ -341,7 +344,9 @@ int run(const char *filename, int argc, char **argv, void (*debugger)(struct thr
         fseek(fp, 0, SEEK_END);
         size = ftell(fp);
         fseek(fp, 0, SEEK_SET);
-    }
+    } else {
+		return -1;
+	}
 
     thread = malloc(sizeof(struct thread_t));
     if (!thread)
@@ -404,3 +409,5 @@ void destroy_thread(struct thread_t *thread)
     free(thread->memory);
     free(thread);
 }
+
+#pragma GCC diagnostic pop

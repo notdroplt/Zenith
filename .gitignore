@@ -5,5 +5,5 @@
 build/*
 .xmake/*
 doxydocs/*
-
-massif.out.*
+target/
+Cargo.lock
