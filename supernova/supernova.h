@@ -228,7 +228,7 @@ struct s_block_t
     uint64_t rd : 5;         /*!< destination register */
     uint64_t immediate : 46; /*!< immediate value */
 } __attribute__((packed));
-
+	
 /**
  * @brief L instruction layout
  *

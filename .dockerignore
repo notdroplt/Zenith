@@ -1,7 +1,0 @@
-.github
-.git
-.vscode
-build
-*docs*
-test
-*.zv*

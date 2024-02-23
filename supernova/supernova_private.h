@@ -5,9 +5,8 @@
 #define ZENITH_SUPERNOVA_VM_H 1
 
 #include "supernova.h"
-#include <stdio.h>
 #include <string.h>
-
+#include <stdio.h>
 //! macro for generating functions headers
 #define sninstr_func(instruction) \
 void supernova_##instruction##_dispatch_function(struct thread_t *thread, const union instruction_t instr)
