@@ -24,7 +24,6 @@ int main() {
 		fprintf(stderr, "could not open file\n");
 		return 1;
 	}
-
 	fseek(fp, 0, SEEK_END);
 	content.size = ftell(fp);
 	fseek(fp, 0, SEEK_SET);
@@ -35,6 +34,7 @@ int main() {
 		fprintf(stderr, "unable to read file\n");
 		return 1;
 	}
+
 	string_content = content.ptr;
 
 	token.id  = -1;

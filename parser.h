@@ -5,6 +5,9 @@
 #include "view.h"
 #include "lexer_plugin.h"
 
+//! define when parser couldn't read a file
+#define PARSER_READ_ERROR -1
+
 enum NodeID {
 	NodeNone,
 	NodeInt,
@@ -117,5 +120,5 @@ struct Parser {
 	struct plugin_t * lexer;
 };
 
-struct Parser * create_parser(struct plugin_t * const lexer, string_view * filename);
+struct Parser * create_parser(allocator_param(pool_t pool, struct plugin_t * const lexer, char* filename));
 struct Node * get_next_node(struct Parser * parser);
