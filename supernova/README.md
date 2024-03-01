@@ -1,19 +1,49 @@
-# supernova instruction set
+# Supernova Instruction Set
 
-this is a reduced instruction set I designed to be the first target
-to be compiled on zenith, instructions can change place/meaning in future releases
+A reduced instruction set designed to be the first compiler target,
+opcodes and behaviors might change in future releases.
 
-## instruction layouts (blank spaces are continuation of immediates):
+Instruction Layouts
+---
+<table>
+    <thead>
+        <th align="center">Instruction type</th>
+        <th align="center">bits 63 - 23</th>
+        <th align="center">bits 22 - 18</th>
+        <th align="center">bits 17 - 13</th>
+        <th align="center">bits 12 - 8</th>
+        <th align="center">bits 7 - 0</th>
+    </thead>
+    <tbody>
+        <tr>
+            <td align="center">R type</td>
+            <td align="center">unused</td>
+            <td align="center">rd</td>
+            <td align="center">r2</td>
+            <td align="center">r1</td>
+            <td align="center">op</td>
+        </tr>
+        <tr>
+            <td align="center">S type</td>
+            <td align="center" colspan=2>immediate</td>
+            <td align="center">rd</td>
+            <td align="center">r1</td>
+            <td align="center">op</td>
+        </tr>
+        <tr>
+            <td align="center">L type</td>
+            <td align="center" colspan=3>immediate</td>
+            <td align="center">r1</td>
+            <td align="center">op</td>
+        </tr>
+    </tbody>
+</table>
 
-| instruction type | bytes 63 - 23 | 22 - 18 | 17 - 13 | 12 - 8 | 7 - 0 | 
-| :--------------: | :-----------: | :-----: | :-----: | :----: | :---: |
-|     R type       |   (ignored)   |   r2    |   rd    |   r1   |  op   |
-|     S type       |   immediate   |         |   rd    |   r1   |  op   | 
-|     L type       |      |      immediate      |      |   r1   |  op   | 
+Register Layouts 
+---
 
-## register layouts 
-
-registers that dont have a defined designation are used as function parameters, going bottom to top:
+Registers don't have any value set by the architecture, except of course
+`r00`, everything else is compiler convention.
 
 | register index | function |
 | :-: | :-: |
@@ -24,7 +54,6 @@ registers that dont have a defined designation are used as function parameters, 
 | r03 - r31 | arguments | registers that work as arguments to functions |
 
 ## Instruction Set Resume
-
 
 - group zero: bitwise instruction group [opcodes `0x00 - 0x0F`] 
     - andr: [opcode `0x00`, R type]
@@ -368,52 +397,3 @@ input registers:
 - `r30`: 
 #### `r28 = 1`, `r30 = page root directory`
 Enable paging, with `r30` set to the memory location of the first page root directory location
-
----
-### `pcall 0`, `r29 = 2`:
-Host dynamic linking mega-function, depending on the operation, more registers will be used
-
-#### `r28 = 0`
-
-### `pcall 0`, `r31 = path`, `r30 = arr`, `r29 = 2`, `r28 = size`: 
-this call loads a dynamic library outside the virtual machine given path (`r31`)
-if `r28` is non-zero, the virtual machine will only load interrupts indexed in `r30`, else if `r28 = 0`, `r30` is ignored and all interrupts given by the library are loaded
-`r31` is set with library index, which is used on other functions instead of path
-
-### `pcall 0`, `r31 = libidx`, `r30 = idx`, `r29 = 3`:
-this call will get the pointer of an interrupt of a library and put it into both `r03` and `r28`
-
-### `pcall 0`, `r31 = libidx`, `r29 = 4`:
-this call unloads a library given its index
-
-
-
-
-
-
-
-
-
-
-### dynamic library loading API/ABI
-
-on a successfull call to `pcall 0` `r29 = 2` , the virtual machine will call a native dynamic library loader
-(for example `ldl` on Linux) and load a given file fiven by the string on `r31`. After that, the virtual machine
-will look for two symbols: `sn[version]libint_loader` and `snlibint_loader`, 
-preferring the first one. That symbol must be a function which returns `snlibintlret_t`, defined as follows: 
-
-```c
-typedef void (*int_func_t)(struct supernova_thread_t *);
-
-typedef struct {
-    uint64_t index;
-    int_func_t pointer;
-} intp_t;
-
-typedef struct {
-    uint64_t interrupt_count;
-    intp_t interrupts[];
-} snlibintlret_t;
-```
-
-on successful loading, the virtual machine will assign the loaded value an index, and return it in both `r03` and `r28`
