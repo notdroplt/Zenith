@@ -123,7 +123,7 @@ sninstr_func(umuli_instrc);
  * @param instr exectued instruction
  */
 sninstr_func(smulr_instrc);
-
+ 
 /**
  * @brief signed multiply register:immediate
  *

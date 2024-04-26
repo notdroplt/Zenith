@@ -16,18 +16,17 @@ jobs:
     # because the only thing the action is here for is to test on commits, ubuntu is really fine
     runs-on: ubuntu-latest
 
-    steps:      
+    steps:
 
     - name: Chechout
       uses: actions/checkout@v3
-      
-    - name: Configure 
-      run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
+
+    - name: Configure
+      run: make config 
 
     - name: Build
-      run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
+      run: make
 
     - name: Test
-      run: ctest --test-dir ${{github.workspace}}/build -C ${{env.BUILD_TYPE}} --output-on-failure
+      run: make tests
 
-    

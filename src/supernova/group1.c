@@ -1,7 +1,5 @@
-#include "group1.h"
-#pragma GCC diagnostic push
-// reading from a bitfield does not go out of bounds
-#pragma GCC diagnostic ignored "-Wanalyzer-out-of-bounds"
+#include "supernova.h"
+#include <stdint.h>
 
 sninstr_func(addr_instrc)
 {
@@ -83,5 +81,3 @@ sninstr_func(arsi_instrc)
 {
     thread->registers[instr.stype.rd] = (int64_t)thread->registers[instr.stype.r1] << (int64_t)instr.stype.immediate;
 }
-
-#pragma GCC diagnostic pop

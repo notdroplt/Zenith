@@ -1,9 +1,2 @@
-*.bin
-*.hex
-*.json
-*.zvm
-build/*
-.xmake/*
+*.o
 doxydocs/*
-target/
-Cargo.lock

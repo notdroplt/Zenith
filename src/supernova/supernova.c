@@ -1,29 +1,10 @@
+#include "supernova.h"
 #include "supernova_private.h"
-#include "group0.h"
+#include <cstdint>
+#include <cstdio>
+#include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
-
-#pragma GCC diagnostic push
-// reading from a bitfield does not go out of bounds
-#pragma GCC diagnostic ignored "-Wanalyzer-out-of-bounds"
-uint8_t fetch8(register struct thread_t *thread, register uint64_t address)
-{
-    return *(thread->memory + address);
-}
-
-uint16_t fetch16(register struct thread_t *thread, register uint64_t address)
-{
-    return *(uint16_t *)(thread->memory + address);
-}
-
-uint32_t fetch32(register struct thread_t *thread, register uint64_t address)
-{
-    return *(uint32_t *)(thread->memory + address);
-}
-
-uint64_t fetch64(register struct thread_t *thread, register uint64_t address)
-{
-    return *(uint64_t *)(thread->memory + address);
-}
 
 void set_memory_8(register struct thread_t *thread, register uint64_t address, register uint8_t value)
 {
@@ -75,26 +56,66 @@ supernova_api union instruction_t LInstruction(const uint8_t opcode, const uint8
     return instrc;
 }
 
+#define fetch(size, thread, address) (*(uint##size##_t *)((thread)->memory + (address)))
+
+static void hwpush64(register struct thread_t *thread, uint64_t value)
+{
+    fetch(64, thread, thread->registers[1]) = value;
+    thread->registers[1] -= 8;
+}
+
+static uint64_t hwpop64(register struct thread_t *thread)
+{
+    uint64_t val = fetch(64, thread, thread->registers[1]);
+    thread->registers[1] += 8;
+    return val;
+}
+
 static int64_t ssextend(uint64_t number)
 {
     return (int64_t)number & -1LU << 46 ? number | 0xffff800000000000 : number;
 }
 
-#define fetch(size, thread, address) (*(uint##size##_t *)((thread)->memory + (address)))
-
-static void dispatch_pcall(register struct thread_t * thread, uint64_t pcall_number) 
+static void pcall_minus_one(register struct thread_t *thread, uint64_t interrupt_space, uint64_t function_switch)
 {
-    (void)thread;
-    (void)pcall_number;
+    switch (thread->registers[29])
+    {
+    case 0:
+        if (thread->registers[28] == 0) {
+            thread->registers[31] = 2;
+            thread->registers[30] = thread->model->interrupt_count;
+        } else if (thread->registers[28] == 1) {
+            thread->int_vector = thread->registers[31];
+        }
+        break;
+    case 1:
+        thread->registers[31] = 0;
+        break;
+    case 2:
+
+    
+    default:
+        break;
+    }
 }
 
-// static void pcall_execute(register struct thread_t * thread, register struct l_block_t instruction)
-// {
-//     if (ssextend(instruction.immediate) != -1LL) {
-//         thread->program_counter = fetch(64, thread, thread->int_vector + instruction.immediate * 8);
-//     }
-// }
+static void dispatch_pcall(register struct thread_t *thread, uint64_t pcall_number)
+{
+    if (pcall_number == -1LLU)
+    {
+        pcall_minus_one(thread, thread->registers[29], thread->registers[28]);
+        return;
+    }
 
+    for (int i = 0; i < 32; i++)
+    {
+        hwpush64(thread, thread->registers[i]);
+    }
+
+    hwpush64(thread, thread->program_counter);
+
+    thread->program_counter = fetch(64, thread, thread->int_vector + pcall_number * 8);
+}
 
 void exec_instruction(register struct thread_t *thread)
 {
@@ -105,7 +126,6 @@ void exec_instruction(register struct thread_t *thread)
     }
     instruction.value = fetch(64, thread, thread->program_counter);
     thread->program_counter += 8;
-
 
     switch (instruction.rtype.opcode)
     {
@@ -161,25 +181,33 @@ void exec_instruction(register struct thread_t *thread)
         break;
     /* TODO: implement divide by zero exception*/
     case udivr_instrc:
-        if (!thread->registers[instruction.rtype.r2]) 
+        if (!thread->registers[instruction.rtype.r2])
+        {
             goto division_by_zero_pcall;
+        }
         thread->registers[instruction.rtype.rd] =
             thread->registers[instruction.rtype.r1] / thread->registers[instruction.rtype.r2];
         break;
     case udivi_instrc:
-        if (!thread->registers[instruction.rtype.r2]) 
+        if (!thread->registers[instruction.rtype.r2])
+        {
             goto division_by_zero_pcall;
+        }
         thread->registers[instruction.stype.rd] = thread->registers[instruction.stype.r1] / instruction.stype.immediate;
         break;
     case sdivr_instrc:
-        if (!thread->registers[instruction.rtype.r2]) 
+        if (!thread->registers[instruction.rtype.r2])
+        {
             goto division_by_zero_pcall;
+        }
         thread->registers[instruction.rtype.rd] =
             (int64_t)thread->registers[instruction.rtype.r1] / (int64_t)thread->registers[instruction.rtype.r2];
         break;
     case sdivi_instrc:
-        if (!thread->registers[instruction.rtype.r2]) 
+        if (!thread->registers[instruction.rtype.r2])
+        {
             goto division_by_zero_pcall;
+        }
         thread->registers[instruction.stype.rd] =
             (int64_t)thread->registers[instruction.stype.r1] / (int64_t)instruction.stype.immediate;
         break;
@@ -208,20 +236,20 @@ void exec_instruction(register struct thread_t *thread)
         break;
     /**/
     case st_byte_instrc:
-        set_memory_8(thread, thread->registers[instruction.stype.rd] + instruction.stype.immediate,
-                     thread->registers[thread->registers[instruction.stype.r1]]);
+        fetch(8, thread, thread->registers[instruction.stype.rd] + instruction.stype.immediate) =
+            thread->registers[thread->registers[instruction.stype.r1]];
         break;
     case st_half_instrc:
-        set_memory_16(thread, thread->registers[instruction.stype.rd] + instruction.stype.immediate,
-                      thread->registers[thread->registers[instruction.stype.r1]]);
+        fetch(16, thread, thread->registers[instruction.stype.rd] + instruction.stype.immediate) =
+            thread->registers[thread->registers[instruction.stype.r1]];
         break;
     case st_word_instrc:
-        set_memory_32(thread, thread->registers[instruction.stype.rd] + instruction.stype.immediate,
-                      thread->registers[thread->registers[instruction.stype.r1]]);
+        fetch(32, thread, thread->registers[instruction.stype.rd] + instruction.stype.immediate) =
+            thread->registers[thread->registers[instruction.stype.r1]];
         break;
     case st_dwrd_instrc:
-        set_memory_64(thread, thread->registers[instruction.stype.rd] + instruction.stype.immediate,
-                      thread->registers[thread->registers[instruction.stype.r1]]);
+        fetch(64, thread, thread->registers[instruction.stype.rd] + instruction.stype.immediate) =
+            thread->registers[thread->registers[instruction.stype.r1]];
         break;
     /**/
     case jal_instrc:
@@ -291,7 +319,7 @@ void exec_instruction(register struct thread_t *thread)
             thread->registers[instruction.rtype.r1] <= thread->registers[instruction.rtype.r2];
         break;
     case setleui_instrc:
-        thread->registers[instruction.stype.rd] = 
+        thread->registers[instruction.stype.rd] =
             thread->registers[instruction.stype.r1] <= instruction.stype.immediate;
         break;
     case setlesr_instrc:
@@ -311,8 +339,10 @@ void exec_instruction(register struct thread_t *thread)
         break;
     case pcall_instrc:
         if (instruction.ltype.immediate == 0)
-        /* set pcall 0:0 as "no pcall 0 defined"*/
+        {
+            /* set pcall 0:0 as "no pcall 0 defined"*/
             thread->registers[31] = 0;
+        }
         break;
     case pbreak_instrc:
         break;
@@ -344,9 +374,11 @@ int run(const char *filename, int argc, char **argv, void (*debugger)(struct thr
         fseek(fp, 0, SEEK_END);
         size = ftell(fp);
         fseek(fp, 0, SEEK_SET);
-    } else {
-		return -1;
-	}
+    }
+    else
+    {
+        return -1;
+    }
 
     thread = malloc(sizeof(struct thread_t));
     if (!thread)
@@ -354,13 +386,13 @@ int run(const char *filename, int argc, char **argv, void (*debugger)(struct thr
         goto destructor_2;
     }
 
-#define thread_count 32
     thread->program_counter = 0;
-    thread->memory = malloc(UINT16_MAX); // give some working space (and align it too)
+    thread->memory = malloc(UINT16_MAX); /* give some working space (and align it too) */
     thread->memory_size = UINT16_MAX;
     thread->registers[0] = 0;
-    thread->registers[thread_count - 1] = argc;
+    thread->registers[31] = argc;
     thread->halt_sig = 0;
+    thread->int_vector = 0;
 
     if (!thread->memory)
     {
@@ -375,7 +407,7 @@ int run(const char *filename, int argc, char **argv, void (*debugger)(struct thr
 
     (void)fclose(fp);
 
-    // registers should NOT be initialized because code shouldn't rely on that
+    /* registers should NOT be initialized because code shouldn't rely on that */
 
     if (debugger)
     {
@@ -409,5 +441,3 @@ void destroy_thread(struct thread_t *thread)
     free(thread->memory);
     free(thread);
 }
-
-#pragma GCC diagnostic pop

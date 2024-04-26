@@ -1,8 +1,0 @@
-import base
-
-// main function
-// it does things we expect main to do
-
-main = print "hello world"
-
-test = 1.004

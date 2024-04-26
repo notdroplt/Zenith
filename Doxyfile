@@ -1,15 +1,16 @@
 PROJECT_NAME           = "Zenith"
 PROJECT_NUMBER         = 0.0.1
-PROJECT_BRIEF          = "simple, small and fast "
+PROJECT_BRIEF          = "Funcitional programming for micro computers "
 OUTPUT_DIRECTORY       = ./doxydocs
 SHORT_NAMES            = YES
-INPUT                  = src/ src/compiler src/parsing src/typing src/runners/supernova
-FILE_PATTERNS          = *.h *.hpp
+INPUT                  = ./src  ./src/supernova/
+FILE_PATTERNS          = *.h *.hh
 ALPHABETICAL_INDEX     = YES
 HTML_OUTPUT            = .
 GENERATE_TREEVIEW      = YES
 SEARCHENGINE           = NO
+HAVE_DOT               = YES
 ENABLE_PREPROCESSING   = YES
-MACRO_EXPANSION        = YES 
+MACRO_EXPANSION        = YES
 PREDEFINED             = __attribute__(x)=
-PREDEFINED             = doxygen 
+PREDEFINED             = __doxygen __

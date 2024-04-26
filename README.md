@@ -1,11 +1,8 @@
 # Zenith
 
-If you want to make everything, with almost nothing.
+Going from the ground up to the stars
 
-“If you wish to make an apple pie from scratch, you must first invent the universe” - Carl Segan
+### Setup
 
-
-## setup 
-
-you will need to have [`cmake`](https://cmake.org/) and a C/C++ compiler installed, then run `cmake -B build && cmake --build build` to compile the project
+For right now, a C compiler and make are mostly everything to build the compiler, but this might change on the longer run
 

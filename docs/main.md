@@ -12,16 +12,10 @@ gets progressively harder as soon as the basic syntax is fully covered.
 but it does assumes you have at least some knownledge on the following topics:
 
 - Math:
-    - Base 2 (binary), Base 10 (decimal), Base 16 (hexadecimal)
+    - Different bases
     - Functions 
     - Sets (just the very basic) 
 - Computing:
     - Memory layout 
     - Endianness 
 
-## --- table of contents ---
-- [**compiler errors**](./ErrorsList.md)
-- **basic syntax**
-    - [comments!](syntax/Comments.md)
-    - [constants](syntax/Constants) (documentation WIP)
-    - [functions](syntax/Functions.md) (documentation WIP)
