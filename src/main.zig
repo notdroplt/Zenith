@@ -1,13 +1,18 @@
 const std = @import("std");
 const zenith = @import("zenith.zig");
-const debug = @import("debug.zig");
 const misc = @import("misc.zig");
+
+// until we have a build system, we'll just embed the file
+const code = @embedFile("main.zenith");
+
 pub fn main() !void {
     const stdout_file = std.io.getStdOut().writer();
     var bw = std.io.bufferedWriter(stdout_file);
     const stdout = bw.writer();
 
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa = std.heap.GeneralPurposeAllocator(.{
+        .verbose_log = false
+    }){};
     const alloc = gpa.allocator();
 
     var aalloc = std.heap.ArenaAllocator.init(alloc);
@@ -19,21 +24,25 @@ pub fn main() !void {
         _ = gpa.deinit();
     }
 
-    var parser = zenith.Parser.init("three a = caller callee;", palloc);
+    var parser = zenith.Parser.init(code, palloc);
 
-    const errnode = parser.parse_node(); 
-    if (errnode) |node| {
+    const parsed = parser.parse_node();
+    if (parsed) |node| {
+        var analyzer = try zenith.Analyzer.init(palloc);
+        const typed = analyzer.runAnalysis(node);
 
-        try debug.print_node(stdout, node);
-        const isexpr = switch (node.data) {
-            .expr => true,
-            else => false,
-        };
-        try stdout.print("first node is expr: {}\n", .{isexpr});
+        if (typed) |_| {
+            // try stdout.print("analysis successful\n", .{});
+        } else |err| {
+            _ = try misc.printError(stdout, parser.code, node.position, err);
 
+        }
+        
     } else |err| {
         try misc.printError(stdout, parser.code, parser.pos, err);
     }
-    
-    try bw.flush(); // don't forget to flush!
+
+    // try stdout.print("Zenithc [allocated {} bytes]\n", .{aalloc.queryCapacity()});
+
+    try bw.flush();
 }

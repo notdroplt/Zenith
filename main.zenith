@@ -1,6 +1,0 @@
-not x : bool -> bool = match x {
-    true = false;
-    false = true;
-};
-
-even x : int -> bool = x % 2 == 0;
