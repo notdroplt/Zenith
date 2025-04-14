@@ -141,17 +141,17 @@ documentation
 All operations are well defined for types given below:
 
 $$
-\begin{align*}
+\begin{align}
     +^1 &= N \to N \\
     -^1 &= N \to N \\
     *^1 &= *a' \to a' \\
-    \&^1 &= a' \to *a' \\
+    \\&^1 &= a' \to *a' \\
     \sim^1 &= N \to N \\
     !^1 &= B \to B \\
-    \#^2 &= a'[I] \to I \to a' \\
+    \\#^2 &= a'[I] \to I \to a' \\
     .^2 &= (a' \to b') \to (b' \to c') \to (a' \to c') \\
     |^2 &= I \to I \to I \\
-    \&^2 &= I \to I \to I \\
+    \\&^2 &= I \to I \to I \\
     \wedge^2 &= I \to I \to I \\
     |^2 &= I \to I \to I \\
     \ll^2 &= I \to I \to I \\
@@ -168,8 +168,8 @@ $$
     <^2 &= a' \to a' \to B \\
     <=^2 &= a' \to a' \to B \\
     ||^2 &= B \to B \to B \\
-    \&\&^2 &= B \to B \to B
-\end{align*}
+    \\&\\&^2 &= B \to B \to B
+\end{align}
 $$
 
 ### 2.3. Induction and deduction rules
