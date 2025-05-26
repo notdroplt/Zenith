@@ -36,7 +36,7 @@ Comment   = "//" { (character) - newline } newline ;
 ```ebnf
 Module   = "module" ("<<" | ">>") String Intr ;
 Expr     = Ternary | Binary | Unary | Primary;
-Formula  = ID { Primary } [":" Type] ["=" Expr] ;
+Formula  = ID { Primary } (":" Type ["=" Expr] | "=" Expr)  ;
 Ternary  = Binary "?" Binary ":" Ternary ;
 Binary   = [ Binary BinaryOp ] Unary ;
 Unary    = UnaryOp ( Unary | Call ) ;
@@ -132,10 +132,10 @@ Types sets are given from now on as follows:
 - Sums: $S$
 - Castings: any letter followed by `'`
 - Pointers: $^*T'$
-- Arrays: $T'[I]$
+- Arrays: $T'#I$
  
 Some operators offer like behavior into the Numeric set 
-$N = I \cup R \cup N[I]$, which offer less redundancy to write in the
+$N = I \cup R \cup N#I$, which offer less redundancy to write in the
 documentation
 
 All operations are well defined for types given below:

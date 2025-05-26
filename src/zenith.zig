@@ -1,128 +1,246 @@
 const std = @import("std");
 const misc = @import("misc.zig");
 
+const expect = std.testing.expect;
+const expectEqual = std.testing.expectEqual;
+
 pub const String = []const u8;
 
 ////////////////////////////////////////////////////////////////////////
-// Lexer                                                              //
+// Lexer - approx 500 lines                                           //
 ////////////////////////////////////////////////////////////////////////
 
 /// Possible token types
 pub const Tokens = enum {
-    Tnone,
-    Tint,
-    Tdec,
-    Tstr,
-    Tref,
-    Tmod,
-    Tmatch,
-    Tlpar,
-    Trpar,
-    Tlcur,
-    Trcur,
-    Tlsqb,
-    Trsqb,
-    Tequ,
-    Tsemi,
-    Tplus,
-    Tmin,
-    Tstar,
-    Tbar,
-    Tamp,
-    Ttil,
-    Tbang,
-    Thash,
-    Tpipe,
-    That,
-    Tper,
-    Tlsh,
-    Trsh,
-    Tcequ,
-    Tcneq,
-    Tcgt,
-    Tcge,
-    Tclt,
-    Tcle,
-    Tand,
-    Tor,
-    Tques,
-    Tcln,
-    Tdot,
-    Tarrow,
+    /// Integer tokens
+    Int,
+
+    /// Decimal Tokens
+    Dec,
+
+    /// String Tokens
+    Str,
+
+    /// Reference Tokens
+    Ref,
+
+    /// "module"
+    Mod,
+
+    /// "match"
+    Match,
+
+    /// "("
+    Lpar,
+
+    /// ")"
+    Rpar,
+
+    /// "{"
+    Lcur,
+
+    /// "}"
+    Rcur,
+
+    /// "["
+    Lsqb,
+
+    /// "]"
+    Rsqb,
+
+    /// "="
+    Equ,
+
+    /// ";"
+    Semi,
+
+    /// "+"
+    Plus,
+
+    /// "-"
+    Min,
+
+    /// "*"
+    Star,
+
+    /// "/"
+    Bar,
+
+    /// "&"
+    Amp,
+
+    /// "~"
+    Til,
+
+    /// "!"
+    Bang,
+
+    /// "#"
+    Hash,
+
+    /// "|"
+    Pipe,
+
+    /// "^"
+    Hat,
+
+    /// "%"
+    Per,
+
+    /// "<<"
+    Lsh,
+
+    /// ">>"
+    Rsh,
+
+    /// "=="
+    Cequ,
+
+    /// "!="
+    Cneq,
+
+    /// ">"
+    Cgt,
+
+    /// ">="
+    Cge,
+
+    /// "<"
+    Clt,
+
+    /// "<="
+    Cle,
+
+    /// "&&"
+    And,
+
+    /// "||"
+    Or,
+
+    /// "?"
+    Ques,
+
+    /// ":"
+    Cln,
+
+    /// "."
+    Dot,
+
+    /// "->"
+    Arrow,
 };
 
-pub const LexerError = error{ MalformedNumber, MalformedIdentifier, MalformedToken, MalformedString, LexerEnd };
+/// Lexer errors
+pub const LexerError = error{
+    /// Number format is invalid
+    MalformedNumber,
+
+    /// Identifier format is invalid
+    MalformedIdentifier,
+
+    /// Token was not recognized
+    MalformedToken,
+
+    /// String format is invalid
+    MalformedString,
+
+    /// Lexer reached the end of the code
+    LexerEnd,
+};
 
 /// Assign a position to every token/node, a position is only a view
-/// over the code string, so
-pub const Pos = struct { index: usize = 0, span: usize = 0 };
+/// over the code string
+pub const Pos = struct {
+    /// Index for the first character in the code string
+    index: usize = 0,
 
+    /// How far does the symbol span
+    span: usize = 0,
+};
+
+/// Lexer Token
 pub const Token = struct {
+    /// Token id
     tid: Tokens,
+
+    /// Position in the code
     pos: Pos = Pos{},
-    val: union { int: i64, dec: f64, str: String },
 
+    /// Token value (if applicable)
+    val: union(enum) { int: i64, dec: f64, str: String, empty: void } = .empty,
+
+    /// init a token without value
     pub fn init(tid: Tokens, pos: Pos) Token {
-        return Token{ .tid = tid, .pos = pos, .val = .{ .int = 0 } };
-    }
-
-    pub fn same(self: Token, other: Token) bool {
-        const id = self.tid == other.tid;
-
-        return switch (self.tid) {
-            Tokens.Tint, Tokens.Tref => id and self.val.int == other.val.int,
-            Tokens.Tdec => id and self.val.dec == other.val.dec,
-            Tokens.Tstr => id and std.mem.eql(u8, self.val.str, other.val.str),
-            else => id,
-        };
-    }
-
-    pub fn sameId(self: Token, other: Tokens) bool {
-        return self.tid == other;
-    }
-
-    pub fn notId(self: Token, other: Tokens) bool {
-        return self.tid != other;
+        return Token{ .tid = tid, .pos = pos, .val = .empty };
     }
 };
 
+/// Tokenizer for a string
 pub const Lexer = struct {
+    /// Code string
     code: String,
-    index: usize,
-    last: ?Token,
 
+    /// Index of current character
+    index: usize = 0,
+
+    /// Last token consumed, multiple calls of consume() without a
+    /// call to catchUp() return early
+    last: ?Token = null,
+
+    /// Context for error printing
+    errctx: ErrorContext = .{ .value = .NoContext },
+
+    /// Initialize a lexer
     pub fn init(code: String) Lexer {
-        return Lexer{ .code = code, .index = 0, .last = null };
+        return Lexer{ .code = code };
     }
 
-    pub fn end(self: Lexer) bool {
+    /// Check if end without erroring out
+    fn end(self: Lexer) bool {
         return self.code.len <= self.index;
     }
 
-    pub fn current(self: Lexer) LexerError!u8 {
+    /// Get current character, errors out on end
+    fn current(self: Lexer) LexerError!u8 {
         return if (self.end()) LexerError.LexerEnd else self.code[self.index];
     }
 
-    pub fn char(self: Lexer, c: u8) bool {
+    /// Checks if the current character against a constant errorless
+    fn char(self: Lexer, c: u8) bool {
         return if (self.end()) false else self.code[self.index] == c;
     }
 
+    /// Performs isAlpha without erroring out
     fn isAlpha(self: Lexer) bool {
-        return if (self.end()) false else std.ascii.isAlphabetic(self.code[self.index]);
+        if (self.end())
+            return false;
+        return std.ascii.isAlphabetic(self.code[self.index]);
     }
 
+    /// Performs isDigit without erroring out
     fn isNumeric(self: Lexer) bool {
-        return if (self.end()) false else std.ascii.isDigit(self.code[self.index]);
+        if (self.end())
+            return false;
+        return std.ascii.isDigit(self.code[self.index]);
     }
 
+    /// Performs isAlphanumeric without erroring out
     fn isAlphanumeric(self: Lexer) bool {
-        return if (self.end()) false else std.ascii.isAlphanumeric(self.code[self.index]);
+        if (self.end())
+            return false;
+        return std.ascii.isAlphanumeric(self.code[self.index]);
     }
 
+    /// Walks into the next character, or don't if end
     fn walk(self: Lexer) Lexer {
-        return Lexer{ .code = self.code, .index = self.index + @intFromBool(!self.end()), .last = self.last };
+        return Lexer{
+            .code = self.code,
+            .index = self.index + @intFromBool(!self.end()),
+            .last = self.last,
+        };
     }
 
+    /// Walk until a non whitespace character
     fn consumeWhitespace(self: Lexer) Lexer {
         var lex = self;
         while (lex.char(' ') or lex.char('\n') or lex.char('\t') or lex.char('\r'))
@@ -130,72 +248,82 @@ pub const Lexer = struct {
         return lex;
     }
 
+    /// Skip comments
     fn skipComments(self: Lexer) Lexer {
+        // it should work for multiple sequential comments
         var str = self.code[self.index..];
         var lex = self;
-        while (str.prefix("//")) : (str = lex.code[lex.index..]) {
+        while (str[0] == '/' and str[1] == '/') : (str = lex.code[lex.index..]) {
             while (lex.char('\n'))
                 lex = lex.walk();
-            lex = lex.walk();
+            lex = lex.consumeWhitespace().walk();
         }
         return lex.consumeWhitespace();
     }
 
+    /// Consume a string, errors only if it is incomplete
     fn consumeString(self: Lexer) LexerError!Token {
         var lex = self.walk();
         const start = lex.index;
-        while (!lex.char('"') and !lex.end()) 
+        while (!lex.char('"') and !lex.end())
             lex = lex.walk();
-        
-        if (lex.end())
+
+        if (lex.end()) {
+            lex.errctx = ErrorContext{ 
+                .position = Pos{.index = start, .span = lex.index - start},
+                .value = .MalformedToken
+            };
             return LexerError.MalformedString;
+        }
         lex = lex.walk();
 
         return Token{
-            .tid = Tokens.Tstr,
+            .tid = .Str,
             .pos = Pos{ .index = start - 1, .span = lex.index - start + 1 },
             .val = .{ .str = self.code[start .. lex.index - 1] },
         };
     }
 
-    fn consumeIdentifier(self: Lexer) LexerError!Token {
+    /// Consume an identifier
+    fn consumeIdentifier(self: Lexer) Token {
         const start = self.index;
         var lex = self;
-        
+
         lex = lex.walk();
 
-        while (lex.isAlphanumeric() or lex.char('_') or lex.char('\'')) 
+        while (lex.isAlphanumeric() or lex.char('_') or lex.char('\''))
             lex = lex.walk();
 
         return Token{
-            .tid = Tokens.Tref,
+            .tid = .Ref,
             .pos = Pos{ .index = start, .span = lex.index - start },
             .val = .{ .str = lex.code[start..lex.index] },
         };
     }
 
+    /// Consume an integer or a rational
     fn consumeNumber(self: Lexer) LexerError!Token {
-        var curr = Tokens.Tint;
+        var curr = Tokens.Int;
         const start = self.index;
         var lex = self;
 
-        while (lex.isNumeric()) 
+        while (lex.isNumeric())
             lex = lex.walk();
 
         if (lex.char('.')) {
-            curr = Tokens.Tdec;
+            curr = .Dec;
             lex = lex.walk();
-            while (lex.isNumeric()) 
+            while (lex.isNumeric())
                 lex = lex.walk();
         }
 
         if (lex.char('e')) {
-            curr = Tokens.Tdec;
+            curr = .Dec;
             lex = lex.walk();
             if (lex.char('+') or lex.char('-'))
                 lex = lex.walk();
-        
-            if (!std.ascii.isDigit(try lex.current()))
+
+            if (!lex.isNumeric())
                 return LexerError.MalformedNumber;
 
             while (lex.isNumeric())
@@ -205,23 +333,27 @@ pub const Lexer = struct {
 
         const str = lex.code[start .. start + rpos.span];
 
-        if (curr == Tokens.Tint)
-            return try Lexer.parseInt(str, rpos);
+        if (curr == .Int)
+            return Lexer.parseInt(str, rpos);
 
-        return try Lexer.parseDec(str, rpos);
+        return Lexer.parseDec(str, rpos);
     }
 
-    fn parseInt(str: String, pos: Pos) LexerError!Token {
+    /// Parse an int string into an integer token
+    fn parseInt(str: String, pos: Pos) Token {
         var result: i64 = 0;
-        var idx: usize = 0;
 
-        while (idx < str.len) : (idx += 1)
+        for (0..str.len) |idx|
             result = result * 10 + (str[idx] - '0');
 
-        return Token{ .tid = Tokens.Tint, .pos = pos, .val = .{ .int = result } };
+        return Token{
+            .tid = .Int,
+            .pos = pos,
+            .val = .{ .int = result },
+        };
     }
 
-    fn parseDec(str: String, pos: Pos) LexerError!Token {
+    fn parseDec(str: String, pos: Pos) Token {
         var result: f64 = 0;
         var exp: f64 = 0;
         var sign: f64 = 1;
@@ -247,7 +379,7 @@ pub const Lexer = struct {
 
         if (idx < str.len and std.ascii.toLower(str[idx]) == 'e') {
             idx += 1;
-            if (idx != str.len and !std.ascii.isDigit(str[idx])) { // for + or -
+            if (idx != str.len and !std.ascii.isDigit(str[idx])) {
                 sign = if (str[idx] == '-') -1 else 1;
                 idx += 1;
             }
@@ -257,7 +389,11 @@ pub const Lexer = struct {
                 exp = r1;
             }
         }
-        return Token{ .tid = Tokens.Tdec, .pos = pos, .val = .{ .dec = result * std.math.pow(f64, 10, sign * exp) } };
+        return Token{
+            .tid = .Dec,
+            .pos = pos,
+            .val = .{ .dec = result * std.math.pow(f64, 10, sign * exp) },
+        };
     }
 
     pub fn consume(self: *Lexer) LexerError!Token {
@@ -278,178 +414,429 @@ pub const Lexer = struct {
         const str = lex.code[lex.index..];
 
         if (std.mem.startsWith(u8, str, "module")) {
-            const tok = Token.init(Tokens.Tmod, Pos{ .index = lex.index, .span = 6 });
+            const tok = Token.init(.Mod, Pos{ .index = lex.index, .span = 6 });
             self.last = tok;
             return tok;
         }
 
         if (std.mem.startsWith(u8, str, "match")) {
-            const tok = Token.init(Tokens.Tmatch, Pos{ .index = self.index, .span = 5 });
+            const tok = Token.init(.Match, Pos{ .index = self.index, .span = 5 });
             self.last = tok;
             return tok;
         }
 
         if (lex.isAlpha() or lex.char('_')) {
-            self.last = try lex.consumeIdentifier();
+            self.last = lex.consumeIdentifier();
             return self.last.?;
         }
 
         const pos = Pos{ .index = lex.index, .span = 1 };
         const curr = try lex.current();
-        lex = lex.walk();
 
         const tok: ?Token = switch (curr) {
-            '(' => Token.init(Tokens.Tlpar, pos),
-            ')' => Token.init(Tokens.Trpar, pos),
-            '{' => Token.init(Tokens.Tlcur, pos),
-            '}' => Token.init(Tokens.Trcur, pos),
-            '[' => Token.init(Tokens.Tlsqb, pos),
-            ']' => Token.init(Tokens.Trsqb, pos),
-            '=' => lex.generate('=', Tokens.Tequ, Tokens.Tcequ),
-            '+' => Token.init(Tokens.Tplus, pos),
-            '-' => lex.generate('>', Tokens.Tmin, Tokens.Tarrow),
-            '*' => Token.init(Tokens.Tstar, pos),
-            '/' => Token.init(Tokens.Tbar, pos),
-            '&' => lex.generate('&', Tokens.Tamp, Tokens.Tand),
-            '~' => Token.init(Tokens.Ttil, pos),
-            '!' => lex.generate('=', Tokens.Tbang, Tokens.Tcneq),
-            '#' => Token.init(Tokens.Thash, pos),
-            '|' => lex.generate('|', Tokens.Tpipe, Tokens.Tor),
-            '%' => Token.init(Tokens.Tper, pos),
-            '<' => lex.doubleGenerate('=', '<', Tokens.Tcle, Tokens.Tlsh, Tokens.Tclt),
-            '>' => lex.doubleGenerate('=', '>', Tokens.Tcge, Tokens.Trsh, Tokens.Tcgt),
-            '?' => Token.init(Tokens.Tques, pos),
-            ':' => Token.init(Tokens.Tcln, pos),
-            ';' => Token.init(Tokens.Tsemi, pos),
+            '(' => Token.init(.Lpar, pos),
+            ')' => Token.init(.Rpar, pos),
+            '{' => Token.init(.Lcur, pos),
+            '}' => Token.init(.Rcur, pos),
+            '[' => Token.init(.Lsqb, pos),
+            ']' => Token.init(.Rsqb, pos),
+            '=' => lex.generate('=', .Equ, .Cequ),
+            '+' => Token.init(.Plus, pos),
+            '-' => lex.generate('>', .Min, .Arrow),
+            '*' => Token.init(.Star, pos),
+            '/' => Token.init(.Bar, pos),
+            '&' => lex.generate('&', .Amp, .And),
+            '~' => Token.init(.Til, pos),
+            '!' => lex.generate('=', .Bang, .Cneq),
+            '#' => Token.init(.Hash, pos),
+            '|' => lex.generate('|', .Pipe, .Or),
+            '%' => Token.init(.Per, pos),
+            '<' => lex.doubleGenerate('=', '<', .Cle, .Lsh, .Clt),
+            '>' => lex.doubleGenerate('=', '>', .Cge, .Rsh, .Cgt),
+            '?' => Token.init(.Ques, pos),
+            ':' => Token.init(.Cln, pos),
+            ';' => Token.init(.Semi, pos),
             else => null,
         };
 
         self.last = tok;
 
-        if (tok) |t| 
+        if (tok) |t|
             return t;
+
+        self.errctx = ErrorContext {
+            .position = pos,
+            .value = .MalformedToken
+        };
+
         return LexerError.MalformedToken;
     }
 
+    /// generate either token `small`, or `big` if next char is `chr`
     fn generate(self: Lexer, chr: u8, small: Tokens, big: Tokens) Token {
-        const p1 = Pos{ .index = self.index - 1, .span = 1 };
-        const p2 = Pos{ .index = self.index - 1, .span = 2 };
+        const p1 = Pos{ .index = self.index, .span = 1 };
+        const p2 = Pos{ .index = self.index, .span = 2 };
 
-        if (self.char(chr)) 
+        if (self.walk().char(chr))
             return Token.init(big, p2);
         return Token.init(small, p1);
     }
 
+    /// generate `t1` if next char is `c1`, else `t2` if `c2`, `telse` otherwise
     fn doubleGenerate(self: Lexer, c1: u8, c2: u8, t1: Tokens, t2: Tokens, telse: Tokens) Token {
-        const p1 = Pos{ .index = self.index - 1, .span = 1 };
-        const p2 = Pos{ .index = self.index - 1, .span = 2 };
+        const p1 = Pos{ .index = self.index, .span = 1 };
+        const p2 = Pos{ .index = self.index, .span = 2 };
 
-        if (self.char(c1)) return Token.init(t1, p2);        
-        if (self.char(c2)) return Token.init(t2,  p2);
+        if (self.walk().char(c1)) return Token.init(t1, p2);
+        if (self.walk().char(c2)) return Token.init(t2, p2);
         return Token.init(telse, p1);
     }
 
-    pub fn catch_up(self: Lexer, token: Token) Lexer {
+    /// After consuming a token, go to the next position
+    pub fn catchUp(self: Lexer, token: Token) Lexer {
         return Lexer{
             .code = self.code,
             .index = token.pos.index + token.pos.span,
-            .last = null
+            .last = null,
         };
     }
 };
 
+////////// lexer tests
+test Lexer {
+    var lexer = Lexer.init(
+        \\0 1 0.0 1.0 1e2 1.3e2 
+        \\"hello" "" 
+        \\identifier a b
+        \\+-*/ == != && || <= >= << >>
+    );
+
+    const tokens = [_]Token{
+        Token{ .tid = .Int, .val = .{ .int = 0 } },
+        Token{ .tid = .Int, .val = .{ .int = 1 } },
+        Token{ .tid = .Dec, .val = .{ .dec = 0.0 } },
+        Token{ .tid = .Dec, .val = .{ .dec = 1.0 } },
+        Token{ .tid = .Dec, .val = .{ .dec = 100 } },
+        Token{ .tid = .Dec, .val = .{ .dec = 130 } },
+        Token{ .tid = .Str, .val = .{ .str = "hello" } },
+        Token{ .tid = .Str, .val = .{ .str = "" } },
+        Token{ .tid = .Ref, .val = .{ .str = "identifier" } },
+        Token{ .tid = .Ref, .val = .{ .str = "a" } },
+        Token{ .tid = .Ref, .val = .{ .str = "b" } },
+        Token{ .tid = .Plus },
+        Token{ .tid = .Min },
+        Token{ .tid = .Star },
+        Token{ .tid = .Bar },
+        Token{ .tid = .Cequ },
+        Token{ .tid = .Cneq },
+        Token{ .tid = .And },
+        Token{ .tid = .Or },
+        Token{ .tid = .Cle },
+        Token{ .tid = .Cge },
+        Token{ .tid = .Lsh },
+        Token{ .tid = .Rsh },
+    };
+
+    for (tokens) |token| {
+        const tok = try lexer.consume();
+        try expectEqual(token.tid, tok.tid);
+        if (token.val == .str) {
+            try expect(std.mem.eql(u8, token.val.str, tok.val.str));
+        } else try expectEqual(token.val, tok.val);
+        lexer = lexer.catchUp(tok);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////
-// Types                                                              //
+/// Error Contexts
 ////////////////////////////////////////////////////////////////////////
 
-pub const TypeError = error{ OutOfMemory, // allocator
-UndefinedOperation, PossibleDivisionByZero, DivisionByZero, InvalidComposition, ArraySizeMismatch, ParameterMismatch, UnknownParameter, DisjointTypes };
+/// Give more details about any errors that occurs during compilation,
+/// that was thrown by the compiler
+pub const ErrorContext = struct {
+    /// Context values
+    value: union(enum) {
+        /// This token was not recognized by the lexer
+        MalformedToken: void,
 
+        /// A token that was not expected shows up
+        UnexpectedToken: struct {
+            /// Token received
+            token: Token,
+
+            /// Token expected
+            expected: Tokens,
+        },
+
+        /// An operation between one or two types that was not defined
+        UndefinedOperation: struct {
+            /// Left hand side of the operation
+            lhs: ?Type,
+
+            /// Operation token
+            token: Tokens,
+
+            /// Right hand side
+            rhs: Type,
+        },
+
+        /// Two types that can not be joined together
+        DisjointTypes: struct {
+            /// Type one
+            t1: Type,
+
+            /// Type two
+            t2: Type,
+        },
+
+        /// The IR generator could not load the following type into a register
+        InvalidLoad: *Type,
+
+        /// The IR generator could not store the following type into a register
+        InvalidStore: *Type,
+
+        /// Base case
+        NoContext: void,
+    },
+
+    /// Error position
+    position: Pos = .{},
+};
+
+////////////////////////////////////////////////////////////////////////
+// Types - approx 700 lines                                           //
+////////////////////////////////////////////////////////////////////////
+
+/// Syntactic analysis errors
+pub const TypeError = error{
+    /// Out of memory (allocator compliant)
+    OutOfMemory,
+
+    /// Undefined operation between types
+    UndefinedOperation,
+
+    /// Possible division by zero
+    PossibleDivisionByZero,
+
+    /// Division by zero
+    DivisionByZero,
+
+    /// Invalid function composition
+    InvalidComposition,
+
+    /// Array size mismatch
+    ArraySizeMismatch,
+
+    /// Parameter mismatch
+    ParameterMismatch,
+
+    /// Unknown parameter given
+    UnknownParameter,
+
+    /// Disjoint types
+    DisjointTypes,
+};
+
+/// Operation types
 pub const Type = struct {
+    /// Value inside the type
     data: union(enum) {
+        /// Boolean: can be true/false/valueless
         boolean: ?bool,
-        integer: struct { start: i64, end: i64, value: ?i64 },
-        decimal: struct { start: f64, end: f64, value: ?f64 },
-        array: struct { type_: *Type, size: i64, value: []?Type },
-        aggregate: struct { types: []Type, indexes: []i64, values: []?Type },
-        function: struct { argument: *Type, ret: *Type, body: ?*Node = null },
+
+        /// Interval [start, end] subset of all integers, can have a value
+        integer: struct {
+            /// Lower bound
+            start: i64,
+
+            /// Upper bound
+            end: i64,
+
+            /// Type value, if any
+            value: ?i64,
+        },
+
+        /// Interval [start, end] subset of all rationals, can have a value
+        decimal: struct {
+            /// Lower bound
+            start: f64,
+
+            /// Upper bound
+            end: f64,
+
+            /// Decimal value, if any
+            value: ?f64,
+        },
+
+        /// Sized collection of elements
+        array: struct {
+            /// What is the type for each element on the array
+            indexer: *Type,
+
+            /// Array size
+            size: i64,
+
+            /// Array value, if any
+            value: []?Type,
+        },
+
+        /// Collection of heterogeneous data, can be either from a sum
+        /// or a product type
+        aggregate: struct {
+            /// All types inside the struct
+            types: []Type,
+
+            /// Offsets for all elements, increasing order when analyzed,
+            /// but byte offsets after perfect alignment
+            indexes: []i64,
+
+            /// Values for the elements in the aggregate
+            values: []?Type,
+        },
+
+        /// Transformer of values
+        function: struct {
+            /// Type for the function input
+            argument: *Type,
+
+            /// Type for the function output
+            ret: *Type,
+
+            /// Function body, if able to deduce
+            body: ?*Node = null,
+        },
+
+        /// Type variable, allowing for polymorphism
         casting: Casting,
     },
+
+    /// How many pointers deep is this type
     pointerIndex: u8 = 0,
 
-    pub const zeroInt = Type{ .data = .{ .integer = .{ .start = 0, .end = 0, .value = 0 } } };
-    pub const negOneInt = Type{ .data = .{ .integer = .{ .start = -1, .end = -1, .value = -1 } } };
-    pub const zeroDec = Type{ .data = .{ .decimal = .{ .start = 0, .end = 0, .value = 0 } } };
+    /// Apply arguments into this closure
+    partialArgs: ?[]const ?IR.Value = null,
+    isParam: bool = false,
 
-    pub fn isPointer(self: Type) bool {
+    /// Value for Integer[0, 0]{0}
+    pub const zeroInt = Type.initInt(0, 0, 0);
+
+    /// Value for Integer[-1, -1]{-1}
+    pub const negOneInt = Type.initInt(-1, -1, -1);
+
+    /// Value for Rational[0, 0]{0}
+    pub const zeroDec = Type.initFloat(0, 0, 0);
+
+    /// Return if this type is a pointer
+    pub inline fn isPointer(self: Type) bool {
         return self.pointerIndex > 0;
     }
 
-    pub fn isFunction(self: Type) bool {
+    /// Check if this type is a function
+    pub inline fn isFunction(self: Type) bool {
         return self.data == .function;
     }
 
+    /// Check if this type is a casting
     pub fn isCasting(self: Type) bool {
         return self.data == .casting;
     }
 
+    /// Check if this type has had all its parameters fulfilled
+    pub fn isFullyApplied(self: Type) bool {
+        return switch (self.data) {
+            .function => |f| self.partialArgs != null and
+                self.partialArgs.?.len == f.expectedArgs,
+            else => false,
+        };
+    }
+
+    /// How many arguments is this function still expecting
+    pub fn expectedArgs(self: Type) usize {
+        if (self.data == .function)
+            return 1 + self.data.function.body.?.ntype.?.expectedArgs();
+        return 0;
+    }
+
+    /// Initialize an integer with a range
     pub fn initInt(start: i64, end: i64, value: ?i64) Type {
-        return Type{ .data = .{ .integer = .{ .start = start, .end = end, .value = value } } };
+        return Type{
+            .data = .{
+                .integer = .{
+                    .start = start,
+                    .end = end,
+                    .value = value,
+                },
+            },
+        };
     }
 
+    /// Initialize a float with a range
     pub fn initFloat(start: f64, end: f64, value: ?f64) Type {
-        return Type{ .data = .{ .decimal = .{ .start = start, .end = end, .value = value } } };
+        return Type{
+            .data = .{
+                .decimal = .{
+                    .start = start,
+                    .end = end,
+                    .value = value,
+                },
+            },
+        };
     }
 
+    /// Initialize a boolean
     pub fn initBool(value: ?bool) Type {
         return Type{ .data = .{ .boolean = value } };
     }
 
+    pub fn initIdxCasting(value: u32) Type {
+        return Type{ .data = .{ .casting = .{ .index = value } } };
+    }
+
+    /// Deinit a type
     pub fn deinit(self: Type, allocator: std.mem.Allocator) void {
         return switch (self.data) {
             .boolean => {},
             .integer => {},
             .decimal => {},
             .array => |v| {
-                v.type_.deinit(allocator);
-                for (v.value) |elem| 
+                v.indexer.deinit(allocator);
+                for (v.value) |elem|
                     if (elem != null) elem.?.deinit(allocator);
-                
+
                 allocator.free(v.value);
-                allocator.destroy(v.type_);
+                allocator.destroy(v.indexer);
             },
             .aggregate => |v| {
-                for (v.values) |elem| 
+                for (v.values) |elem|
                     if (elem != null) elem.?.deinit(allocator);
-                
+
                 allocator.free(v.values);
             },
             .function => |v| {
                 v.argument.deinit(allocator);
+                allocator.destroy(v.argument);
                 v.ret.deinit(allocator);
+                allocator.destroy(v.ret);
             },
             .casting => {},
         };
     }
 
-    pub fn isTag(self: Type, tag: @TypeOf(std.meta.activeTag(self.data))) bool {
-        return std.meta.activeTag(self.data) == tag;
-    }
-
+    /// Check if this type has a value
     pub fn isValued(self: Type) bool {
         return switch (self.data) {
             .boolean => |v| v != null,
             .integer => |v| v.value != null,
             .decimal => |v| v.value != null,
             .array => |v| {
-                for (v.value) |value| 
-                    if (value == null or !value.?.isValued()) 
+                for (v.value) |value|
+                    if (value == null or !value.?.isValued())
                         return false;
                 return true;
             },
             .aggregate => |v| {
-                for (v.values) |value| 
-                    if (value == null or !value.?.isValued()) 
+                for (v.values) |value|
+                    if (value == null or !value.?.isValued())
                         return false;
                 return true;
             },
@@ -458,22 +845,18 @@ pub const Type = struct {
         };
     }
 
-    pub fn makePtr(v: Type) Type {
-        var other = v;
-        other.pointerIndex += 1;
-        return other;
-    }
+    /// synthesize a type given another and an unary operation
+    pub fn synthUnary(op: Tokens, v: Type) !Type {
+        if (op == .Amp) {
+            var nv = v;
+            nv.pointerIndex += 1;
+            return nv;
+        }
+        if (op == .Plus) return v;
 
-    // synthUnary : operator + inner type -> outer type
-
-    pub fn synthUnary(alloc: std.mem.Allocator, op: Tokens, v: Type) !Type {
-        _ = alloc;
-        if (op == Tokens.Tamp) return makePtr(v);
-        if (op == Tokens.Tplus) return v;
-
-        if (v.isPointer()) 
+        if (v.isPointer())
             return switch (op) {
-                .Tstar => {
+                .Star => {
                     var other = v;
                     other.pointerIndex -= 1;
                     return other;
@@ -482,17 +865,17 @@ pub const Type = struct {
             };
         return switch (v.data) {
             .integer => switch (op) {
-                .Tmin => handleInt(op, Type.zeroInt, v),
-                .Ttil => handleInt(.Tmin, Type.negOneInt, v),
+                .Min => handleInt(op, Type.zeroInt, v),
+                .Til => handleInt(.Min, Type.negOneInt, v),
                 else => TypeError.UndefinedOperation,
             },
             .decimal => switch (op) {
-                .Tplus => v,
-                .Tmin => handleFloat(op, Type.zeroDec, v),
+                .Plus => v,
+                .Min => handleFloat(op, Type.zeroDec, v),
                 else => TypeError.UndefinedOperation,
             },
             .boolean => switch (op) {
-                .Tbang => {
+                .Bang => {
                     if (v.data.boolean) |vbool|
                         return initBool(!vbool);
                     return initBool(null);
@@ -503,9 +886,8 @@ pub const Type = struct {
         };
     }
 
-    pub fn checkUnary(alloc: std.mem.Allocator, op: Tokens, v: Type, res: Type) !Type {
-        const synth = try synthUnary(alloc, op, v);
-        return Type.join(alloc, synth, res);
+    pub fn checkUnary(op: Tokens, v: Type, res: Type) !Type {
+        return Type.join(try synthUnary(op, v), res);
     }
 
     pub fn callFunction(f: Type, args: Type) TypeError!*Type {
@@ -525,20 +907,43 @@ pub const Type = struct {
         a: Type,
         b: Type,
     ) TypeError!Type {
-        if (std.meta.activeTag(a.data) != std.meta.activeTag(b.data)) 
+        if (op == .Arrow) {
+            const left = try alloc.create(Type);
+            errdefer alloc.destroy(left);
+
+            left.* = a;
+
+            const right = try alloc.create(Type);
+            errdefer alloc.destroy(right);
+
+            right.* = b;
+
+            return Type {
+                .pointerIndex = 0,
+                .data = .{
+                    .function = .{
+                        .body = null,
+                        .argument = left,
+                        .ret = right
+                    }
+                }
+            };
+        }
+
+        if (std.meta.activeTag(a.data) != std.meta.activeTag(b.data))
             return TypeError.UndefinedOperation;
-        
-        if (a.pointerIndex != b.pointerIndex) 
+
+        if (a.pointerIndex != b.pointerIndex)
             return TypeError.UndefinedOperation;
-        
+
         if (a.pointerIndex > 0) {
             return switch (op) {
-                .Tcequ, .Tcneq => binOperate(alloc, op, a, b),
+                .Cequ, .Cneq => binOperate(alloc, op, a, b),
                 else => TypeError.UndefinedOperation,
             };
         }
 
-        if (a.isFunction() and a.isFunction() and op == Tokens.Tdot) {
+        if (a.isFunction() and a.isFunction() and op == .Dot) {
             if (a.data.function.ret != b.data.function.argument)
                 return TypeError.InvalidComposition;
 
@@ -557,22 +962,22 @@ pub const Type = struct {
             .boolean => |ba| {
                 const bb = b.data.boolean;
                 const res: ?bool = switch (op) {
-                    .Tcequ => binopt(bool, ba, bb, misc.equ),
-                    .Tcneq => binopt(bool, ba, bb, misc.neq),
-                    .Tand => binopt(bool, ba, bb, misc.land),
-                    .Tor => binopt(bool, ba, bb, misc.land),
+                    .Cequ => binopt(bool, ba, bb, misc.equ),
+                    .Cneq => binopt(bool, ba, bb, misc.neq),
+                    .And => binopt(bool, ba, bb, misc.land),
+                    .Or => binopt(bool, ba, bb, misc.land),
                     else => null,
                 };
 
                 if (res) |r| {
                     return initBool(r);
-                } 
+                }
                 return TypeError.UndefinedOperation;
             },
             .integer => try handleInt(op, a, b),
             .decimal => try handleFloat(op, a, b),
             .array => try handleArray(alloc, op, a, b),
-            else => error.UndefinedOperation,
+            else => TypeError.UndefinedOperation,
         };
     }
 
@@ -585,9 +990,9 @@ pub const Type = struct {
             const d3 = f(T, x2, y1);
             const d4 = f(T, x2, y2);
 
-            const gmin = @min(@min(d1, d2), @min(d3, d4));
-            const gmax = @max(@max(d1, d2), @max(d3, d4));
-            return .{ gmin, gmax };
+            const gMin = @min(@min(d1, d2), @min(d3, d4));
+            const gMax = @max(@max(d1, d2), @max(d3, d4));
+            return .{ gMin, gMax };
         }
     }
 
@@ -596,93 +1001,87 @@ pub const Type = struct {
         return func(T, a.?, b.?);
     }
 
+    fn doMinMax(comptime T: type, func: anytype, ma: anytype, mb: anytype) Type {
+        const mm = minMax(T, ma.start, ma.end, mb.start, mb.end, func);
+        const val = binopt(T, ma.value, mb.value, func);
+        if (T == i64) {
+            return initInt(mm[0], mm[1], val);
+        }
+        return initFloat(mm[0], mm[1], val);
+    }
+
+    fn doBoolMinMax(comptime T: type, func: anytype, ma: anytype, mb: anytype) Type {
+        return initBool(binopt(T, ma.value, mb.value, func));
+    }
+
     fn handleInt(op: Tokens, a: Type, b: Type) TypeError!Type {
         const ia = a.data.integer;
         const ib = b.data.integer;
 
-        const closure = struct {
-            fn doMinMax(func: anytype, ma: anytype, mb: anytype) Type {
-                const minmax = minMax(i64, ma.start, ma.end, mb.start, mb.end, func);
-                return initInt(minmax[0], minmax[1], binopt(i64, ma.value, mb.value, func));
-            }
-            fn doBoolMinmax(func: anytype, ma: anytype, mb: anytype) Type {
-                return initBool(binopt(i64, ma.value, mb.value, func));
-            }
-        };
-
         return switch (op) {
-            .Tplus => closure.doMinMax(misc.add, ia, ib),
-            .Tmin => closure.doMinMax(misc.sub, ia, ib),
-            .Tstar => closure.doMinMax(misc.mul, ia, ib),
-            .Tbar => {
+            .Plus => doMinMax(i64, misc.add, ia, ib),
+            .Min => doMinMax(i64, misc.sub, ia, ib),
+            .Star => doMinMax(i64, misc.mul, ia, ib),
+            .Bar => {
                 if (ib.value != null and ib.value.? == 0) return TypeError.DivisionByZero;
                 // todo: add "possible division by zero"
-                const minmax = minMax(i64, ia.start, ia.end, ib.start, ib.end, misc.div);
-                return initInt(minmax[0], minmax[1], binopt(i64, ia.value, ib.value, misc.div));
+                const mm = minMax(i64, ia.start, ia.end, ib.start, ib.end, misc.div);
+                return initInt(mm[0], mm[1], binopt(i64, ia.value, ib.value, misc.div));
             },
-            .Tper => {
+            .Per => {
                 if (ib.value != null and ib.value.? == 0) return TypeError.DivisionByZero;
                 // todo: add "possible division by zero"
                 return initInt(0, ia.end - 1, binopt(i64, ia.value, ib.value, misc.mod));
             },
-            .Tpipe => closure.doMinMax(misc.pipe, ia, ib),
-            .Tamp => closure.doMinMax(misc.amp, ia, ib),
-            .That => closure.doMinMax(misc.hat, ia, ib),
-            .Tlsh => closure.doMinMax(misc.lsh, ia, ib),
-            .Trsh => closure.doMinMax(misc.rsh, ia, ib),
-            .Tcequ => closure.doBoolMinmax(misc.equ, ia, ib),
-            .Tcneq => closure.doBoolMinmax(misc.neq, ia, ib),
-            .Tcge => closure.doBoolMinmax(misc.gte, ia, ib),
-            .Tcgt => closure.doBoolMinmax(misc.gt, ia, ib),
-            .Tcle => closure.doBoolMinmax(misc.lte, ia, ib),
-            .Tclt => closure.doBoolMinmax(misc.lt, ia, ib),
-            else => error.UndefinedOperation,
+            .Pipe => doMinMax(i64, misc.pipe, ia, ib),
+            .Amp => doMinMax(i64, misc.amp, ia, ib),
+            .Hat => doMinMax(i64, misc.hat, ia, ib),
+            .Lsh => doMinMax(i64, misc.lsh, ia, ib),
+            .Rsh => doMinMax(i64, misc.rsh, ia, ib),
+            .Cequ => doBoolMinMax(i64, misc.equ, ia, ib),
+            .Cneq => doBoolMinMax(i64, misc.neq, ia, ib),
+            .Cge => doBoolMinMax(i64, misc.gte, ia, ib),
+            .Cgt => doBoolMinMax(i64, misc.gt, ia, ib),
+            .Cle => doBoolMinMax(i64, misc.lte, ia, ib),
+            .Clt => doBoolMinMax(i64, misc.lt, ia, ib),
+            else => TypeError.UndefinedOperation,
         };
     }
 
     fn handleFloat(op: Tokens, a: Type, b: Type) TypeError!Type {
         const fa = a.data.decimal;
         const fb = b.data.decimal;
-        const closure = struct {
-            fn doMinMax(func: anytype, ma: anytype, mb: anytype) Type {
-                const minmax = minMax(f64, ma.start, ma.end, mb.start, mb.end, func);
-                return initFloat(minmax[0], minmax[1], binopt(f64, ma.value, mb.end, func));
-            }
-            fn doBoolMinmax(func: anytype, ma: anytype, mb: anytype) Type {
-                return initBool(binopt(f64, ma.value, mb.value, func));
-            }
-        };
 
         return switch (op) {
-            .Tplus => closure.doMinMax(misc.add, fa, fb),
-            .Tmin => closure.doMinMax(misc.sub, fa, fb),
-            .Tstar => closure.doMinMax(misc.mul, fa, fb),
-            .Tbar => {
+            .Plus => doMinMax(f64, misc.add, fa, fb),
+            .Min => doMinMax(f64, misc.sub, fa, fb),
+            .Star => doMinMax(f64, misc.mul, fa, fb),
+            .Bar => {
                 if (fb.value != null and fb.value.? == 0) return TypeError.DivisionByZero;
                 // todo: add "possible division by zero"
-                const minmax = minMax(f64, fa.start, fa.end, fb.start, fb.end, misc.div);
-                return initFloat(minmax[0], minmax[1], binopt(f64, fa.value, fb.value, misc.div));
+                const mm = minMax(f64, fa.start, fa.end, fb.start, fb.end, misc.div);
+                return initFloat(mm[0], mm[1], binopt(f64, fa.value, fb.value, misc.div));
             },
-            .Tper => {
+            .Per => {
                 if (fb.value != null and fb.value.? == 0) return TypeError.DivisionByZero;
                 // todo: add "possible division by zero"
                 return initFloat(0, fb.end - 1, binopt(f64, fa.value, fb.value, misc.mod));
             },
-            .Tcequ => closure.doBoolMinmax(misc.equ, fa, fb),
-            .Tcneq => closure.doBoolMinmax(misc.neq, fa, fb),
-            .Tcge => closure.doBoolMinmax(misc.gte, fa, fb),
-            .Tcgt => closure.doBoolMinmax(misc.gt, fa, fb),
-            .Tcle => closure.doBoolMinmax(misc.lte, fa, fb),
-            .Tclt => closure.doBoolMinmax(misc.lt, fa, fb),
-            else => error.UndefinedOperation,
+            .Cequ => doBoolMinMax(f64, misc.equ, fa, fb),
+            .Cneq => doBoolMinMax(f64, misc.neq, fa, fb),
+            .Cge => doBoolMinMax(f64, misc.gte, fa, fb),
+            .Cgt => doBoolMinMax(f64, misc.gt, fa, fb),
+            .Cle => doBoolMinMax(f64, misc.lte, fa, fb),
+            .Clt => doBoolMinMax(f64, misc.lt, fa, fb),
+            else => TypeError.UndefinedOperation,
         };
     }
 
     fn scalarArray(allocator: std.mem.Allocator, op: Tokens, arr: Type, other: Type, reversed: bool) TypeError!Type {
-        const arr_data = arr.data.array;
-        var results = try allocator.alloc(?Type, arr_data.value.len);
+        const arrData = arr.data.array;
+        var results = try allocator.alloc(?Type, arrData.value.len);
 
-        for (arr_data.value, 0..) |elem, i| {
+        for (arrData.value, 0..) |elem, i| {
             if (elem == null) {
                 results[i] = null;
                 continue;
@@ -694,48 +1093,43 @@ pub const Type = struct {
             .pointerIndex = 0,
             .data = .{
                 .array = .{
-                    .type_ = arr_data.type_,
-                    .size = arr_data.size,
+                    .indexer = arrData.indexer,
+                    .size = arrData.size,
                     .value = results,
                 },
             },
         };
     }
 
-    fn handleArray(
-        allocator: std.mem.Allocator,
-        op: Tokens,
-        a: Type,
-        b: Type,
-    ) TypeError!Type {
-        if (a.isTag(.array) and b.isTag(.array)) {
+    fn handleArray(alloc: std.mem.Allocator, op: Tokens, a: Type, b: Type) TypeError!Type {
+        if (a.data == .array and b.data == .array) {
             if (a.data.array.size != b.data.array.size) return TypeError.ArraySizeMismatch;
-            const arr_a = a.data.array;
-            const arr_b = b.data.array;
-            var results = try allocator.alloc(?Type, arr_a.value.len);
+            const arrA = a.data.array;
+            const arrB = b.data.array;
+            var results = try alloc.alloc(?Type, arrA.value.len);
 
-            for (arr_a.value, arr_b.value, 0..) |a_elem, b_elem, i| {
-                if (a_elem == null or b_elem == null) {
+            for (arrA.value, arrB.value, 0..) |aElem, bElem, i| {
+                if (aElem == null or bElem == null) {
                     results[i] = null;
                     continue;
                 }
 
-                results[i] = try binOperate(allocator, op, a_elem.?, b_elem.?);
+                results[i] = try binOperate(alloc, op, aElem.?, bElem.?);
             }
 
             return Type{
                 .data = .{
                     .array = .{
-                        .type_ = arr_a.type_,
-                        .size = arr_a.size,
+                        .indexer = arrA.indexer,
+                        .size = arrA.size,
                         .value = results,
                     },
                 },
             };
         }
 
-        if (a.isTag(.array) or b.isTag(.array))
-            return scalarArray(allocator, op, a, b, b.isTag(.array));
+        if (a.data == .array or b.data == .array)
+            return scalarArray(alloc, op, a, b, b.data == .array);
 
         return TypeError.UndefinedOperation;
     }
@@ -756,7 +1150,7 @@ pub const Type = struct {
             .boolean => t1.data.boolean == t2.data.boolean,
             .array => {
                 if (t1.data.array.size != t2.data.array.size) return false;
-                if (!deepEqual(t1.data.array.type_.*, t2.data.array.type_.*, checkValued)) return false;
+                if (!deepEqual(t1.data.array.indexer.*, t2.data.array.indexer.*, checkValued)) return false;
                 if (!checkValued) return true;
 
                 for (t1.data.array.value, t2.data.array.value) |a, b| {
@@ -792,35 +1186,37 @@ pub const Type = struct {
             .decimal => initFloat(self.data.decimal.start, self.data.decimal.end, self.data.decimal.value),
             .boolean => initBool(self.data.boolean),
             .array => blk: {
-                var new_type = self;
-                new_type.data.array.type_ = try self.data.array.type_.deepCopy(alloc);
-                var new_values = try alloc.alloc(?Type, self.data.array.value.len);
+                var newType = self;
+                newType.data.array.indexer = try self.data.array.indexer.deepCopy(alloc);
+                errdefer newType.data.array.indexer.deinit(alloc);
+                var newValues = try alloc.alloc(?Type, self.data.array.value.len);
                 for (self.data.array.value, 0..) |value, i| {
-                    if (value == null) continue; 
+                    if (value == null) continue;
                     const res = try value.?.deepCopy(alloc);
-                    new_values[i] = res.*;
+                    newValues[i] = res.*;
                     alloc.destroy(res); // only the top
                 }
-                new_type.data.array.value = new_values;
-                break :blk new_type;
+                newType.data.array.value = newValues;
+                break :blk newType;
             },
             .aggregate => blk: {
-                var new_type = self;
-                const new_types = try alloc.alloc(Type, self.data.aggregate.types.len);
-                for (self.data.aggregate.types,0..) |value, i| {
+                var newType = self;
+                const newTypes = try alloc.alloc(Type, self.data.aggregate.types.len);
+                errdefer alloc.free(newTypes);
+                for (self.data.aggregate.types, 0..) |value, i| {
                     const res = try value.deepCopy(alloc);
-                    new_types[i] = res.*;
-                    alloc.destroy(res); 
+                    newTypes[i] = res.*;
+                    alloc.destroy(res);
                 }
-                new_type.data.aggregate.types = new_types;
-                break :blk new_type;
+                newType.data.aggregate.types = newTypes;
+                break :blk newType;
             },
             .function => blk: {
-                var new_type = self;
-                new_type.data.function.argument = try self.data.function.argument.deepCopy(alloc);
-                new_type.data.function.ret = try self.data.function.ret.deepCopy(alloc);
+                var newType = self;
+                newType.data.function.argument = try self.data.function.argument.deepCopy(alloc);
+                newType.data.function.ret = try self.data.function.ret.deepCopy(alloc);
 
-                break :blk new_type;
+                break :blk newType;
             },
             .casting => self,
         };
@@ -842,9 +1238,9 @@ pub const Type = struct {
                 return self;
             },
             .array => |v| {
-                const result = v.type_.instantiate(instances);
-                if (!result.deepEqual(v.type_.*, false))
-                    v.type_.* = result;
+                const result = v.indexer.instantiate(instances);
+                if (!result.deepEqual(v.indexer.*, false))
+                    v.indexer.* = result;
 
                 return self;
             },
@@ -864,33 +1260,29 @@ pub const Type = struct {
         };
     }
 
-    pub fn join(alloc: std.mem.Allocator, t1: Type, t2: Type) !struct { []const Substitution, Type} {
-        _ = alloc;
-
+    pub fn join(t1: Type, t2: Type) !struct { []const Substitution, Type } {
         if (t1.pointerIndex != t2.pointerIndex) return TypeError.DisjointTypes(t1, t2);
 
         return switch (t1.data) {
-            .boolean => .{ .{}, t1}, 
+            .boolean => .{ .{}, t1 },
             .integer => |v1| {
                 if (t2.data != .integer)
                     return TypeError.DisjointTypes;
-                
+
                 const v2 = t2.data.integer;
 
                 if (v1.value != null and v2.value != null and v1.value != v2.value)
                     return TypeError.UndefinedOperation;
-                
 
                 const result = initInt(@max(v1.start, v2.start), @min(v1.end, v2.end), if (v1.value != null) v1 else v2);
 
                 const rint = result.data.integer;
 
-                if (rint.start > result.data.integer.end) 
+                if (rint.start > result.data.integer.end)
                     return TypeError.UndefinedOperation;
-                
 
-                if (rint.value) |rv| 
-                    if (rint.start > rv or rv > rint.end) 
+                if (rint.value) |rv|
+                    if (rint.start > rv or rv > rint.end)
                         return TypeError.UndefinedOperation;
 
                 return .{ .{}, result };
@@ -898,26 +1290,25 @@ pub const Type = struct {
             .decimal => |v1| {
                 if (t2.data != .decimal)
                     return TypeError.UndefinedOperation;
-                
+
                 const v2 = t2.data.decimal;
 
                 if (v1.value != null and v2.value != null and v1.value != v2.value)
                     return TypeError.UndefinedOperation;
-                
 
                 const result = initFloat(@max(v1.start, v2.start), @min(v1.end, v2.end), if (v1.value != null) v1 else v2);
 
                 const rdec = result.data.decimal;
 
-                if (rdec.start > rdec.end) 
+                if (rdec.start > rdec.end)
                     return TypeError.UndefinedOperation;
-                
+
                 if (rdec.value) |rv|
-                    if (rdec.start > rv or rv > rdec.end) 
+                    if (rdec.start > rv or rv > rdec.end)
                         return TypeError.UndefinedOperation;
 
                 return .{ .{}, result };
-            }
+            },
         };
     }
 
@@ -933,7 +1324,7 @@ pub const Type = struct {
             },
             .array => {
                 if (t2.data.array.size != t1.data.array.size) return null;
-                return t1.data.array.type_.meet(alloc, t2.data.array.type_);
+                return t1.data.array.indexer.meet(alloc, t2.data.array.indexer);
             },
             .aggregate => {
                 if (t2.data.aggregate.types.len != t1.data.aggregate.types.len) return null;
@@ -941,20 +1332,19 @@ pub const Type = struct {
                 for (t1.data.aggregate.types, t2.data.aggregate.types) |a, b| {
                     const met = try a.meet(alloc, b);
                     if (met == null) return null;
-                    for (met) |m| 
+                    for (met) |m|
                         try list.append(m);
-                    
                 }
                 return list;
             },
             .function => {
-                const arg_meet = try t1.data.function.argument.meet(alloc, t2.data.function.argument);
-                const ret_meet = try t1.data.function.ret.meet(alloc, t2.data.function.ret);
-                if (arg_meet == null or ret_meet == null) return null;
+                const argMeet = try t1.data.function.argument.meet(alloc, t2.data.function.argument);
+                const retMeet = try t1.data.function.ret.meet(alloc, t2.data.function.ret);
+                if (argMeet == null or retMeet == null) return null;
                 var list = try std.ArrayList(struct { String, Type }).init(alloc);
                 list.extend();
-                for (arg_meet.?) |a| {
-                    for (ret_meet.?) |r| {
+                for (argMeet.?) |a| {
+                    for (retMeet.?) |r| {
                         try list.append(a);
                         try list.append(r);
                     }
@@ -976,19 +1366,73 @@ pub const Type = struct {
 
         return TypeError.UnknownParameter;
     }
-
-    pub fn isMeetable(self: Type, other: Type) bool {
-        _ = self;
-        _ = other;
-
-        // todo: fast meet check types
-        return true;
-    }
 };
 
+////////// Types test
+test "Type operations" {
+    const t1 = Type.initInt(2, 2, 2);
+    const t2 = Type.initInt(5, 5, 5);
+
+    const alloc = std.testing.allocator;
+
+    try expect((try Type.synthUnary(.Plus, t1)).deepEqual(t1, true));
+    try expect((try Type.synthUnary(.Min, t1)).deepEqual(Type.initInt(-2, -2, -2), true));
+    try expect((try Type.synthUnary(.Til, t1)).deepEqual(Type.initInt(-3, -3, -3), true));
+
+    try expect((try Type.binOperate(alloc, .Plus, t1, t2)).deepEqual(Type.initInt(7, 7, 7), true));
+    try expect((try Type.binOperate(alloc, .Min, t1, t2)).deepEqual(Type.initInt(-3, -3, -3), true));
+    try expect((try Type.binOperate(alloc, .Min, t2, t1)).deepEqual(Type.initInt(3, 3, 3), true));
+    try expect((try Type.binOperate(alloc, .Min, t2, t2)).deepEqual(Type.zeroInt, true));
+}
+
+test "type instancing" {
+    var b = Type{
+        .pointerIndex = 0,
+        .data = .{
+            .casting = .{ .name = "b" },
+        },
+    };
+
+    var a = Type{
+        .pointerIndex = 0,
+        .data = .{ .casting = .{ .name = "a" } },
+    };
+
+    const fab = Type{
+        .pointerIndex = 0,
+        .data = .{
+            .function = .{
+                .argument = &a,
+                .ret = &b,
+                .body = null,
+            },
+        },
+    };
+
+    const instance1 = [_]struct { String, u32, Type }{
+        .{ "a", 0, Type.initBool(true) },
+    };
+
+    const res1 = Type.instantiate(fab, &instance1);
+
+    var b1 = Type.initBool(true);
+
+    const exp1 = Type{
+        .pointerIndex = 0,
+        .data = .{
+            .function = .{
+                .argument = &b1,
+                .ret = &b,
+                .body = null,
+            },
+        },
+    };
+
+    try (expect(res1.deepEqual(exp1, true)));
+}
 
 ////////////////////////////////////////////////////////////////////////
-// Parser                                                             //
+// Parser - approx 800 lines                                          //
 ////////////////////////////////////////////////////////////////////////
 
 pub const Node = struct {
@@ -1006,13 +1450,85 @@ pub const Node = struct {
         ter: struct { cond: *Node, btrue: *Node, bfalse: *Node },
         call: struct { caller: *Node, callee: *Node },
         expr: struct { name: String, params: []*Node, ntype: ?*Node, expr: ?*Node },
-        mod: struct { path: String, pairs: std.StringHashMap(*Node), direction: bool },
+        mod: struct { path: String, nodes: []*Node, direction: bool },
         range: struct { start: *Node, end: *Node, epsilon: *Node },
         aggr: struct { name: String, children: []*Node },
         sum: []*Node,
-        intr: struct { intermediates: []*Node, application: *Node },
+        intr: struct { intermediates: []*Node, application: ?*Node },
     },
 
+    pub fn eql(self: Node, other: Node) bool {
+        if (std.meta.activeTag(self) != std.meta.activeTag(other))
+            return false;
+
+        const od = other.data;
+
+        switch (self.data) {
+            .none => true,
+            .int => |v| return v == od.int,
+            .dec => |v| return v == od.dec,
+            .str => |v| return std.mem.eql(u8, v, od.str),
+            .ref => |v| return std.mem.eql(u8, v, od.ref),
+            .unr => |v| return v.op == od.unr.op and v.val.eql(od.unr.val),
+            .bin => |v| return v.op == od.bin.op and v.lhs.eql(od.bin.lhs) and v.rhs.eql(od.bin.rhs),
+            .ter => |v| return v.cond.eql(od.ter.cond) and v.btrue.eql(od.ter.btrue) and v.bfalse.eql(od.ter.bfalse),
+            .call => |v| return v.caller.eql(od.call.caller) and v.callee.eql(od.call.callee),
+            .expr => |v| {
+                if (!std.mem.eql(u8, v.name, od.expr.name)) return false;
+
+                if (v.params.len != od.expr.params.len) return false;
+
+                for (v.params, od.expr.params) |p1, p2|
+                    if (!p1.eql(p2))
+                        return false;
+
+                if ((v.ntype == null) != (od.expr.ntype == null) or (v.expr == null) != (od.expr.expr == null))
+                    return false;
+
+                return (if (v.ntype) |a| a.eql(od.expr.ntype.?) else true) and
+                    (if (v.expr) |a| a.eql(od.expr.expr.?) else true);
+            },
+            .mod => |v| {
+                if (!std.mem.eql(u8, v.path, od.mod.path) or v.direction != od.mod.direction or v.nodes.len != od.mod.nodes.len)
+                    return false;
+                for (v.nodes, od.mod.nodes) |n1, n2|
+                    if (!n1.eql(n2))
+                        return false;
+                return true;
+            },
+            .range => |v| return v.start.eql(od.range.start) and v.end.eql(od.range.end) and v.epsilon.eql(od.range.epsilon),
+            .aggr => |v| {
+                if (!std.mem.eql(v.name, od.aggr.name) or v.children.len != od.aggr.children.len)
+                    return false;
+
+                for (v.children, od.aggr.children) |c1, c2|
+                    if (!c1.eql(c2))
+                        return false;
+
+                return true;
+            },
+            .sum => |v| {
+                if (v.len != od.sum.len)
+                    return false;
+
+                for (v, od.sum) |v1, v2|
+                    if (!v1.eql(v2))
+                        return false;
+
+                return true;
+            },
+            .intr => |v| {
+                if ((v.application == null) != (od.intr.application == null) or v.intermediates.len != od.intr.intermediates.len)
+                    return false;
+                for (v.intermediates, od.intr.intermediates) |it1, it2|
+                    if (!it1.eql(it2))
+                        return false;
+                return true;
+            },
+        }
+    }
+
+    
     pub fn deinit(self: *Node, alloc: std.mem.Allocator) void {
         if (self.ntype) |ntype| {
             ntype.deinit(alloc);
@@ -1041,7 +1557,9 @@ pub const Node = struct {
                 v.callee.deinit(alloc);
             },
             .expr => |v| {
-                for (v.params) |param| param.deinit(alloc);
+                for (v.params) |param| {
+                    param.deinit(alloc);
+                }
                 alloc.free(v.params);
 
                 if (v.ntype) |nt| nt.deinit(alloc);
@@ -1049,11 +1567,10 @@ pub const Node = struct {
                 if (v.expr) |expr| expr.deinit(alloc);
             },
             .mod => |v| {
-                var it = v.pairs.iterator();
-                while (it.next()) |pair| 
-                    pair.value_ptr.*.deinit(alloc);
-
-                @constCast(&v.pairs).*.deinit();
+                for (v.nodes) |node| {
+                    node.deinit(alloc);
+                    alloc.destroy(node);
+                }
             },
             .range => |v| {
                 v.start.deinit(alloc);
@@ -1069,10 +1586,13 @@ pub const Node = struct {
                 for (v) |child| child.deinit(alloc);
             },
             .intr => |v| {
-                for (v.intermediates) |inter|
+                for (v.intermediates) |inter| {
                     inter.deinit(alloc);
+                    alloc.destroy(inter);
+                }
                 alloc.free(v.intermediates);
-                v.application.deinit(alloc);
+                if (v.application) |app|
+                    app.deinit(alloc);
             },
         }
 
@@ -1086,7 +1606,7 @@ const ParserOnlyError = error{
     UnclosedParen,
     UnexpectedToken,
     UnexpectedStartOfDeclaration,
-    unexpected_eof,
+    unexpectedEof,
     UnexpectedColon,
     overflow,
     underflow,
@@ -1098,16 +1618,18 @@ pub const Parser = struct {
     code: String,
     pos: Pos = Pos{},
     alloc: std.mem.Allocator,
+    errctx: ErrorContext,
     lexer: Lexer,
+    inModule: bool = false,
 
-    fn new_position(start: Pos, end: Pos) Pos {
+    fn newPosition(start: Pos, end: Pos) Pos {
         return .{
             .index = start.index,
             .span = end.index - start.index + end.span,
         };
     }
 
-    fn create_int_node(self: Parser, position: Pos, value: i64) !*Node {
+    fn createIntNode(self: Parser, position: Pos, value: i64) !*Node {
         const node = try self.alloc.create(Node);
         node.* = Node{
             .position = position,
@@ -1116,7 +1638,7 @@ pub const Parser = struct {
         return node;
     }
 
-    fn create_dec_node(self: Parser, position: Pos, value: f64) !*Node {
+    fn createDecNode(self: Parser, position: Pos, value: f64) !*Node {
         const node = try self.alloc.create(Node);
         node.* = Node{
             .position = position,
@@ -1125,7 +1647,7 @@ pub const Parser = struct {
         return node;
     }
 
-    fn create_str_node(self: Parser, position: Pos, value: String) !*Node {
+    fn createStrNode(self: Parser, position: Pos, value: String) !*Node {
         const node = try self.alloc.create(Node);
         node.* = Node{
             .position = position,
@@ -1134,7 +1656,7 @@ pub const Parser = struct {
         return node;
     }
 
-    fn create_ref_node(self: Parser, position: Pos, value: String) !*Node {
+    fn createRefNode(self: Parser, position: Pos, value: String) !*Node {
         const node = try self.alloc.create(Node);
         node.* = Node{
             .position = position,
@@ -1143,7 +1665,7 @@ pub const Parser = struct {
         return node;
     }
 
-    fn create_unr_node(self: Parser, position: Pos, operator: Tokens, value: *Node) !*Node {
+    fn createUnrNode(self: Parser, position: Pos, operator: Tokens, value: *Node) !*Node {
         const node = try self.alloc.create(Node);
         node.* = Node{
             .position = position,
@@ -1152,7 +1674,7 @@ pub const Parser = struct {
         return node;
     }
 
-    fn create_bin_node(self: Parser, position: Pos, operator: Tokens, lhs: *Node, rhs: *Node) !*Node {
+    fn createBinNode(self: Parser, position: Pos, operator: Tokens, lhs: *Node, rhs: *Node) !*Node {
         const node = try self.alloc.create(Node);
         node.* = Node{
             .position = position,
@@ -1161,7 +1683,7 @@ pub const Parser = struct {
         return node;
     }
 
-    fn create_call_node(self: Parser, position: Pos, caller: *Node, callee: *Node) !*Node {
+    fn createCallNode(self: Parser, position: Pos, caller: *Node, callee: *Node) !*Node {
         const node = try self.alloc.create(Node);
         node.* = Node{
             .position = position,
@@ -1170,320 +1692,300 @@ pub const Parser = struct {
         return node;
     }
 
-    fn create_expr_node(self: Parser, position: Pos, name: String, params: []*Node, type_: ?*Node, expr: ?*Node) !*Node {
+    pub fn createExprNode(self: Parser, position: Pos, name: String, params: []*Node, exprType: ?*Node, expr: ?*Node) !*Node {
         const node = try self.alloc.create(Node);
         node.* = Node{
             .position = position,
-            .data = .{ .expr = .{ .name = name, .params = params, .ntype = type_, .expr = expr } },
+            .data = .{ .expr = .{ .name = name, .params = params, .ntype = exprType, .expr = expr } },
         };
         return node;
     }
 
-    fn get_precedence(tid: Tokens) i32 {
+    fn getPrecedence(tid: Tokens) i32 {
         return switch (tid) {
-            .Tor, .Tand => 1,
-            .Tcequ, .Tcneq, .Tclt, .Tcle, .Tcgt, .Tcge => 2,
-            .Tplus, .Tmin => 3,
-            .Tstar, .Tbar, .Tper => 4,
-            .Tlsh, .Trsh => 5,
-            .Tpipe, .That, .Tamp => 6,
-            .Thash, .Tdot => 7,
+            .Or, .And => 1,
+            .Cequ, .Cneq, .Clt, .Cle, .Cgt, .Cge => 2,
+            .Plus, .Min => 3,
+            .Star, .Bar, .Per => 4,
+            .Lsh, .Rsh => 5,
+            .Pipe, .Hat, .Amp => 6,
+            .Hash, .Dot => 7,
             else => -1,
         };
     }
 
-    const IntrFlags = enum { no_app, normal, skip_lcur };
+    fn generateUnexpected(self: *Parser, expected: Tokens, got: Token) ParserError!void {
+        self.errctx = ErrorContext{
+            .value = .{
+                .UnexpectedToken = .{
+                    .expected = expected,
+                    .token = got,
+                },
+            },
+            .position = got.pos,
+        };
+        return ParserError.UnexpectedToken;
+    }
 
-    fn parse_intr(self: *Parser, flags: IntrFlags) ParserError!*Node {
+    const IntrFlags = enum { noApp, normal, skipLcur };
+
+    fn parseIntr(self: *Parser, flags: IntrFlags) ParserError!*Node {
         const open = try self.lexer.consume();
         const start = open.pos;
-        
+
         var intermediates: [16]*Node = undefined;
         var idx: usize = 0;
+        errdefer for (0..idx) |i| {
+            intermediates[i].deinit(self.alloc);
+        };
 
         const lcur = try self.lexer.consume();
-        if (flags != .skip_lcur and lcur.notId(.Tlcur)){
-            return ParserError.UnexpectedToken;
-        }
+        if (flags != .skipLcur and lcur.tid != .Lcur)
+            try self.generateUnexpected(.Lcur, lcur);
 
-        while (!(try self.lexer.consume()).sameId(Tokens.Trcur) and idx < 16) : (idx += 1) {
-            intermediates[idx] = try parse_statement(self);
+        self.lexer = self.lexer.catchUp(lcur);
+
+        while ((try self.lexer.consume()).tid != .Rcur and idx < 16) : (idx += 1) {
+            intermediates[idx] = try parseStatement(self);
+
             const semi = try self.lexer.consume();
-            if (semi.notId(Tokens.Tsemi))
-                return ParserError.UnexpectedToken;
-            self.lexer = self.lexer.catch_up(semi);
+            if (semi.tid != .Semi)
+                try self.generateUnexpected(.Semi, semi);
+            self.lexer = self.lexer.catchUp(semi);
         }
 
         const rcur = try self.lexer.consume();
 
-        if (rcur.notId(Tokens.Trcur))
-            return ParserError.UnexpectedToken;
+        if (rcur.tid != .Rcur)
+            try self.generateUnexpected(.Rcur, rcur);
 
-        self.lexer = self.lexer.catch_up(rcur);
+        self.lexer = self.lexer.catchUp(rcur);
 
         // we use less memory if we reallocate for every idx < 15
-        const actual_imm = try self.alloc.alloc(*Node, idx);
+        const actualImm = try self.alloc.alloc(*Node, idx);
 
         for (0..idx) |i|
-            actual_imm[i] = intermediates[i];
-        
+            actualImm[i] = intermediates[i];
 
-        if (flags == IntrFlags.no_app) {
+        if (flags == IntrFlags.noApp or self.inModule) {
             const node = try self.alloc.create(Node);
-            node.* = Node{ 
-                .position = new_position(start, rcur.pos),
-                .data = .{ 
-                    .intr = .{ 
-                        .intermediates = actual_imm,
-                        .application = undefined
-                    }
-                }
-            };
+            node.* = Node{ .position = newPosition(start, rcur.pos), .data = .{ .intr = .{ .intermediates = actualImm, .application = null } } };
 
             return node;
         }
 
-        const application = try self.parse_primary();
+        const application = try self.parsePrimary();
+        errdefer application.deinit(self.alloc);
 
         const node = try self.alloc.create(Node);
         node.* = Node{
-            .position = new_position(start, application.position),
+            .position = newPosition(start, application.position),
             .data = .{ .intr = .{
-                .intermediates = actual_imm,
+                .intermediates = actualImm,
                 .application = application,
             } },
         };
         return node;
     }
 
-    fn parse_module(self: *Parser) ParserError!*Node {
+    fn parseModule(self: *Parser) ParserError!*Node {
         const module = try self.lexer.consume();
         const start = module.pos;
 
-        self.lexer = self.lexer.catch_up(module);
+        self.lexer = self.lexer.catchUp(module);
 
         const direction = try self.lexer.consume();
 
-        if (direction.tid != Tokens.Tlsh and direction.tid != Tokens.Trsh)
-            return ParserError.UnexpectedToken;
+        if (direction.tid != .Rsh and direction.tid != .Lsh) {
+            try self.generateUnexpected(.Rsh, direction);
+        }
 
-        self.lexer = self.lexer.catch_up(direction);
+        self.lexer = self.lexer.catchUp(direction);
 
         const name = try self.lexer.consume();
 
-        if (name.tid != Tokens.Tstr)
-            return ParserError.UnexpectedToken;
-
-        self.lexer = self.lexer.catch_up(name);
-
-        const lcur = try self.lexer.consume();
-        if (lcur.tid != Tokens.Tlcur)
-            return ParserError.UnexpectedToken;
-
-        self.lexer = self.lexer.catch_up(lcur);
-
-        var pairs = std.StringHashMap(*Node).init(self.alloc);
-        errdefer pairs.deinit();
-
-        var open = try self.lexer.consume();
-        while (open.notId(Tokens.Trcur)) : (open = try self.lexer.consume()) {
-            const key = try self.lexer.consume();
-            if (key.tid != Tokens.Tstr and key.tid != Tokens.Tref)
-                return ParserError.UnexpectedToken;
-
-            self.lexer = self.lexer.catch_up(key);
-
-            const colon = try self.lexer.consume();
-            if (colon.tid != Tokens.Tcln)
-                return ParserError.UnexpectedToken;
-
-            self.lexer = self.lexer.catch_up(colon);
-
-            const value = try self.parse_expr();
-            errdefer value.deinit(self.alloc);
-
-            try pairs.put(key.val.str, value);
-
-            const semi = try self.lexer.consume();
-            if (semi.tid != Tokens.Trcur and semi.tid != Tokens.Tsemi)
-                return ParserError.UnexpectedToken;
-
-            self.lexer = self.lexer.catch_up(semi);
+        if (name.tid != .Str) {
+            try self.generateUnexpected(.Str, name);
         }
 
-        if (open.tid != Tokens.Trcur)
-            return ParserError.UnexpectedToken;
+        self.lexer = self.lexer.catchUp(name);
+        self.inModule = true;
 
-        self.lexer = self.lexer.catch_up(open);
+        const content = try self.parseIntr(.noApp);
+        errdefer content.deinit(self.alloc);
+
+        self.inModule = false;
 
         const node = try self.alloc.create(Node);
         node.* = Node{
-            .position = new_position(start, open.pos),
+            .position = newPosition(start, content.position),
             .data = .{
                 .mod = .{
                     .path = name.val.str,
-                    .pairs = pairs,
-                    .direction = direction.tid == Tokens.Tlsh,
+                    .nodes = content.data.intr.intermediates,
+                    .direction = direction.tid == .Lsh,
                 },
             },
         };
         return node;
     }
 
-    fn parse_primary(self: *Parser) ParserError!*Node {
+    fn parsePrimary(self: *Parser) ParserError!*Node {
         const token = try self.lexer.consume();
-        self.lexer = self.lexer.catch_up(token);
+        self.lexer = self.lexer.catchUp(token);
         return switch (token.tid) {
-            Tokens.Tint => try self.create_int_node(token.pos, token.val.int),
-            Tokens.Tdec => try self.create_dec_node(token.pos, token.val.dec),
-            Tokens.Tstr => try self.create_str_node(token.pos, token.val.str),
-            Tokens.Tref => try self.create_ref_node(token.pos, token.val.str),
-            Tokens.Tlpar => {
-                const expr = try self.parse_expr();
+            .Int => try self.createIntNode(token.pos, token.val.int),
+            .Dec => try self.createDecNode(token.pos, token.val.dec),
+            .Str => try self.createStrNode(token.pos, token.val.str),
+            .Ref => try self.createRefNode(token.pos, token.val.str),
+            .Lpar => {
+                const expr = try self.parseExpr();
                 errdefer expr.deinit(self.alloc);
 
                 const rpar = try self.lexer.consume();
-                if (rpar.tid != Tokens.Trpar)
+                if (rpar.tid != .Rpar)
                     return ParserError.UnclosedParen;
 
-                self.lexer = self.lexer.catch_up(rpar);
-                expr.position = new_position(token.pos, rpar.pos);
+                self.lexer = self.lexer.catchUp(rpar);
+                expr.position = newPosition(token.pos, rpar.pos);
                 return expr;
             },
-            Tokens.Tlcur => try self.parse_intr(IntrFlags.skip_lcur),
+            .Lcur => try self.parseIntr(IntrFlags.skipLcur),
             else => {
                 self.pos = token.pos;
-                return ParserError.UnexpectedToken;
+                try self.generateUnexpected(.Lpar, token);
+                unreachable;
             },
         };
     }
 
-    fn is_atomic(tid: Tokens) bool {
+    fn isAtomic(tid: Tokens) bool {
         return switch (tid) {
-            .Tint, .Tdec, .Tref, .Tstr, .Tlpar => true,
+            .Int, .Dec, .Ref, .Str, .Lpar => true,
             else => false,
         };
     }
 
-    fn parse_call(self: *Parser) ParserError!*Node {
-        var caller = try self.parse_primary();
+    fn parseCall(self: *Parser) ParserError!*Node {
+        var caller = try self.parsePrimary();
         errdefer caller.deinit(self.alloc);
 
         while (true) {
             const token = try self.lexer.consume();
-            if (!is_atomic(token.tid) or token.tid == Tokens.Tsemi) 
+            if (!isAtomic(token.tid) or token.tid == .Semi)
                 return caller;
 
-            const callee = try self.parse_primary();
+            const callee = try self.parsePrimary();
             errdefer callee.deinit(self.alloc);
 
-            caller = try self.create_call_node(token.pos, caller, callee);
+            caller = try self.createCallNode(token.pos, caller, callee);
             errdefer caller.deinit(self.alloc);
         }
     }
 
-    fn parse_unary(self: *Parser) ParserError!*Node {
+    fn parseUnary(self: *Parser) ParserError!*Node {
         const token = try self.lexer.consume();
         switch (token.tid) {
-            Tokens.Tmin, Tokens.Tplus, Tokens.Ttil, Tokens.Tbang, Tokens.Tstar, Tokens.Tamp => {},
-            else => return self.parse_call(),
+            .Min, .Plus, .Til, .Bang, .Star, .Amp => {},
+            else => return self.parseCall(),
         }
 
-        self.lexer = self.lexer.catch_up(token);
-        const operand = try self.parse_unary();
+        self.lexer = self.lexer.catchUp(token);
+        const operand = try self.parseUnary();
+        errdefer operand.deinit(self.alloc);
 
-        return try self.create_unr_node(token.pos, token.tid, operand);
+        return self.createUnrNode(token.pos, token.tid, operand);
     }
 
-    fn parse_binary(self: *Parser, precedence: i32) ParserError!*Node {
-        var left = try self.parse_unary();
+    fn parseBinary(self: *Parser, precedence: i32) ParserError!*Node {
+        var left = try self.parseUnary();
         errdefer left.deinit(self.alloc);
 
         while (true) {
             const token = try self.lexer.consume();
-            const token_precedence = get_precedence(token.tid);
-            if (token_precedence < precedence) 
+            const tokenPrecedence = getPrecedence(token.tid);
+            if (tokenPrecedence < precedence)
                 return left;
 
-            self.lexer = self.lexer.catch_up(token);
-            const right = try self.parse_binary(token_precedence + 1);
+            self.lexer = self.lexer.catchUp(token);
+            const right = try self.parseBinary(tokenPrecedence + 1);
             errdefer right.deinit(self.alloc);
 
-            left = try self.create_bin_node(token.pos, token.tid, left, right);
+            left = try self.createBinNode(token.pos, token.tid, left, right);
             errdefer left.deinit(self.alloc);
         }
     }
 
-    fn parse_ternary(self: *Parser) ParserError!*Node {
-        const condition = try self.parse_binary(1);
+    fn parseTernary(self: *Parser) ParserError!*Node {
+        const condition = try self.parseBinary(1);
         errdefer condition.deinit(self.alloc);
 
         const question = try self.lexer.consume();
-        if (question.tid != Tokens.Tques) return condition;
-        
-        self.lexer = self.lexer.catch_up(question);
+        if (question.tid != .Ques) return condition;
 
-        const then_expr = try self.parse_binary(1);
-        errdefer then_expr.deinit(self.alloc);
+        self.lexer = self.lexer.catchUp(question);
+
+        const thenExpr = try self.parseBinary(1);
+        errdefer thenExpr.deinit(self.alloc);
 
         const colon = try self.lexer.consume();
-        if (colon.tid != Tokens.Tcln) 
+        if (colon.tid != .Cln)
             return ParserError.UnexpectedColon;
-        
-        self.lexer = self.lexer.catch_up(colon);
 
-        const else_expr = try self.parse_ternary();
-        errdefer else_expr.deinit(self.alloc);
+        self.lexer = self.lexer.catchUp(colon);
+
+        const elseExpr = try self.parseTernary();
+        errdefer elseExpr.deinit(self.alloc);
 
         const ternary = try self.alloc.create(Node);
         ternary.* = Node{
-            .position = new_position(condition.position, else_expr.position),
+            .position = newPosition(condition.position, elseExpr.position),
             .data = .{
                 .ter = .{
                     .cond = condition,
-                    .btrue = then_expr,
-                    .bfalse = else_expr,
+                    .btrue = thenExpr,
+                    .bfalse = elseExpr,
                 },
             },
         };
         return ternary;
     }
 
-    fn parse_expr(self: *Parser) ParserError!*Node {
-        return self.parse_ternary();
+    fn parseExpr(self: *Parser) ParserError!*Node {
+        return self.parseTernary();
     }
 
-    fn parse_range(self: *Parser) ParserError!*Node {
+    fn parseRange(self: *Parser) ParserError!*Node {
         const lsq = try self.lexer.consume();
-        if (lsq.tid != Tokens.Tlsqb) return ParserError.UnexpectedToken;
+        if (lsq.tid != .Lsqb) try self.generateUnexpected(.Lsqb, lsq);
 
-        self.lexer = self.lexer.catch_up(lsq);
-        const start = try self.parse_expr();
+        self.lexer = self.lexer.catchUp(lsq);
+        const start = try self.parseExpr();
         errdefer start.deinit(self.alloc);
 
         const semi = try self.lexer.consume();
-        if (semi.tid != Tokens.Tsemi) return ParserError.UnexpectedToken;
+        if (semi.tid != .Semi) try self.generateUnexpected(.Semi, semi);
 
-        self.lexer = self.lexer.catch_up(semi);
-        const end = try self.parse_expr();
+        self.lexer = self.lexer.catchUp(semi);
+        const end = try self.parseExpr();
         errdefer end.deinit(self.alloc);
 
         const semi2 = try self.lexer.consume();
-        if (semi2.tid != Tokens.Tsemi) return ParserError.UnexpectedToken;
+        if (semi2.tid != .Semi) try self.generateUnexpected(.Semi, semi2);
 
-        self.lexer = self.lexer.catch_up(semi2);
-        const epsilon = try self.parse_expr();
+        self.lexer = self.lexer.catchUp(semi2);
+        const epsilon = try self.parseExpr();
         errdefer epsilon.deinit(self.alloc);
-        
+
         const rsq = try self.lexer.consume();
 
-        if (rsq.tid != Tokens.Trsqb) return ParserError.UnexpectedToken;
+        if (rsq.tid != .Rsqb) try self.generateUnexpected(.Rsqb, rsq);
 
-        self.lexer = self.lexer.catch_up(rsq);
+        self.lexer = self.lexer.catchUp(rsq);
 
         const range = try self.alloc.create(Node);
         range.* = Node{
-            .position = new_position(lsq.pos, rsq.pos),
+            .position = newPosition(lsq.pos, rsq.pos),
             .data = .{
                 .range = .{
                     .start = start,
@@ -1495,53 +1997,52 @@ pub const Parser = struct {
         return range;
     }
 
-    fn parse_tprimary(self: *Parser) ParserError!*Node {
+    fn parseTPrimary(self: *Parser) ParserError!*Node {
         const tok = try self.lexer.consume();
         return switch (tok.tid) {
-            Tokens.Tlsqb => self.parse_range(),
-            Tokens.Tref => self.parse_prod(),
-            Tokens.Tstar => |v| {
-                self.lexer = self.lexer.catch_up(tok);
-                const val = try self.parse_tprimary();
+            .Lsqb => self.parseRange(),
+            .Ref => self.parseProd(),
+            .Star => |v| {
+                self.lexer = self.lexer.catchUp(tok);
+                const val = try self.parseTPrimary();
                 const ptr = try self.alloc.create(Node);
                 errdefer self.alloc.destroy(ptr);
-                ptr.* = Node{ .position = new_position(tok.pos, val.position), .data = .{ .unr = .{ .op = v, .val = ptr } } };
+                ptr.* = Node{ .position = newPosition(tok.pos, val.position), .data = .{ .unr = .{ .op = v, .val = ptr } } };
                 return ptr;
             },
-
             else => ParserError.MalformedToken,
         };
     }
 
-    fn get_tprecedence(tok: Tokens) i3 {
+    fn getTypePrecedence(tok: Tokens) i3 {
         return switch (tok) {
-            Tokens.Tarrow => 1,
-            Tokens.Thash => 2,
+            .Arrow => 1,
+            .Hash => 2,
             else => -1,
         };
     }
 
-    fn parse_tbinary(self: *Parser, prec: i3) ParserError!*Node {
-        var left = try self.parse_tprimary();
+    fn parseTBinary(self: *Parser, prec: i3) ParserError!*Node {
+        var left = try self.parseTPrimary();
         errdefer left.deinit(self.alloc);
 
         while (true) {
             const token = try self.lexer.consume();
-            const token_precedence = get_tprecedence(token.tid);
-            if (token_precedence < prec) 
-                return left;            
+            const tokenPrecedence = getTypePrecedence(token.tid);
+            if (tokenPrecedence < prec)
+                return left;
 
-            self.lexer = self.lexer.catch_up(token);
-            const right = try self.parse_tbinary(token_precedence + 1);
+            self.lexer = self.lexer.catchUp(token);
+            const right = try self.parseTBinary(tokenPrecedence + 1);
             errdefer right.deinit(self.alloc);
 
-            left = try self.create_bin_node(token.pos, token.tid, left, right);
+            left = try self.createBinNode(token.pos, token.tid, left, right);
             errdefer left.deinit(self.alloc);
         }
     }
 
-    fn parse_sum(self: *Parser) ParserError!*Node {
-        const member = try self.parse_tbinary(1);
+    fn parseSum(self: *Parser) ParserError!*Node {
+        const member = try self.parseTBinary(1);
         errdefer member.deinit(self.alloc);
 
         var array = std.ArrayList(*Node).init(self.alloc);
@@ -1555,11 +2056,11 @@ pub const Parser = struct {
 
         while (true) {
             const token = try self.lexer.consume();
-            if (token.notId(Tokens.Tbar))
+            if (token.tid != .Bar)
                 break;
 
-            self.lexer = self.lexer.catch_up(token);
-            try array.append(try self.parse_tbinary(0));
+            self.lexer = self.lexer.catchUp(token);
+            try array.append(try self.parseTBinary(0));
         }
 
         if (array.items.len == 1) {
@@ -1570,106 +2071,101 @@ pub const Parser = struct {
         const sum = try self.alloc.create(Node);
         sum.* = .{
             .data = .{ .sum = array.items },
-            .position = new_position(member.position, array.getLast().position),
+            .position = newPosition(member.position, array.getLast().position),
         };
 
         return sum;
     }
 
-    fn parse_prod(self: *Parser) ParserError!*Node {
+    fn parseProd(self: *Parser) ParserError!*Node {
         const ctor = try self.lexer.consume();
         const start = ctor.pos;
-        if (ctor.tid != Tokens.Tref) return ParserError.UnexpectedToken;
+        if (ctor.tid != .Ref) try self.generateUnexpected(.Ref, ctor);
 
-        self.lexer = self.lexer.catch_up(ctor);
+        self.lexer = self.lexer.catchUp(ctor);
 
         const open = try self.lexer.consume();
-        if (open.tid != Tokens.Tlcur)
-            return try self.create_ref_node(ctor.pos, ctor.val.str);
+        if (open.tid != .Lcur)
+            return self.createRefNode(ctor.pos, ctor.val.str);
 
-        self.lexer = self.lexer.catch_up(open);
+        self.lexer = self.lexer.catchUp(open);
 
         var array = std.ArrayList(*Node).init(self.alloc);
 
         var closed = try self.lexer.consume();
-        while (closed.notId(Tokens.Trcur)) {
-            try array.append(try self.parse_type());
+        while (closed.tid != .Rcur) : (closed = try self.lexer.consume()) {
+            try array.append(try self.parseType());
         }
 
-        self.lexer = self.lexer.catch_up(closed);
+        self.lexer = self.lexer.catchUp(closed);
         const prod = try self.alloc.create(Node);
-        prod.* = Node{ .position = new_position(start, closed.pos), .data = .{ .aggr = .{ .name = ctor.val.str, .children = array.items } } };
+        prod.* = Node{ .position = newPosition(start, closed.pos), .data = .{ .aggr = .{ .name = ctor.val.str, .children = array.items } } };
 
         return prod;
     }
 
-    fn parse_type(self: *Parser) ParserError!*Node {
-        return parse_sum(self);
+    fn parseType(self: *Parser) ParserError!*Node {
+        return parseSum(self);
     }
 
-    fn parse_statement(self: *Parser) !*Node {
+    fn parseStatement(self: *Parser) !*Node {
         const name = try self.lexer.consume();
-        if (name.tid != Tokens.Tref) {
-            self.pos = name.pos;
-            return ParserError.UnexpectedStartOfDeclaration;
-        }
-
         const start = name.pos;
-        self.lexer = self.lexer.catch_up(name);
+        self.lexer = self.lexer.catchUp(name);
 
         var params: [8]*Node = undefined;
         var pidx: usize = 0;
-        while (is_atomic((try self.lexer.consume()).tid) or (try self.lexer.consume()).sameId(Tokens.Tlpar)) : (pidx += 1) {
-            params[pidx] = try parse_primary(self);
+
+        errdefer for (0..pidx) |i| {
+            params[i].deinit(self.alloc);
+        };
+
+        while (isAtomic((try self.lexer.consume()).tid) or (try self.lexer.consume()).tid == .Lpar) : (pidx += 1) {
+            params[pidx] = try parsePrimary(self);
         }
 
-        var type_: ?*Node = null;
+        var exprType: ?*Node = null;
         var expr: ?*Node = null;
         const colon = try self.lexer.consume();
-        if (colon.tid == Tokens.Tcln) {
-            self.lexer = self.lexer.catch_up(colon);
-            type_ = try self.parse_type();
+        if (colon.tid == .Cln) {
+            self.lexer = self.lexer.catchUp(colon);
+            exprType = try self.parseType();
         }
 
         const equal = try self.lexer.consume();
-        if (equal.tid == Tokens.Tequ) {
-            self.lexer = self.lexer.catch_up(equal);
-            expr = try self.parse_expr();
+        if (equal.tid == .Equ) {
+            self.lexer = self.lexer.catchUp(equal);
+            expr = try self.parseExpr();
         }
 
-        if (type_ == null and expr == null) 
+        if (exprType == null and expr == null)
             return ParserError.MalformedToken;
 
-        const end_pos = (expr orelse type_).?.position;
+        const endPos = (expr orelse exprType).?.position;
 
-        const pos = new_position(start, end_pos);
-        const act_params = try self.alloc.alloc(*Node, pidx);
-        errdefer {
-            for (params[0..pidx]) |param|
-                param.deinit(self.alloc);
-            self.alloc.free(act_params);
-        }
+        const pos = newPosition(start, endPos);
+        const actParams = try self.alloc.alloc(*Node, pidx);
+        errdefer self.alloc.free(actParams);
 
-        @memcpy(act_params, params[0..pidx]);
-
-        return try self.create_expr_node(pos, name.val.str, act_params, type_, expr);
+        @memcpy(actParams, params[0..pidx]);
+        return self.createExprNode(pos, name.val.str, actParams, exprType, expr);
     }
 
-    pub fn parse_node(self: *Parser) ParserError!*Node {
+    pub fn parseNode(self: *Parser) ParserError!*Node {
         const token = try self.lexer.consume();
-
-        return switch (token.tid) {
-            .Tmod => self.parse_module(),
-            .Tref => self.parse_statement(),
+        switch (token.tid) {
+            .Mod => return self.parseModule(),
+            .Ref => return self.parseStatement(),
             else => {
                 self.pos = token.pos;
                 return error.UnexpectedStartOfDeclaration;
             },
-        };
+        }
     }
 
     pub fn init(code: String, alloc: std.mem.Allocator) Parser {
         return Parser{
+            .errctx = .{ .value = .NoContext },
             .code = code,
             .alloc = alloc,
             .lexer = Lexer.init(code),
@@ -1678,10 +2174,26 @@ pub const Parser = struct {
 };
 
 ////////////////////////////////////////////////////////////////////////
-// Semantic Analyzer                                                  //
+// Semantic Analyzer - approx 600 lines                               //
 ////////////////////////////////////////////////////////////////////////
 
-const AnalyzerOnlyError = error{ UndefinedReference, NonBooleanDecision, RequiresValue, TypeMismatch, ImpossibleUnification };
+/// Possible errors thrown by the analyzer only
+pub const AnalyzerOnlyError = error{
+    /// This reference could not be found
+    UndefinedReference,
+
+    /// A ternary operator took a decision that is not a boolean
+    NonBooleanDecision,
+
+    /// Found type needs to have a compile time value
+    RequiresValue,
+
+    /// Two types could not be matched
+    TypeMismatch,
+
+    /// The compiler could not find any way to join two types together
+    ImpossibleUnification,
+};
 
 pub const AnalyzerError = ParserError || TypeError || AnalyzerOnlyError;
 
@@ -1692,87 +2204,72 @@ pub fn Context(comptime T: type) type {
         parent: ?*ctxt = null,
         alloc: std.mem.Allocator,
         members: std.StringHashMap(T),
-        children: std.StringHashMap(*ctxt),
+        children: std.StringHashMap(ctxt),
 
-
-        pub fn init(alloc: std.mem.Allocator) !*ctxt {
-            const ctx = try alloc.create(ctxt);
-            ctx.* = .{
-                .parent = null,
+        pub fn init(alloc: std.mem.Allocator) ctxt {
+            return ctxt{
                 .alloc = alloc,
                 .members = std.StringHashMap(T).init(alloc),
-                .children = std.StringHashMap(*ctxt).init(alloc),
+                .children = std.StringHashMap(ctxt).init(alloc),
             };
-            return ctx;
         }
 
         pub fn initTree(alloc: std.mem.Allocator, path: String) !*ctxt {
-            const ctx = try ctxt.init(alloc);
+            const ctx = ctxt.init(alloc);
             const parts = std.mem.split(u8, path, "/");
-            var current_ctx = ctx;
+            var currentCtx = ctx;
 
             while (parts.next()) |part| {
-                var sub_ctx = current_ctx.children.get(part);
-                if (sub_ctx == null) {
-                    sub_ctx = try ctxt.init(alloc);
-                    sub_ctx.parent = current_ctx.?;
-                    try current_ctx.children.put(part, sub_ctx);
+                var subCtx = currentCtx.children.get(part);
+                if (subCtx == null) {
+                    subCtx = ctxt.init(alloc);
+                    subCtx.parent = currentCtx.?;
+                    try currentCtx.children.put(part, subCtx);
                 }
-                current_ctx = sub_ctx.?;
+                currentCtx = subCtx.?;
             }
 
             return ctx;
         }
 
-        pub fn getTree(self: *ctxt, path: String, name: String) ?T {
+        pub fn getTree(self: ctxt, path: String, name: String) ?T {
             var parts = std.mem.split(u8, path, "/");
-            var current_ctx = self;
+            var currentCtx = self;
 
             while (parts.next()) |part| {
-                const sub_ctx = current_ctx.children.get(part);
-                if (sub_ctx == null) {
-                    return null;
-                }
-                current_ctx = sub_ctx.?;
+                const subCtx = currentCtx.children.get(part);
+                if (subCtx == null) return null;
+                currentCtx = subCtx.?;
             }
 
-            return current_ctx.get(name);
+            return currentCtx.get(name);
         }
 
         pub fn addTree(self: *ctxt, path: String, name: String, value: T) !void {
             var parts = std.mem.split(u8, path, "/");
-            var current_ctx = self;
+            var currentCtx = self;
 
             while (parts.next()) |part| {
-                var sub_ctx = current_ctx.children.get(part);
-                if (sub_ctx == null) {
-                    sub_ctx = try ctxt.init(self.alloc);
-                    sub_ctx.?.parent = current_ctx;
-                    try current_ctx.children.put(part, sub_ctx.?);
+                var subCtx = currentCtx.children.get(part);
+                if (subCtx == null) {
+                    subCtx = ctxt.init(self.alloc);
+                    subCtx.?.parent = currentCtx;
+                    try currentCtx.children.put(part, subCtx.?);
                 }
-                current_ctx = sub_ctx.?;
+                currentCtx = &subCtx.?;
             }
 
-            try current_ctx.add(name, value);
+            try currentCtx.add(name, value);
         }
 
         pub fn deinit(self: *ctxt, alloc: std.mem.Allocator) void {
-            var it = self.members.iterator();
-            if (std.meta.hasMethod(T, "deinit")) {
-                while (it.next()) |pair| {
-                    pair.value_ptr.*.deinit(alloc);
-                    alloc.destroy(pair.value_ptr.*);
-                }
-            }
-
             var it2 = self.children.iterator();
             while (it2.next()) |pair| {
                 pair.value_ptr.*.deinit(alloc);
             }
 
-            @constCast(&self.members).*.deinit();
-            @constCast(&self.children).*.deinit();
-            alloc.destroy(self);
+            self.members.deinit();
+            self.children.deinit();
         }
 
         pub fn get(self: ctxt, name: String) ?T {
@@ -1780,16 +2277,14 @@ pub fn Context(comptime T: type) type {
         }
 
         pub fn add(self: *ctxt, name: String, value: T) !void {
-            return try self.members.put(name, value);
+            return self.members.put(name, value);
         }
 
         pub fn isEmpty(self: ctxt) bool {
-            return self.members.count() == 0 and (self.parent == null or self.parent.?.isEmpty());
+            return self.members.count() == 0;
         }
     };
 }
-
-
 
 const Casting = union(enum) {
     name: String,
@@ -1811,98 +2306,7 @@ const Substitution = struct {
     to: Type,
 };
 
-const InferenceContext = struct {
-    alloc: std.mem.Allocator,
-    subs: std.ArrayList(Substitution),
-    counter: u32 = 0,
-
-    pub fn init(alloc: std.mem.Allocator) InferenceContext {
-        return .{
-            .alloc = alloc,
-            .subs = std.ArrayList(Substitution).init(alloc),
-        };
-    }
-
-    pub fn freshTypeVar(self: *InferenceContext) !Type {
-        const index = self.counter;
-        self.counter += 1;
-        
-        const type_var = try self.alloc.create(Type);
-        type_var.* = Type{
-            .pointerIndex = 0,
-            .data = .{ .casting = .{ .index = index } },
-        };
-        return type_var;
-    }
-
-    pub fn applySubstitution(self: *InferenceContext, t: Type) !Type {
-        var current = t;
-        for (self.subs.items) |sub| 
-            switch (current.data) {
-                .casting => |c| {
-                    if (sub.from.eql(c))
-                        current = try sub.to.deepCopy(self.alloc);
-                }
-            };
-        
-        return current;
-    }
-
-    pub fn unify(self: *InferenceContext, t1: Type, t2: Type) !void {
-        const a = try self.applySubstitution(t1);
-        const b = try self.applySubstitution(t2);
-
-        if (a.deepEqual(b, false)) return;
-
-        if (a.data == .casting) {
-            try self.substitutions.append(.{ .from = a.data.casting, .to = b });
-            return;
-        }
-
-        if (b.data == .casting) {
-            try self.substitutions.append(.{ .from = b.data.casting, .to = a });
-            return;
-        }
-        
-        if (std.meta.activeTag(a.data) != std.meta.activeTag(b.data)) {
-            return AnalyzerError.TypeMismatch;
-        }
-
-        switch (a.data) {
-            .function => |fa| {
-                const fb = b.data.function;
-                try self.unify(fa.argument.*, fb.argument.*);
-                try self.unify(fa.ret.*, fb.ret.*);
-            },
-            .array => |aa| {
-                const ab = b.data.array;
-                if (aa.size != ab.size) return AnalyzerError.TypeMismatch;
-                try self.unify(aa.type_.*, ab.type_.*);
-
-                for (aa.value, ab.value) |va, vb| 
-                    if (va) |na| 
-                        if (vb) |nb| 
-                            self.unify(na, nb);
-                
-            },
-            .aggregate => |aa| {
-                const ab = b.data.aggregate;
-                if (aa.indexes.len != ab.indexes.len) return AnalyzerError.TypeMismatch;
-
-                for (aa.types, ab.types) |va, vb|
-                    self.unify(va, vb);
-
-                for (aa.values, ab.values) |va, vb| 
-                    if (va) |na| 
-                        if (vb) |nb| 
-                            self.unify(na, nb);
-            },
-            else => return AnalyzerError.TypeMismatch,
-        }
-    }
-};
-
-// Bidirectional typing system? 
+// Bidirectional typing system?
 
 // todo: verify that types match, or meet in case of casting for every
 // operation
@@ -1910,18 +2314,17 @@ pub const Analyzer = struct {
     const TContext = Context(*Type);
     allocator: std.mem.Allocator,
 
-    context: *TContext,
-    modules: *TContext,
-    inferences: InferenceContext,
+    context: TContext,
+    modules: TContext,
+    errctx: ErrorContext = .{ .value = .NoContext },
     castIndex: u32,
 
     pub fn init(allocator: std.mem.Allocator) !Analyzer {
         return Analyzer{ 
             .allocator = allocator,
-            .context = try TContext.init(allocator),
-            .modules = try TContext.init(allocator),
-            .inferences = InferenceContext.init(allocator),
-            .castIndex = 0
+            .context = TContext.init(allocator),
+            .modules = TContext.init(allocator),
+            .castIndex = 0,
         };
     }
 
@@ -1939,16 +2342,16 @@ pub const Analyzer = struct {
     }
 
     pub fn runAnalysis(self: *Analyzer, node: *Node) !*Node {
-        return try self.analyze(self.context, node);
+        return self.analyze(&self.context, node);
     }
 
     fn analyze(self: *Analyzer, currctx: *TContext, node: *Node) !*Node {
         switch (node.data) {
             .none => return node,
             .type => return node,
-            .int => return self.analyzeInt(currctx, node),
-            .dec => return self.analyzeDec(currctx, node),
-            .str => return self.analyzeStr(currctx, node),
+            .int => return self.analyzeInt(node),
+            .dec => return self.analyzeDec(node),
+            .str => return self.analyzeStr(node),
             .ref => return self.analyzeRef(currctx, node),
             .unr => return self.analyzeUnr(currctx, node),
             .bin => return self.analyzeBin(currctx, node),
@@ -1962,29 +2365,26 @@ pub const Analyzer = struct {
         }
     }
 
-    fn analyzeInt(self: *Analyzer, currctx: *TContext, node: *Node) AnalyzerError!*Node {
-        _ = currctx;
+    fn analyzeInt(self: *Analyzer, node: *Node) AnalyzerError!*Node {
         node.ntype = try self.allocator.create(Type);
-        node.ntype.?.* = Type.initInt(64, 64, node.data.int);
+        node.ntype.?.* = Type.initInt(node.data.int, node.data.int, node.data.int);
         return node;
     }
 
-    fn analyzeDec(self: *Analyzer, currctx: *TContext, node: *Node) AnalyzerError!*Node {
-        _ = currctx;
+    fn analyzeDec(self: *Analyzer, node: *Node) AnalyzerError!*Node {
         node.ntype = try self.allocator.create(Type);
-        node.ntype.?.* = Type.initFloat(64, 64, node.data.dec);
+        node.ntype.?.* = Type.initFloat(node.data.dec, node.data.dec, node.data.dec);
         return node;
     }
 
-    fn analyzeStr(self: *Analyzer, currctx: *TContext, node: *Node) AnalyzerError!*Node {
-        _ = currctx;
+    fn analyzeStr(self: *Analyzer, node: *Node) AnalyzerError!*Node {
         var arr = try self.allocator.alloc(?Type, node.data.str.len);
         errdefer self.allocator.free(arr);
 
-        var type_ = try self.allocator.create(Type);
-        errdefer type_.deinit(self.allocator);
+        var strType = try self.allocator.create(Type);
+        errdefer strType.deinit(self.allocator);
 
-        type_.* = Type.initInt(0, 255, null);
+        strType.* = Type.initInt(0, 255, null);
 
         for (node.data.str, 0..) |c, i| {
             arr[i] = Type.initInt(c, c, c);
@@ -1995,7 +2395,7 @@ pub const Analyzer = struct {
 
         arrtype.* = Type{ .pointerIndex = 0, .data = .{ .array = .{
             .size = @intCast(node.data.str.len),
-            .type_ = type_,
+            .indexer = strType,
             .value = arr,
         } } };
 
@@ -2004,13 +2404,12 @@ pub const Analyzer = struct {
     }
 
     fn analyzeRef(self: *Analyzer, currctx: *TContext, node: *Node) AnalyzerError!*Node {
-        const type_ = currctx.get(node.data.ref);
-        if (type_ == null) {
-            return AnalyzerError.UndefinedReference;
+        const refType = currctx.get(node.data.ref);
+        if (refType) |refT| {
+            node.ntype = try refT.deepCopy(self.allocator);
+            return node;
         }
-
-        node.ntype = try type_.?.deepCopy(self.allocator);
-        return node;
+        return AnalyzerError.UndefinedReference;
     }
 
     fn analyzeUnr(self: *Analyzer, currctx: *TContext, node: *Node) AnalyzerError!*Node {
@@ -2022,7 +2421,10 @@ pub const Analyzer = struct {
         var unt = try self.allocator.create(Type);
         errdefer unt.deinit(self.allocator);
 
-        unt.* = try Type.synthUnary(self.allocator, node.data.unr.op, rest.ntype.?.*);
+        unt.* = Type.synthUnary(node.data.unr.op, rest.ntype.?.*) catch |err| {
+            self.errctx.position = node.position;
+            return err;
+        };
         node.ntype = unt;
         return node;
     }
@@ -2034,7 +2436,10 @@ pub const Analyzer = struct {
         node.ntype = try self.allocator.create(Type);
         errdefer node.ntype.?.deinit(self.allocator);
 
-        node.ntype.?.* = try Type.binOperate(self.allocator, node.data.bin.op, lhs.ntype.?.*, rhs.ntype.?.*);
+        node.ntype.?.* = Type.binOperate(self.allocator, node.data.bin.op, lhs.ntype.?.*, rhs.ntype.?.*) catch |err| {
+            self.errctx.position = node.position;
+            return err;
+        };
 
         return node;
     }
@@ -2052,7 +2457,7 @@ pub const Analyzer = struct {
 
     fn analyzeTernary(self: *Analyzer, currctx: *TContext, node: *Node) AnalyzerError!*Node {
         const cond = try analyze(self, currctx, node.data.ter.cond);
-        if (cond.ntype == null or cond.ntype.?.isTag(.boolean)) {
+        if (cond.ntype == null or cond.ntype.?.data == .boolean) {
             return AnalyzerError.NonBooleanDecision;
         }
 
@@ -2069,17 +2474,16 @@ pub const Analyzer = struct {
 
     fn analyzeIntr(self: *Analyzer, currctx: *TContext, node: *Node) AnalyzerError!*Node {
         const intr = node.data.intr;
-        var innerctx = try TContext.init(self.allocator);
+        var innerctx = TContext.init(self.allocator);
         defer innerctx.deinit(self.allocator);
 
         innerctx.parent = currctx;
 
         for (intr.intermediates) |inter| {
-            const i = inter;
-            i.* = (try analyze(self, innerctx, inter)).*;
+            inter.* = (try analyze(self, &innerctx, inter)).*;
         }
 
-        intr.application.* = (try analyze(self, innerctx, node.data.intr.application)).*;
+        intr.application.?.* = (try analyze(self, &innerctx, intr.application.?)).*;
         return node;
     }
 
@@ -2098,7 +2502,7 @@ pub const Analyzer = struct {
         if (!epsilon.ntype.?.isValued())
             return AnalyzerError.RequiresValue;
 
-        if (start.ntype.?.isTag(.integer) and end.ntype.?.isTag(.integer) and epsilon.ntype.?.isTag(.integer)) {
+        if (start.ntype.?.data == .integer and end.ntype.?.data == .integer and epsilon.ntype.?.data == .integer) {
             const istart = start.ntype.?.data.integer.value;
             const iend = end.ntype.?.data.integer.value;
             //const ivalue = epsilon.ntype.?.data.integer.value;
@@ -2116,10 +2520,10 @@ pub const Analyzer = struct {
             return node;
         }
 
-        if (start.ntype.?.isTag(.decimal) and end.ntype.?.isTag(.decimal) and epsilon.ntype.?.isTag(.decimal)) {
+        if (start.ntype.?.data == .decimal and end.ntype.?.data == .decimal and epsilon.ntype.?.data == .decimal) {
             const dstart = start.ntype.?.data.decimal.value;
             const dend = end.ntype.?.data.decimal.value;
-            
+
             const trange = try self.allocator.create(Type);
             errdefer trange.deinit(self.allocator);
 
@@ -2137,8 +2541,7 @@ pub const Analyzer = struct {
     }
 
     fn analyzeModule(self: *Analyzer, currctx: *TContext, node: *Node) AnalyzerError!*Node {
-        // modules are guaranteed top level, we dont need to return useful nodes
-
+        // modules are always top level, we don't need to return useful nodes
         const mod = node.data.mod;
 
         if (mod.path[0] == '@') {
@@ -2147,110 +2550,101 @@ pub const Analyzer = struct {
         }
 
         if (mod.direction) {
-            var it = mod.pairs.iterator();
-            while (it.next()) |pair| {
-                const pname = pair.key_ptr.*;
-                const pmod = self.modules.getTree(mod.path, pname);
+            for (mod.nodes) |mnode| {
+                const name = mnode.data.expr.name;
+                const pmod = self.modules.getTree(mod.path, name);
                 if (pmod) |p| {
-                    try currctx.add(pname, p);
-                } else 
-                    return AnalyzerError.UndefinedReference;
-
+                    try currctx.add(name, p);
+                } else return AnalyzerError.UndefinedReference;
             }
 
             return node;
-        } 
-        // todo: check from build if a virtual file tree matches the module path
-        var it = mod.pairs.iterator();
-        while (it.next()) |pair| {
-            const pname = pair.key_ptr.*;
-            const mnode = try analyze(self, currctx, pair.value_ptr.*);
-            const res = try mnode.ntype.?.deepCopy(self.allocator);
+        }
+        // todo: check from build if file tree matches the module path
+        for (mod.nodes) |mnode| {
+            const pname = mnode.data.expr.name;
+            const modnode = try analyze(self, currctx, mnode);
+            const res = try modnode.ntype.?.deepCopy(self.allocator);
             errdefer res.deinit(self.allocator);
 
             try self.modules.addTree(mod.path, pname, res);
-
-        } 
+        }
         return node;
-
     }
 
     fn analyzeExpr(self: *Analyzer, currctx: *TContext, node: *Node) AnalyzerError!*Node {
-        const expr = node.data.expr;
-        var innerctx = try TContext.init(self.allocator);
+        var expr = node.data.expr;
+        var innerctx = TContext.init(self.allocator);
         defer innerctx.deinit(self.allocator);
 
         innerctx.parent = currctx;
 
         var freturn = try self.allocator.create(Type);
-        freturn.* = Type{ .pointerIndex = 0, .data = .{ .casting = .{ .index = @intCast(self.castIndex + expr.params.len + 1) } } };
+        freturn.* = Type{ .pointerIndex = 0, .data = .{ .casting = .{ .index = @intCast(self.castIndex + expr.params.len) } } };
         for (0..expr.params.len) |i| {
-            const idx = expr.params.len - i;
+            const idx = expr.params.len - i - 1;
             const arg = expr.params[idx];
             const argT = try self.allocator.create(Type);
             errdefer argT.deinit(self.allocator);
 
-            argT.* = .{ .pointerIndex = 0, .data = .{ .casting = .{
-                .index = @intCast(idx),
-            } } };
+            argT.* = .{
+                .pointerIndex = 0,
+                .data = .{
+                    .casting = .{ .index = @intCast(idx) },
+                },
+            };
 
-            arg.ntype = argT;
+            arg.ntype = try argT.deepCopy(self.allocator);
             errdefer arg.ntype.?.deinit(self.allocator);
 
-            try innerctx.add(arg.data.str, try argT.deepCopy(self.allocator));
+            try innerctx.add(arg.data.ref, arg.ntype.?);
 
             const ft = try self.allocator.create(Type);
             errdefer ft.deinit(self.allocator);
 
-            ft.* = .{
-                .pointerIndex = 0,
-                .data = .{ 
-                    .function = .{
-                        .argument = argT,
-                        .ret = freturn,
-                        .body = null
-                    }
-                }
-            };
+            ft.* = .{ .pointerIndex = 0, .data = .{ .function = .{ .argument = argT, .ret = freturn, .body = null } } };
 
             freturn = ft;
-        }    
+        }
 
-        self.castIndex += @intCast(expr.params.len + 1);     
+        node.ntype = freturn;
+
+        self.castIndex += @intCast(expr.params.len + 1);
 
         if (expr.ntype) |res| {
-            res.* = (try analyze(self, innerctx, expr.ntype.?)).*;
+            res.* = (try analyze(self, &innerctx, expr.ntype.?)).*;
             errdefer res.deinit(self.allocator);
             node.ntype = try res.ntype.?.deepCopy(self.allocator);
             errdefer node.ntype.?.deinit(self.allocator);
 
-            var param_val = res.ntype.?;
+            var paramVal = res.ntype.?;
             for (expr.params) |n| {
-                if (!param_val.isFunction()) break;
-                n.ntype = try param_val.data.function.argument.deepCopy(self.allocator);
+                if (!paramVal.isFunction()) break;
+                n.ntype = try paramVal.data.function.argument.deepCopy(self.allocator);
                 errdefer n.ntype.?.deinit(self.allocator);
             }
-
-        } 
+        }
 
         for (expr.params, 0..) |param, pidx|
             if (param.data == .ref) {
                 const pname = param.data.ref;
-                const ptype = try node.ntype.?.getParameter(@intCast(pidx));
-                const res = try ptype.deepCopy(self.allocator);
-                errdefer res.deinit(self.allocator);
-                try innerctx.add(pname, res);
+                var ptype: *Type = undefined;
+                if (node.ntype) |nt| {
+                    ptype = try nt.getParameter(@intCast(pidx));
+                } else {
+                    ptype = try self.allocator.create(Type);
+                    ptype.* = Type.initIdxCasting(self.castIndex);
+                    self.castIndex += 1;
+                }
+                try innerctx.add(pname, ptype);
             };
 
         if (expr.expr != null) {
-            expr.expr.?.ntype = (try analyze(self, innerctx, expr.expr.?)).ntype;
+            _ = try analyze(self, &innerctx, expr.expr.?);
         }
 
         if (expr.ntype != null and expr.expr != null) {
             if (expr.ntype.?.ntype.?.deepEqual(expr.expr.?.ntype.?.*, false))
-                return AnalyzerError.TypeMismatch;
-
-            if (!expr.ntype.?.ntype.?.isMeetable(expr.expr.?.ntype.?.*)) 
                 return AnalyzerError.TypeMismatch;
         }
 
@@ -2260,34 +2654,590 @@ pub const Analyzer = struct {
     }
 };
 
+////////////////////////////////////////////////////////////////////////
+/// Intermediate Representation - approx 600 lines                    //
+////////////////////////////////////////////////////////////////////////
+pub const IRError = error{ OutOfMemory, InvalidLoad, InvalidStore, InvalidBlock, InvalidOperation };
 
+// all jumps are relative to the start of the block
+pub const IR = struct {
+    const SNIR = @import("Supernova/supernova.zig");
+    const BlockOffset = usize;
 
-test "Analyzer - Float" {}
+    pub const Instruction = struct {
+        opcode: SNIR.Opcodes,
+        r1: SNIR.InfiniteRegister = 0,
+        r2: SNIR.InfiniteRegister = 0,
+        rd: SNIR.InfiniteRegister = 0,
+        immediate: u64 = 0,
+    };
 
-const SNIR = @import("targets/supernova.zig");
+    pub const VContext = Context(SNIR.InfiniteRegister);
 
-pub const BlockOffset = usize;
+    // register 0 is always 0,
+    // registers 1 - 8 are function parameters, register 4 returns
+    // registers 9 - 12 are software stack based
+    // registers 13 onwards are scratch
 
-pub const Instruction = struct {
-    opcode: SNIR.Instruction,
-    r1: SNIR.InfiniteRegister,
-    r2: SNIR.InfiniteRegister,
-    rs: SNIR.InfiniteRegister,
-    immediate: u64,
-};
+    pub const Value = struct {
+        vtype: *Type = undefined, // owning
+        from: BlockOffset = 0,
+        args: ?*[]Value = null,
+        value: union(enum) {
+            constant: void,
+            instruction: Instruction,
+            register: SNIR.InfiniteRegister,
+            partial: struct {
+                base: *Value,
+            },
+        } = undefined,
 
-pub const Value = struct {
-    vtype: *Type,
-    value: union(enum) {
-        constant: void,
-        param: u3,
-        instruction: Instruction,
+        pub fn deinit(self: Value, alloc: std.mem.Allocator) void {
+            switch (self.value) {
+                .partial => |v| {
+                    v.base.deinit(alloc);
+                    alloc.destroy(v.base);
+                },
+                else => {},
+            }
+        }
+    };
+
+    pub const Block = struct {
+        instructions: std.ArrayListUnmanaged(Instruction) = .{},
+        result: Value = .{},
+    };
+
+    pub const PhiSource = struct { predecessor: BlockOffset, registers: SNIR.InfiniteRegister };
+
+    const EdgeValue = struct { from: BlockOffset, to: BlockOffset };
+    edges: std.AutoHashMapUnmanaged(EdgeValue, void) = .{},
+    nodes: std.AutoHashMapUnmanaged(BlockOffset, Block) = .{},
+    phiSources: std.AutoArrayHashMapUnmanaged(u64, std.ArrayListUnmanaged(PhiSource)) = .{},
+
+    blockCounter: BlockOffset = 0,
+    regIndex: SNIR.InfiniteRegister = 8, // skip param registers
+    alloc: std.mem.Allocator,
+    errctx: ErrorContext = .{ .value = .NoContext },
+    pub fn init(alloc: std.mem.Allocator) IR {
+        return IR{ .alloc = alloc };
+    }
+
+    pub fn deinit(self: *IR) void {
+        self.edges.deinit(self.alloc);
+        var nit = self.nodes.iterator();
+        while(nit.next()) |node| {
+            node.value_ptr.*.instructions.deinit(self.alloc);
+        }
+        self.nodes.deinit(self.alloc);
+        self.phiSources.deinit(self.alloc);
+        //var it = self.nodes.valueIterator();
+        // value.deinit(self.alloc); // we *might need to delete partials
+    }
+
+    pub fn fromNode(self: *IR, node: *Node) !Value {
+        return self.blockNode(0, node);
+    }
+
+    pub fn newBlock(self: *IR) !BlockOffset {
+        self.blockCounter += 1;
+        try self.nodes.put(self.alloc, self.blockCounter, .{});
+        return self.blockCounter;
+    }
+
+    pub fn newEdge(self: *IR, from: BlockOffset, to: BlockOffset) !void {
+        try self.edges.put(self.alloc, .{ .from = from, .to = to }, {});
+    }
+
+    pub fn getBlock(self: *IR, offset: BlockOffset) ?Block {
+        return self.nodes.get(offset);
+    }
+
+    pub fn addInstruction(self: *IR, blockID: BlockOffset, instruction: Instruction) !void {
+        const block = self.nodes.getEntry(blockID);
+        if (block) |b| {
+            try b.value_ptr.instructions.append(self.alloc, instruction);
+        } else return IRError.InvalidBlock;
+    }
+
+    pub fn deinitBlock(self: *IR, blockID: BlockOffset) void {
+        const block = self.nodes.get(blockID);
+        if (block) |b| {
+            b.result.deinit(self.alloc);
+            _ = self.nodes.remove(blockID);
+        }
+    }
+
+    fn addPhi(self: *IR, merge: BlockOffset, dest: SNIR.InfiniteRegister, sources: []PhiSource) !void {
+        const phi_inst = Instruction{
+            .opcode = SNIR.Instruction.phi,
+            .rd = dest,
+            .immediate = self.phi_sources.count(),
+        };
+
+        const block = self.nodes.getPtr(merge).?;
+        try block.*.append(self.alloc, phi_inst);
+
+        try self.phiSources.put(self.alloc, phi_inst.immediate, sources);
+    }
+
+    fn allocateRegister(self: *IR) SNIR.InfiniteRegister {
+        const idx = self.regIndex;
+        self.regIndex += 1;
+        return idx;
+    }
+
+    fn calculateLoadSize(self: *IR, value: *Type) IRError!SNIR.Opcodes {
+        if (value.data == .decimal)
+            return SNIR.Opcodes.ld_dwrd;
+
+        if (value.data != .integer) {
+            self.errctx = ErrorContext{
+                .value = .{
+                    .InvalidLoad = value,
+                },
+            };
+            return IRError.InvalidLoad;
+        }
+
+        const int = value.data.integer;
+        if ((int.start >= 0 and int.end <= (1 << 8) - 1) or (int.start >= -(1 << 7) and int.end <= (1 << 7) - 1))
+            return SNIR.Opcodes.ld_byte;
+
+        if ((int.start >= 0 and int.end <= (1 << 16) - 1) or (int.start >= -(1 << 15) and int.end <= (1 << 15) - 1))
+            return SNIR.Opcodes.ld_half;
+
+        if ((int.start >= 0 and int.end <= (1 << 32) - 1) or (int.start >= -(1 << 31) and int.end <= (1 << 31) - 1))
+            return SNIR.Opcodes.ld_word;
+
+        return SNIR.Opcodes.ld_dwrd;
+    }
+
+    fn calculateStoreSize(value: *Type) IRError!SNIR.Opcodes {
+        if (value.data == .decimal)
+            return SNIR.Opcodes.st_dwrd;
+
+        if (value.data != .integer)
+            return IRError.InvalidStore;
+
+        const int = value.data.integer;
+        if ((int.start >= 0 and int.end <= (1 << 8) - 1) or (int.start >= -(1 << 7) and int.end <= (1 << 7) - 1))
+            return SNIR.Opcodes.st_byte;
+
+        if ((int.start >= 0 and int.end <= (1 << 16) - 1) or (int.start >= -(1 << 15) and int.end <= (1 << 15) - 1))
+            return SNIR.Opcodes.st_half;
+
+        if ((int.start >= 0 and int.end <= (1 << 32) - 1) or (int.start >= -(1 << 31) and int.end <= (1 << 31) - 1))
+            return SNIR.Opcodes.st_word;
+
+        return SNIR.Opcodes.st_dwrd;
+    }
+
+    fn blockNode(self: *IR, currblock: BlockOffset, node: *Node) IRError!Value {
+        switch (node.data) {
+            .int => return self.blockInteger(currblock, node),
+            .dec => return self.blockDecimal(currblock, node),
+            // .str => return self.blockString(currblock, node),
+            .ref => return self.blockReference(currblock, node),
+            .unr => return self.blockUnary(currblock, node),
+            .bin => return self.blockBinary(currblock, node),
+            .call => return self.blockCall(currblock, node),
+            .ter => return self.blockTernary(currblock, node),
+            .expr => return self.blockExpr(currblock, node),
+            else => return IRError.InvalidBlock,
+        }
+    }
+
+    fn appendIfConstant(self: *IR, block: BlockOffset, value: Value) IRError!SNIR.InfiniteRegister {
+        const v = value.value;
+        return switch (v) {
+            .constant => {
+                const reg = self.allocateRegister();
+                try self.addInstruction(block, Instruction{
+                    .opcode = SNIR.Opcodes.mov,
+                    .rd = reg,
+                    .r1 = 0,
+                    .immediate = @bitCast(value.vtype.data.integer.value.?),
+                });
+                return reg;
+            },
+            .instruction => {
+                try self.addInstruction(block, v.instruction);
+                return v.instruction.rd;
+            },
+            .register => v.register,
+            .partial => unreachable,
+        };
+    }
+
+    fn constantFromType(self: *IR, block: BlockOffset, node: *Node) Value {
+        const nodeType = node.ntype.?;
+        node.ntype = null;
+        node.deinit(self.alloc);
+
+        return Value{ .vtype = nodeType, .from = block, .value = .constant };
+    }
+
+    fn blockInteger(self: *IR, block: BlockOffset, node: *Node) Value {
+        return self.constantFromType(block, node);
+    }
+
+    fn blockDecimal(self: *IR, block: BlockOffset, node: *Node) Value {
+        return self.constantFromType(block, node);
+    }
+
+    fn blockReference(self: *IR, block: BlockOffset, node: *Node) IRError!Value {
+        if (node.ntype.?.isValued())
+            return self.constantFromType(block, node);
+
+        const refType = node.ntype.?;
+        node.ntype = null;
+        errdefer refType.deinit(self.alloc);
+
+        const instruction = Instruction{
+            .opcode = self.calculateLoadSize(refType) catch |err| {
+                self.errctx.position = node.position;
+                return err;
+            },
+            .rd = self.allocateRegister(),
+            .r1 = 0,
+            .immediate = 0, // todo: come back here
+        };
+
+        return Value{
+            .vtype = refType,
+            .from = block,
+            .value = .{ .instruction = instruction },
+        };
+    }
+
+    fn blockUnary(self: *IR, block: BlockOffset, node: *Node) IRError!Value {
+        if (node.ntype.?.isValued())
+            return self.constantFromType(block, node);
+
+        const unary = node.data.unr;
+        const unrtype = node.ntype;
+        node.ntype = null;
+        errdefer unrtype.?.deinit(self.alloc);
+
+        const inner = try self.blockNode(block, unary.val);
+
+        if (unary.op == .Plus)
+            return inner; // unary plus does NOTHING so we ball
+
+        const result = try self.appendIfConstant(inner.from, inner);
+
+        const instruction = try switch (unary.op) {
+            .Bang, .Til => Instruction{
+                .opcode = .not,
+                .r1 = result,
+                .rd = self.allocateRegister(),
+            },
+            .Min => Instruction{
+                .opcode = .subr,
+                .rd = self.allocateRegister(),
+                .r1 = 0,
+                .r2 = result,
+            },
+            .Star => Instruction{
+                .opcode = self.calculateLoadSize(unrtype.?) catch |err| {
+                    self.errctx.position = node.position;
+                    return err;
+                },
+                .rd = self.allocateRegister(),
+                .r1 = result,
+            },
+            .Amp => Instruction{
+                .opcode = calculateStoreSize(unrtype.?) catch |err| {
+                    self.errctx.position = node.position;
+                    return err;
+                },
+                .rd = self.allocateRegister(),
+                .r1 = result,
+            },
+            else => IRError.InvalidBlock,
+        };
+
+        return Value{
+            .vtype = unrtype.?,
+            .from = inner.from,
+            .value = .{ .instruction = instruction },
+        };
+    }
+
+    fn getBinaryOp(self: *IR, from: BlockOffset, node: *Node, lreg: SNIR.InfiniteRegister, rreg: SNIR.InfiniteRegister) !SNIR.Opcodes {
+        const binary = node.data.bin;
+        const bintype = node.ntype.?;
+        return switch (binary.op) {
+            .Plus => .addr,
+            .Min => .subr,
+            .Star => .umulr,
+            .Bar => .udivr,
+            .Per => unreachable, // fix modulo someday ?
+            .Amp => .andr,
+            .Pipe => .orr,
+            .Hat => .xorr,
+            .Lsh => .llsr,
+            .Rsh => .lrsr,
+            .Cequ => {
+                try self.addInstruction(from, Instruction{
+                    .opcode = SNIR.Opcodes.xorr,
+                    .rd = self.allocateRegister(),
+                    .r1 = lreg,
+                    .r2 = rreg,
+                });
+
+                return .setleur;
+            },
+            .Cneq => .xorr,
+            .Cgt, .Clt => if (bintype.data.integer.start < 0) .setgsr else .setgur,
+            .Cge, .Cle => if (bintype.data.integer.start < 0) .setlesr else .setleur,
+            else => return IRError.InvalidOperation,
+        };
+    }
+
+    fn blockBinary(self: *IR, block: BlockOffset, node: *Node) IRError!Value {
+        if (node.ntype.?.isValued())
+            return self.constantFromType(block, node);
+
+        const binary = node.data.bin;
+        const bintype = node.ntype;
+        const swap = binary.op == .Cge or binary.op == .Clt;
+        errdefer bintype.?.deinit(self.alloc);
+
+        const left = try self.blockNode(block, binary.lhs);
+        const lreg = try self.appendIfConstant(left.from, left);
+
+        const right = try self.blockNode(left.from, binary.rhs);
+        const rreg = try self.appendIfConstant(right.from, right);
+
+        // todo: add floating point support
+
+        const instrOp = try self.getBinaryOp(right.from, node, lreg, rreg);
+
+        return Value{
+            .vtype = bintype.?,
+            .from = right.from,
+            .value = .{
+                .instruction = Instruction{
+                    .opcode = instrOp,
+                    .rd = self.allocateRegister(),
+                    .r1 = if (swap) rreg else lreg,
+                    .r2 = if (swap) lreg else rreg,
+                },
+            },
+        };
+    }
+
+    fn blockTernary(self: *IR, block: BlockOffset, node: *Node) IRError!Value {
+        if (node.ntype.?.isValued())
+            return self.constantFromType(block, node);
+
+        const ternary = node.data.ter;
+        const ternarytype = node.ntype;
+        node.ntype = null;
+        errdefer ternarytype.?.deinit(self.alloc);
+
+        const cond = try blockNode(self, block, ternary.cond);
+
+        if (cond.value == .constant) {
+            return blockNode(self, cond.from, if (cond.vtype.data.boolean.?) ternary.btrue else ternary.bfalse);
+        }
+
+        const trueblock = try self.newBlock();
+        errdefer self.deinitBlock(trueblock);
+
+        const btrue = try self.blockNode(trueblock, ternary.btrue);
+
+        const falseblock = try self.newBlock();
+        errdefer self.deinitBlock(falseblock);
+
+        const bfalse = try self.blockNode(falseblock, ternary.bfalse);
+
+        if (bfalse.value.instruction.rd != btrue.value.instruction.rd) {
+            try self.addInstruction(trueblock, Instruction{
+                .opcode = SNIR.Opcodes.orr, // best move instruction ever
+                .rd = btrue.value.instruction.rd,
+                .r1 = bfalse.value.instruction.rd,
+            });
+        }
+
+        //     condition block
+        //        /        \
+        // true block    false block
+        //        \        /
+        //        merge block
+
+        try self.newEdge(cond.from, trueblock);
+        try self.newEdge(cond.from, falseblock);
+
+        const mergeblock = try self.newBlock();
+        errdefer self.deinitBlock(mergeblock);
+
+        try self.newEdge(btrue.from, mergeblock);
+        try self.newEdge(bfalse.from, mergeblock);
+
+        // jump on false
+        try self.addInstruction(cond.from, Instruction{
+            .opcode = SNIR.Opcodes.blk_jmp,
+            .rd = @truncate(falseblock),
+            .r1 = @intFromEnum(SNIR.BlockJumpCondition.Equal),
+            .r2 = 0,
+        });
+
+        return Value{
+            .vtype = ternarytype.?,
+            .from = mergeblock,
+            .value = .{
+                .instruction = Instruction{
+                    .opcode = SNIR.Opcodes.blk_jmp,
+                    .rd = @truncate(mergeblock),
+                    .r1 = @intFromEnum(SNIR.BlockJumpCondition.Unconditional),
+                    .r2 = 0,
+                },
+            },
+        };
+    }
+
+    fn blockIntermediate(self: *IR, block: BlockOffset, node: *Node) IRError!Value {
+        const intrNode = node.data.intr;
+
+        if (intrNode.intermediates.len == 0)
+            return self.blockNode(block, intrNode.application);
+
+        // dominant predecessor
+        // |
+        // |- intermediate 1 -\
+        // |- intermediate 2 -|
+        // |-      ...       -|
+        // \- intermediate n -|
+        //                    \- application block
+
+        const post = try self.newBlock();
+
+        for (intrNode.intermediates) |intermediate| {
+            const intermediateValue = try self.blockNode(block, intermediate);
+            self.newEdge(intermediateValue.from, post);
+        }
+
+        if (intrNode.application) |application|
+            return try self.blockNode(post, application);
+
+        // all intermediates need to have an application
+        // the ones which dont usually are merged into other nodes
+        unreachable;
+    }
+
+    fn blockCall(self: *IR, block: BlockOffset, node: *Node) !Value {
+        var callee = try self.blockNode(block, node.data.call.callee);
+        var caller = try self.blockNode(callee.from, node.data.call.caller);
+
+        // Handle partial application
+        const expected_args = callee.vtype.expectedArgs();
+
+        if (expected_args > 1) {
+            if (caller.vtype.partialArgs) |pa| {
+                for (0..pa.len) |i| {
+                    if (pa[i]) |v| {
+                        @constCast(&v).* = caller;
+                        break;
+                    }
+                }
+            } else {
+                caller.vtype.partialArgs = try self.alloc.alloc(?Value, expected_args);
+                @constCast(&caller.vtype.partialArgs.?[0]).* = callee;
+            }
+            return callee;
+        }
+
+        // Handle full application
+        const instr = Instruction{
+            .opcode = .call,
+            .rd = self.allocateRegister(),
+            .r1 = caller.value.instruction.rd,
+            .r2 = callee.value.instruction.rd,
+        };
+
+        try self.addInstruction(caller.from, instr);
+
+        return Value{
+            .vtype = callee.vtype.data.function.ret,
+            .value = .{ .instruction = instr },
+        };
+    }
+
+    fn blockExpr(self: *IR, block: BlockOffset, node: *Node) IRError!Value {
+        // top level expression
+
+        var initialBlock = block;
+
+        if (block == 0) {
+            initialBlock = try self.newBlock();
+            errdefer self.deinitBlock(initialBlock);
+
+            // refresh registers
+            self.regIndex = 8;
+        }
+
+        return self.blockNode(initialBlock, node.data.expr.expr.?);
     }
 };
 
-pub const Block = struct {
-    label: u64,
-    contents: std.ArrayListUnmanaged(Value),
-    predecessors: std.ArrayListUnmanaged(BlockOffset),
-    successors: std.ArrayListUnmanaged(BlockOffset),
-};
+/// Pipelines the entire compiling process, its the compiler main function
+pub fn pipeline(name: String, alloc: std.mem.Allocator) !u8 {
+    const stdout_file = std.io.getStdOut().writer();
+    var bw = std.io.bufferedWriter(stdout_file);
+    var stdout = bw.writer();
+
+    var file = std.fs.cwd().openFile(name, .{}) catch |err| {
+        try stdout.print("Could not open file \"{s}\": {s}\n", .{ name, @errorName(err) });
+        try bw.flush();
+        return 255;
+    };
+
+    defer file.close();
+
+    const codeLength = (try file.stat()).size;
+
+    const buffer = try alloc.alloc(u8, codeLength);
+    defer alloc.free(buffer);
+
+    const result = try file.reader().readAll(buffer);
+
+    if (result != codeLength) return error.EndOfStream;
+
+    var parser = Parser.init(buffer, alloc);
+    var analyzer = try Analyzer.init(alloc);
+    defer analyzer.deinit();
+    var ir = IR.init(alloc);
+    defer ir.deinit();
+
+    const node = parser.parseNode() catch |err| {
+        try misc.printError(stdout, name, parser.code, err, parser.errctx);
+        try bw.flush();
+        return 254;
+    };
+
+    defer node.deinit(alloc);
+
+    const typed = analyzer.runAnalysis(node) catch |err| {
+        try misc.printError(stdout, name, parser.code, err, analyzer.errctx);
+        try bw.flush();
+        return 253;
+    };
+
+    try bw.flush();
+
+    const blocked = ir.fromNode(typed) catch |err| {
+        try misc.printError(stdout, name, parser.code, err, ir.errctx);
+        try bw.flush();
+        return 252;
+    };
+
+    _ = blocked;
+
+    try stdout.print("analysis successful\n", .{});
+    try bw.flush();
+
+    return 0;
+}

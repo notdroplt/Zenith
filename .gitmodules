@@ -1,0 +1,3 @@
+[submodule "src/Supernova"]
+	path = src/Supernova
+	url = https://github.com/notdroplt/Supernova

@@ -1,7 +1,8 @@
+const std = @import("std");
 const zenith = @import("zenith.zig");
 
-const std = @import("std");
 const expect = std.testing.expect;
+const expectEqual = std.testing.expectEqual;
 
 const String = zenith.String;
 const Pos = zenith.Pos;
@@ -13,188 +14,7 @@ const Parser = zenith.Parser;
 const Context = zenith.Context;
 const Analyzer = zenith.Analyzer;
 
-test "token" {
-    const t1 = Token{ .tid = Tokens.Tint, .val = .{ .int = 1 } };
-    const t2 = Token{ .tid = Tokens.Tstr, .val = .{ .str = "str" } };
-    const t3 = Token{ .tid = Tokens.Tint, .pos = Pos{ .index = 1, .span = 3 }, .val = .{ .int = 1 } };
-
-    try expect(t1.same(t3));
-    try expect(t1.sameId(Tokens.Tint));
-    try expect(t2.notId(Tokens.Tand));
-}
-
-test "Lexer - Number" {
-    var lexer = Lexer.init("0 1 0.0 1.0 1e2 1.3e2");
-    const t1 = try lexer.consume();
-    try expect(t1.tid == Tokens.Tint);
-    try expect(t1.val.int == 0);
-
-    lexer = lexer.catch_up(t1);
-    const t2 = try lexer.consume();
-    try expect(t2.tid == Tokens.Tint);
-    try expect(t2.val.int == 1);
-
-    lexer = lexer.catch_up(t2);
-    const t3 = try lexer.consume();
-
-    try expect(t3.tid == Tokens.Tdec);
-    try expect(t3.val.dec == 0.0);
-
-    lexer = lexer.catch_up(t3);
-    const t4 = try lexer.consume();
-
-    try expect(t4.tid == Tokens.Tdec);
-    try expect(t4.val.dec == 1.0);
-
-    lexer = lexer.catch_up(t4);
-    const t5 = try lexer.consume();
-
-    try expect(t5.tid == Tokens.Tdec);
-    try expect(t5.val.dec == 100.0);
-
-    lexer = lexer.catch_up(t5);
-    const t6 = try lexer.consume();
-
-    try expect(t6.tid == Tokens.Tdec);
-    try expect(t6.val.dec == 130.0);
-}
-
-test "consume string" {
-    var l = Lexer.init("\"hello\" \"\"");
-    const t1 = try l.consume();
-    try expect(t1.tid == Tokens.Tstr);
-    try expect(std.mem.eql(u8, t1.val.str, "hello"));
-
-    l = l.catch_up(t1);
-
-    const t2 = try l.consume();
-    try expect(t2.tid == Tokens.Tstr);
-    try expect(std.mem.eql(u8, t2.val.str, ""));
-}
-
-test "consume identifier" {
-    var l = Lexer.init("identifier");
-    const token = try l.consume();
-    try expect(token.tid == Tokens.Tref);
-    try expect(std.mem.eql(u8, token.val.str, "identifier"));
-}
-
-test "consume operators" {
-    var l = Lexer.init("+-*/");
-    const plus = try l.consume();
-    try expect(plus.tid == Tokens.Tplus);
-
-    l = l.catch_up(plus);
-    const minus = try l.consume();
-    try expect(minus.tid == Tokens.Tmin);
-
-    l = l.catch_up(minus);
-    const star = try l.consume();
-    try expect(star.tid == Tokens.Tstar);
-
-    l = l.catch_up(star);
-    const bar = try l.consume();
-    try expect(bar.tid == Tokens.Tbar);
-}
-
-test "consume operators 2" {
-    var l = Lexer.init("== != && || <= >= << >>");
-    const eq = try l.consume();
-    try expect(eq.tid == Tokens.Tcequ);
-
-    l = l.catch_up(eq);
-    const neq = try l.consume();
-    try expect(neq.tid == Tokens.Tcneq);
-
-    l = l.catch_up(neq);
-    const tand = try l.consume();
-    try expect(tand.tid == Tokens.Tand);
-
-    l = l.catch_up(tand);
-    const tor = try l.consume();
-    try expect(tor.tid == Tokens.Tor);
-
-    l = l.catch_up(tor);
-    const le = try l.consume();
-    try expect(le.tid == Tokens.Tcle);
-
-    l = l.catch_up(le);
-    const ge = try l.consume();
-    try expect(ge.tid == Tokens.Tcge);
-
-    l = l.catch_up(ge);
-    const lsh = try l.consume();
-    try expect(lsh.tid == Tokens.Tlsh);
-
-    l = l.catch_up(lsh);
-    const rsh = try l.consume();
-    try expect(rsh.tid == Tokens.Trsh);
-}
-
 // types
-
-test "Type operations" {
-    const t1 = Type.initInt(2, 2, 2);
-    const t2 = Type.initInt(5, 5, 5);
-
-    const alloc = std.testing.allocator;
-
-    try expect((try Type.synthUnary(alloc, Tokens.Tplus, t1)).deepEqual(t1, true));
-    try expect((try Type.synthUnary(alloc, Tokens.Tmin, t1)).deepEqual(Type.initInt(-2, -2, -2), true));
-    try expect((try Type.synthUnary(alloc, Tokens.Ttil, t1)).deepEqual(Type.initInt(-3, -3, -3), true));
-    try expect((try Type.synthUnary(alloc, Tokens.Tamp, t1)).deepEqual(Type.makePtr(t1), true));
-
-    try expect((try Type.binOperate(alloc, Tokens.Tplus, t1, t2)).deepEqual(Type.initInt(7, 7, 7), true));
-    try expect((try Type.binOperate(alloc, Tokens.Tmin, t1, t2)).deepEqual(Type.initInt(-3, -3, -3), true));
-    try expect((try Type.binOperate(alloc, Tokens.Tmin, t2, t1)).deepEqual(Type.initInt(3, 3, 3), true));
-    try expect((try Type.binOperate(alloc, Tokens.Tmin, t2, t2)).deepEqual(Type.zeroInt, true));
-}
-
-test "type instatiantion" {
-    var b = Type{
-        .pointerIndex = 0,
-        .data = .{
-            .casting = .{ .name = "b" },
-        },
-    };
-
-    var a = Type{
-        .pointerIndex = 0,
-        .data = .{ .casting = .{ .name = "a" } },
-    };
-
-    const fab = Type{
-        .pointerIndex = 0,
-        .data = .{
-            .function = .{
-                .argument = &a,
-                .ret = &b,
-                .body = null,
-            },
-        },
-    };
-
-    const instance1 = [_]struct { String, u32, Type }{
-        .{ "a", 0, Type.initBool(true) },
-    };
-
-    const res1 = Type.instantiate(fab, &instance1);
-
-    var b1 = Type.initBool(true);
-
-    const exp1 = Type{
-        .pointerIndex = 0,
-        .data = .{
-            .function = .{
-                .argument = &b1,
-                .ret = &b,
-                .body = null,
-            },
-        },
-    };
-
-    try (expect(res1.deepEqual(exp1, true)));
-}
 
 // parser
 
@@ -203,15 +23,20 @@ test "Parser - Primary int" {
     const alloc = std.testing.allocator;
     var parser = Parser.init(code, alloc);
 
-    const node = try parser.parse_node();
+    const node = try parser.parseNode();
     defer node.deinit(alloc);
+
+    const pos = Pos{};
+
+    const expected = try parser.createExprNode(pos, "test", .{}, null, try parser.createIntNode(1, 1, 1));
+    defer expected.deinit();
 
     try expect(node.data == .expr);
     try expect(std.mem.eql(u8, node.data.expr.name, "test"));
-    try expect(node.data.expr.params.len == 0);
+    try expectEqual(0, node.data.expr.params.len);
     try expect(node.data.expr.expr != null);
     try expect(node.data.expr.expr.?.data == .int);
-    try expect(node.data.expr.expr.?.data.int == 1);
+    try expectEqual(1, node.data.expr.expr.?.data.int);
 }
 
 test "Parser - Primary float" {
@@ -219,15 +44,15 @@ test "Parser - Primary float" {
     const alloc = std.testing.allocator;
     var parser = Parser.init(code, alloc);
 
-    const node = try parser.parse_node();
+    const node = try parser.parseNode();
     defer node.deinit(alloc);
 
     try expect(node.data == .expr);
     try expect(std.mem.eql(u8, node.data.expr.name, "test"));
-    try expect(node.data.expr.params.len == 0);
+    try expectEqual(0, node.data.expr.params.len);
     try expect(node.data.expr.expr != null);
     try expect(node.data.expr.expr.?.data == .dec);
-    try expect(node.data.expr.expr.?.data.dec == 1.0);
+    try expectEqual(1.0, node.data.expr.expr.?.data.dec);
 }
 
 test "Parser - Primary string" {
@@ -235,12 +60,12 @@ test "Parser - Primary string" {
     const alloc = std.testing.allocator;
     var parser = Parser.init(code, alloc);
 
-    const node = try parser.parse_node();
+    const node = try parser.parseNode();
     defer node.deinit(alloc);
 
     try expect(node.data == .expr);
     try expect(std.mem.eql(u8, node.data.expr.name, "test"));
-    try expect(node.data.expr.params.len == 0);
+    try expectEqual(0, node.data.expr.params.len);
     try expect(node.data.expr.expr != null);
     try expect(node.data.expr.expr.?.data == .str);
     try expect(std.mem.eql(u8, node.data.expr.expr.?.data.str, "test"));
@@ -251,12 +76,12 @@ test "Parser - Primary reference" {
     const alloc = std.testing.allocator;
     var parser = Parser.init(code, alloc);
 
-    const node = try parser.parse_node();
+    const node = try parser.parseNode();
     defer node.deinit(alloc);
 
     try expect(node.data == .expr);
     try expect(std.mem.eql(u8, node.data.expr.name, "test"));
-    try expect(node.data.expr.params.len == 0);
+    try expectEqual(0, node.data.expr.params.len);
     try expect(node.data.expr.expr != null);
     try expect(node.data.expr.expr.?.data == .ref);
     try expect(std.mem.eql(u8, node.data.expr.expr.?.data.ref, "test"));
@@ -266,56 +91,56 @@ test "Parser - Unary" {
     const code = "test = -1;";
     const alloc = std.testing.allocator;
     var parser = Parser.init(code, alloc);
-    const node = try parser.parse_node();
+    const node = try parser.parseNode();
     defer node.deinit(alloc);
 
     try expect(node.data == .expr);
     try expect(std.mem.eql(u8, node.data.expr.name, "test"));
-    try expect(node.data.expr.params.len == 0);
+    try expectEqual(0, node.data.expr.params.len);
     try expect(node.data.expr.expr != null);
     try expect(node.data.expr.expr.?.data == .unr);
-    try expect(node.data.expr.expr.?.data.unr.op == Tokens.Tmin);
+    try expectEqual(.Min, node.data.expr.expr.?.data.unr.op);
     try expect(node.data.expr.expr.?.data.unr.val.data == .int);
-    try expect(node.data.expr.expr.?.data.unr.val.data.int == 1);
+    try expectEqual(1, node.data.expr.expr.?.data.unr.val.data.int);
 }
 
 test "Parser - Binary" {
     const code = "test = 1 + 2;";
     const alloc = std.testing.allocator;
     var parser = Parser.init(code, alloc);
-    const node = try parser.parse_node();
+    const node = try parser.parseNode();
     defer node.deinit(alloc);
 
     try expect(node.data == .expr);
     try expect(std.mem.eql(u8, node.data.expr.name, "test"));
-    try expect(node.data.expr.params.len == 0);
+    try expectEqual(0, node.data.expr.params.len);
     try expect(node.data.expr.expr != null);
     try expect(node.data.expr.expr.?.data == .bin);
-    try expect(node.data.expr.expr.?.data.bin.op == Tokens.Tplus);
+    try expectEqual(.Plus, node.data.expr.expr.?.data.bin.op);
     try expect(node.data.expr.expr.?.data.bin.lhs.data == .int);
-    try expect(node.data.expr.expr.?.data.bin.lhs.data.int == 1);
+    try expectEqual(1, node.data.expr.expr.?.data.bin.lhs.data.int);
     try expect(node.data.expr.expr.?.data.bin.rhs.data == .int);
-    try expect(node.data.expr.expr.?.data.bin.rhs.data.int == 2);
+    try expectEqual(2, node.data.expr.expr.?.data.bin.rhs.data.int);
 }
 
 test "Parser - Ternary" {
     const code = "test = 1 ? 2 : 3;";
     const alloc = std.testing.allocator;
     var parser = Parser.init(code, alloc);
-    const node = try parser.parse_node();
+    const node = try parser.parseNode();
     defer node.deinit(alloc);
 
     try expect(node.data == .expr);
     try expect(std.mem.eql(u8, node.data.expr.name, "test"));
-    try expect(node.data.expr.params.len == 0);
+    try expectEqual(0, node.data.expr.params.len);
     try expect(node.data.expr.expr != null);
     try expect(node.data.expr.expr.?.data == .ter);
     try expect(node.data.expr.expr.?.data.ter.cond.data == .int);
-    try expect(node.data.expr.expr.?.data.ter.cond.data.int == 1);
+    try expectEqual(1, node.data.expr.expr.?.data.ter.cond.data.int);
     try expect(node.data.expr.expr.?.data.ter.btrue.data == .int);
-    try expect(node.data.expr.expr.?.data.ter.btrue.data.int == 2);
+    try expectEqual(2, node.data.expr.expr.?.data.ter.btrue.data.int);
     try expect(node.data.expr.expr.?.data.ter.bfalse.data == .int);
-    try expect(node.data.expr.expr.?.data.ter.bfalse.data.int == 3);
+    try expectEqual(3, node.data.expr.expr.?.data.ter.bfalse.data.int);
 }
 
 test "Parser - Intr" {
@@ -327,27 +152,27 @@ test "Parser - Intr" {
     ;
     const alloc = std.testing.allocator;
     var parser = Parser.init(code, alloc);
-    const node = try parser.parse_node();
+    const node = try parser.parseNode();
     defer node.deinit(alloc);
 
     try expect(node.data == .expr);
     try expect(std.mem.eql(u8, node.data.expr.name, "test"));
-    try expect(node.data.expr.params.len == 0);
+    try expectEqual(0, node.data.expr.params.len);
     try expect(node.data.expr.expr != null);
     try expect(node.data.expr.expr.?.data == .intr);
-    try expect(node.data.expr.expr.?.data.intr.intermediates.len == 2);
+    try expectEqual(2, node.data.expr.expr.?.data.intr.intermediates.len);
 }
 
 test "Parser - Params" {
     const code = "test a b c d e f g h = a;";
     const alloc = std.testing.allocator;
     var parser = Parser.init(code, alloc);
-    const node = try parser.parse_node();
+    const node = try parser.parseNode();
     defer node.deinit(alloc);
 
     try expect(node.data == .expr);
     try expect(std.mem.eql(u8, node.data.expr.name, "test"));
-    try expect(node.data.expr.params.len == 8);
+    try expectEqual(8, node.data.expr.params.len);
     try expect(node.data.expr.params[0].data == .ref);
     try expect(std.mem.eql(u8, node.data.expr.params[0].data.ref, "a"));
     try expect(node.data.expr.params[7].data == .ref);
@@ -375,7 +200,7 @@ test "Context - get/add" {
 
     try ctx.add("test", 0);
     try expect(ctx.get("test") != null);
-    try expect(ctx.get("test") == 0);
+    try expectEqual(0, ctx.get("test"));
 }
 
 test "Context - getTree/addTree" {
@@ -385,7 +210,7 @@ test "Context - getTree/addTree" {
 
     try ctx.addTree("a/b/c", "test", 0);
     try expect(ctx.getTree("a/b/c", "test") != null);
-    try expect(ctx.getTree("a/b/c", "test") == 0);
+    try expectEqual(ctx.getTree("a/b/c", "test"), 0);
 }
 
 test "Analyzer - Integer" {
@@ -393,12 +218,12 @@ test "Analyzer - Integer" {
     const alloc = std.testing.allocator;
     var parser = Parser.init(code, alloc);
 
-    const node = try parser.parse_node();
-    
+    const node = try parser.parseNode();
+
     var analyzer = try Analyzer.init(alloc);
     defer analyzer.deinit();
 
-    const analyzed = try analyzer.analyze(analyzer.context, node);
+    const analyzed = try analyzer.runAnalysis(node);
     defer analyzed.deinit(alloc);
 
     try expect(analyzed.ntype != null);
@@ -406,18 +231,17 @@ test "Analyzer - Integer" {
     const tres = analyzed.ntype.?.data;
 
     try expect(tres == .integer);
-    try expect(tres.integer.start == 1);
-    try expect(tres.integer.end == 3);
-    try expect(tres.integer.value == null);
+    try expectEqual(1, tres.integer.start);
+    try expectEqual(3, tres.integer.end);
+    try expectEqual(null, tres.integer.value);
 
     const eres = analyzed.data;
     try expect(eres == .expr);
-    try expect(eres.expr.params.len == 0);
+    try expectEqual(0, eres.expr.params.len);
     try expect(eres.expr.expr != null);
 
     try expect(eres.expr.expr.?.data == .int);
-    try expect(eres.expr.expr.?.data.int == 2);
+    try expectEqual(2, eres.expr.expr.?.data.int);
     try expect(eres.expr.ntype != null);
     try expect(eres.expr.ntype.?.ntype != null);
-
 }
