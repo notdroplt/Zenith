@@ -269,10 +269,7 @@ pub const Lexer = struct {
             lex = lex.walk();
 
         if (lex.end()) {
-            lex.errctx = ErrorContext{ 
-                .position = Pos{.index = start, .span = lex.index - start},
-                .value = .MalformedToken
-            };
+            lex.errctx = ErrorContext{ .position = Pos{ .index = start, .span = lex.index - start }, .value = .MalformedToken };
             return LexerError.MalformedString;
         }
         lex = lex.walk();
@@ -464,10 +461,7 @@ pub const Lexer = struct {
         if (tok) |t|
             return t;
 
-        self.errctx = ErrorContext {
-            .position = pos,
-            .value = .MalformedToken
-        };
+        self.errctx = ErrorContext{ .position = pos, .value = .MalformedToken };
 
         return LexerError.MalformedToken;
     }
@@ -918,15 +912,11 @@ pub const Type = struct {
 
             right.* = b;
 
-            return Type {
+            return Type{
                 .pointerIndex = 0,
                 .data = .{
-                    .function = .{
-                        .body = null,
-                        .argument = left,
-                        .ret = right
-                    }
-                }
+                    .function = .{ .body = null, .argument = left, .ret = right },
+                },
             };
         }
 
@@ -943,7 +933,7 @@ pub const Type = struct {
             };
         }
 
-        if (a.isFunction() and a.isFunction() and op == .Dot) {
+        if (a.isFunction() and a.isFunction() and op == .Star) {
             if (a.data.function.ret != b.data.function.argument)
                 return TypeError.InvalidComposition;
 
@@ -1528,7 +1518,6 @@ pub const Node = struct {
         }
     }
 
-    
     pub fn deinit(self: *Node, alloc: std.mem.Allocator) void {
         if (self.ntype) |ntype| {
             ntype.deinit(alloc);
@@ -1544,6 +1533,7 @@ pub const Node = struct {
             .ref => {},
             .unr => |v| v.val.deinit(alloc),
             .bin => |v| {
+                std.debug.print("op = {s}\n", .{@tagName(v.op)});
                 v.lhs.deinit(alloc);
                 v.rhs.deinit(alloc);
             },
@@ -2320,7 +2310,7 @@ pub const Analyzer = struct {
     castIndex: u32,
 
     pub fn init(allocator: std.mem.Allocator) !Analyzer {
-        return Analyzer{ 
+        return Analyzer{
             .allocator = allocator,
             .context = TContext.init(allocator),
             .modules = TContext.init(allocator),
@@ -2580,7 +2570,14 @@ pub const Analyzer = struct {
         innerctx.parent = currctx;
 
         var freturn = try self.allocator.create(Type);
-        freturn.* = Type{ .pointerIndex = 0, .data = .{ .casting = .{ .index = @intCast(self.castIndex + expr.params.len) } } };
+        freturn.* = Type{
+            .pointerIndex = 0,
+            .data = .{
+                .casting = .{ .index = @intCast(self.castIndex + expr.params.len) },
+            },
+        };
+
+        // generate function type
         for (0..expr.params.len) |i| {
             const idx = expr.params.len - i - 1;
             const arg = expr.params[idx];
@@ -2602,17 +2599,22 @@ pub const Analyzer = struct {
             const ft = try self.allocator.create(Type);
             errdefer ft.deinit(self.allocator);
 
-            ft.* = .{ .pointerIndex = 0, .data = .{ .function = .{ .argument = argT, .ret = freturn, .body = null } } };
+            ft.* = .{
+                .pointerIndex = 0,
+                .data = .{
+                    .function = .{ .argument = argT, .ret = freturn, .body = null },
+                },
+            };
 
             freturn = ft;
         }
 
-        node.ntype = freturn;
+        node.ntype = try freturn.deepCopy(self.allocator);
 
         self.castIndex += @intCast(expr.params.len + 1);
 
         if (expr.ntype) |res| {
-            res.* = (try analyze(self, &innerctx, expr.ntype.?)).*;
+            _ = try analyze(self, &innerctx, expr.ntype.?);
             errdefer res.deinit(self.allocator);
             node.ntype = try res.ntype.?.deepCopy(self.allocator);
             errdefer node.ntype.?.deinit(self.allocator);
@@ -2726,7 +2728,7 @@ pub const IR = struct {
     pub fn deinit(self: *IR) void {
         self.edges.deinit(self.alloc);
         var nit = self.nodes.iterator();
-        while(nit.next()) |node| {
+        while (nit.next()) |node| {
             node.value_ptr.*.instructions.deinit(self.alloc);
         }
         self.nodes.deinit(self.alloc);
@@ -2735,8 +2737,9 @@ pub const IR = struct {
         // value.deinit(self.alloc); // we *might need to delete partials
     }
 
-    pub fn fromNode(self: *IR, node: *Node) !Value {
-        return self.blockNode(0, node);
+    pub fn fromNode(self: *IR, node: *Node) !void {
+        const val = try self.blockNode(0, node);
+        _ = try self.appendIfConstant(val.from, val);
     }
 
     pub fn newBlock(self: *IR) !BlockOffset {
@@ -3183,6 +3186,10 @@ pub const IR = struct {
     }
 };
 
+///////////
+
+pub const Optimizations = struct {};
+
 /// Pipelines the entire compiling process, its the compiler main function
 pub fn pipeline(name: String, alloc: std.mem.Allocator) !u8 {
     const stdout_file = std.io.getStdOut().writer();
@@ -3228,13 +3235,13 @@ pub fn pipeline(name: String, alloc: std.mem.Allocator) !u8 {
 
     try bw.flush();
 
-    const blocked = ir.fromNode(typed) catch |err| {
+    ir.fromNode(typed) catch |err| {
         try misc.printError(stdout, name, parser.code, err, ir.errctx);
         try bw.flush();
         return 252;
     };
 
-    _ = blocked;
+    try misc.printIR(&ir, stdout);
 
     try stdout.print("analysis successful\n", .{});
     try bw.flush();

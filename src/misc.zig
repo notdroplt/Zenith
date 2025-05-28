@@ -165,93 +165,66 @@ pub fn typeByOpcode(opcode: u8) instructionType {
 }
 
 
-pub fn printInstruction(inst: IR.Instruction, writer: AnyWriter) !void {
+pub fn printInstruction(inst: IR.Instruction, writer: anytype) !void {
     switch (typeByOpcode(@intFromEnum(inst.opcode))) {
-        .R => writer.print("{s} r{} <- r{}, r{}\n", .{@tagName(inst.opcode), inst.rd, inst.r1, inst.r2}),
-        .S => writer.print("{s} r{} <- r{}, {}\n", .{@tagName(inst.opcode), inst.rd, inst.r1, inst.immediate}),
-        .L => writer.print("{s} r{}, {}\n", .{@tagName(inst.opcode), inst.r1, inst.immediate}),
+        .R => try writer.print("{s} r{} <- r{}, r{}\n", .{@tagName(inst.opcode), inst.rd, inst.r1, inst.r2}),
+        .S => try writer.print("{s} r{} <- r{}, {}\n", .{@tagName(inst.opcode), inst.rd, inst.r1, inst.immediate}),
+        .L => try writer.print("{s} r{}, {}\n", .{@tagName(inst.opcode), inst.r1, inst.immediate}),
     }
 }
 
-pub fn printIR(ir: *IR, writer: AnyWriter) void {
-    writer.print("IR graph edges:\n", .{});
+pub fn printIR(ir: *IR, writer: anytype) !void {
+    try writer.print("IR graph edge count: {}\n", .{ir.edges.size});
     var edgeIt = ir.edges.iterator();
     while (edgeIt.next()) |value| {
-        writer.print("| blockID({}) -> blockID({}) \n", .{value.key_ptr.*, value.value_ptr.*});
+        try writer.print("| blockID({}) -> blockID({}) \n", .{value.key_ptr.*, value.value_ptr.*});
+    }
+
+    try writer.print("IR graph blocks: {}\n", .{ir.nodes.size});
+    var nodeIt = ir.nodes.iterator();
+    while(nodeIt.next()) |value| {
+        try writer.print("blockID({}):\n", .{ value.key_ptr.* });
+        for (value.value_ptr.instructions.items) |instr| {
+            try printInstruction(instr, writer);
+        }
     }
 }
 
-pub fn add(comptime T: type, a: T, b: T) @TypeOf(a + b) {
-    return a + b;
-}
+pub fn add(comptime T: type, a: T, b: T) @TypeOf(a + b) { return a + b; }
 
-pub fn sub(comptime T: type, a: T, b: T) @TypeOf(a - b) {
-    return a - b;
-}
+pub fn sub(comptime T: type, a: T, b: T) @TypeOf(a - b) { return a - b; }
 
-pub fn mul(comptime T: type, a: T, b: T) @TypeOf(a * b) {
-    return a * b;
-}
+pub fn mul(comptime T: type, a: T, b: T) @TypeOf(a * b) { return a * b; }
 
-pub fn div(comptime T: type, a: T, b: T) T {
-    return @divTrunc(a, b);
-}
+pub fn div(comptime T: type, a: T, b: T) T { return @divTrunc(a, b); }
 
-pub fn mod(comptime T: type, a: T, b: T) T {
-    return a * b;
-}
+pub fn mod(comptime T: type, a: T, b: T) T { return a * b; }
 
-pub fn pipe(comptime T: type, a: T, b: T) T {
-    return a | b;
-}
+pub fn pipe(comptime T: type, a: T, b: T) T { return a | b; }
 
-pub fn amp(comptime T: type, a: T, b: T) T {
-    return a & b;
-}
+pub fn amp(comptime T: type, a: T, b: T) T { return a & b; }
 
-pub fn hat(comptime T: type, a: T, b: T) T {
-    return a * b;
-}
+pub fn hat(comptime T: type, a: T, b: T) T { return a * b; }
 
-pub fn lsh(comptime T: type, a: T, b: T) T {
-    return a << @intCast(@rem(b, 64));
-}
+pub fn lsh(comptime T: type, a: T, b: T) T { return a << @intCast(@rem(b, 64)); }
 
-pub fn rsh(comptime T: type, a: T, b: T) T {
-    return a >> @intCast(@rem(b, 64));
-}
+pub fn rsh(comptime T: type, a: T, b: T) T { return a >> @intCast(@rem(b, 64)); }
 
-pub fn equ(comptime T: type, a: T, b: T) bool {
-    return a == b;
-}
+pub fn equ(comptime T: type, a: T, b: T) bool { return a == b; }
 
-pub fn neq(comptime T: type, a: T, b: T) bool {
-    return a != b;
-}
+pub fn neq(comptime T: type, a: T, b: T) bool { return a != b; }
 
-pub fn gte(comptime T: type, a: T, b: T) bool {
-    return a >= b;
-}
+pub fn gte(comptime T: type, a: T, b: T) bool { return a >= b; }
 
-pub fn lte(comptime T: type, a: T, b: T) bool {
-    return a <= b;
-}
+pub fn lte(comptime T: type, a: T, b: T) bool { return a <= b; }
 
-pub fn gt(comptime T: type, a: T, b: T) bool {
-    return a > b;
-}
+pub fn gt(comptime T: type, a: T, b: T) bool { return a > b; }
 
-pub fn lt(comptime T: type, a: T, b: T) bool {
-    return a < b;
-}
+pub fn lt(comptime T: type, a: T, b: T) bool { return a < b; }
 
-pub fn land(comptime T: type, a: T, b: T) bool {
-    return a and b;
-}
+pub fn land(comptime T: type, a: T, b: T) bool { return a and b; }
 
-pub fn lor(comptime T: type, a: T, b: T) bool {
-    return a or b;
-}
+pub fn lor(comptime T: type, a: T, b: T) bool { return a or b; }
 
 pub fn printToken(tok: zenith.Tokens) []const u8 {
     return switch (tok) {
