@@ -3,7 +3,7 @@ const AnyWriter = std.io.AnyWriter;
 const zenith = @import("zenith.zig");
 const Node = zenith.Node;
 const IR = zenith.IR;
-
+const SuperNova = @import("Supernova/supernova.zig");
 pub const PrettyPosition = struct {
     code: []const u8,
     line: u32 = 0,
@@ -90,6 +90,10 @@ fn printContext(writer: anytype, ctx: zenith.ErrorContext) !void {
             try printType(writer, err.*);
             try writer.print(" could not be materialized for loading", .{});
         },
+        .NonBooleanDecision => |err| {
+            try writer.print("Ternary operator requires a boolean condition, but found type ", .{});
+            try printType(writer, err.condtype);
+        },
         else => {
             try writer.print("error : {s}\n", .{@tagName(ctx.value)});
         }
@@ -166,10 +170,22 @@ pub fn typeByOpcode(opcode: u8) instructionType {
 
 
 pub fn printInstruction(inst: IR.Instruction, writer: anytype) !void {
+    if (inst.opcode == .mov) {
+        try writer.print("| mov r{} <- {}\n", .{inst.rd, inst.immediate});
+        return;
+    }
+    if (inst.opcode == .blk_jmp) {
+        try writer.print("| jmp ({s}) r{} r{} -> BlockID({})\n", .{
+            @tagName(@as(SuperNova.BlockJumpCondition, @enumFromInt(inst.r1))),
+            inst.r2, inst.rd,
+            inst.immediate
+            });
+        return;
+    }
     switch (typeByOpcode(@intFromEnum(inst.opcode))) {
-        .R => try writer.print("{s} r{} <- r{}, r{}\n", .{@tagName(inst.opcode), inst.rd, inst.r1, inst.r2}),
-        .S => try writer.print("{s} r{} <- r{}, {}\n", .{@tagName(inst.opcode), inst.rd, inst.r1, inst.immediate}),
-        .L => try writer.print("{s} r{}, {}\n", .{@tagName(inst.opcode), inst.r1, inst.immediate}),
+        .R => try writer.print("| {s} r{} <- r{}, r{}\n", .{@tagName(inst.opcode), inst.rd, inst.r1, inst.r2}),
+        .S => try writer.print("| {s} r{} <- r{}, {}\n", .{@tagName(inst.opcode), inst.rd, inst.r1, inst.immediate}),
+        .L => try writer.print("| {s} r{}, {}\n", .{@tagName(inst.opcode), inst.r1, inst.immediate}),
     }
 }
 
@@ -177,7 +193,7 @@ pub fn printIR(ir: *IR, writer: anytype) !void {
     try writer.print("IR graph edge count: {}\n", .{ir.edges.size});
     var edgeIt = ir.edges.iterator();
     while (edgeIt.next()) |value| {
-        try writer.print("| blockID({}) -> blockID({}) \n", .{value.key_ptr.*, value.value_ptr.*});
+        try writer.print("| blockID({}) -> blockID({}) \n", .{value.key_ptr.from, value.key_ptr.to});
     }
 
     try writer.print("IR graph blocks: {}\n", .{ir.nodes.size});

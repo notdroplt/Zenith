@@ -574,6 +574,11 @@ pub const ErrorContext = struct {
             rhs: Type,
         },
 
+        NonBooleanDecision: struct {
+            /// Non boolean type
+            condtype: Type,
+        },
+
         /// Two types that can not be joined together
         DisjointTypes: struct {
             /// Type one
@@ -784,36 +789,6 @@ pub const Type = struct {
 
     pub fn initIdxCasting(value: u32) Type {
         return Type{ .data = .{ .casting = .{ .index = value } } };
-    }
-
-    /// Deinit a type
-    pub fn deinit(self: Type, allocator: std.mem.Allocator) void {
-        return switch (self.data) {
-            .boolean => {},
-            .integer => {},
-            .decimal => {},
-            .array => |v| {
-                v.indexer.deinit(allocator);
-                for (v.value) |elem|
-                    if (elem != null) elem.?.deinit(allocator);
-
-                allocator.free(v.value);
-                allocator.destroy(v.indexer);
-            },
-            .aggregate => |v| {
-                for (v.values) |elem|
-                    if (elem != null) elem.?.deinit(allocator);
-
-                allocator.free(v.values);
-            },
-            .function => |v| {
-                v.argument.deinit(allocator);
-                allocator.destroy(v.argument);
-                v.ret.deinit(allocator);
-                allocator.destroy(v.ret);
-            },
-            .casting => {},
-        };
     }
 
     /// Check if this type has a value
@@ -1178,7 +1153,6 @@ pub const Type = struct {
             .array => blk: {
                 var newType = self;
                 newType.data.array.indexer = try self.data.array.indexer.deepCopy(alloc);
-                errdefer newType.data.array.indexer.deinit(alloc);
                 var newValues = try alloc.alloc(?Type, self.data.array.value.len);
                 for (self.data.array.value, 0..) |value, i| {
                     if (value == null) continue;
@@ -1519,11 +1493,6 @@ pub const Node = struct {
     }
 
     pub fn deinit(self: *Node, alloc: std.mem.Allocator) void {
-        if (self.ntype) |ntype| {
-            ntype.deinit(alloc);
-            alloc.destroy(ntype);
-        }
-
         switch (self.data) {
             .none => {},
             .type => {},
@@ -2303,15 +2272,21 @@ const Substitution = struct {
 pub const Analyzer = struct {
     const TContext = Context(*Type);
     allocator: std.mem.Allocator,
+    /// Use an arena for types to allow shallow copying
+    talloc: std.mem.Allocator,
 
+    aalloc: std.heap.ArenaAllocator,
     context: TContext,
     modules: TContext,
     errctx: ErrorContext = .{ .value = .NoContext },
     castIndex: u32,
 
     pub fn init(allocator: std.mem.Allocator) !Analyzer {
+        //var arena = std.heap.ArenaAllocator.init(allocator);
         return Analyzer{
             .allocator = allocator,
+            .aalloc = undefined, //arena,
+            .talloc = allocator,
             .context = TContext.init(allocator),
             .modules = TContext.init(allocator),
             .castIndex = 0,
@@ -2329,6 +2304,7 @@ pub const Analyzer = struct {
     pub fn deinit(self: *Analyzer) void {
         self.context.deinit(self.allocator);
         self.modules.deinit(self.allocator);
+        self.aalloc.deinit();
     }
 
     pub fn runAnalysis(self: *Analyzer, node: *Node) !*Node {
@@ -2356,23 +2332,22 @@ pub const Analyzer = struct {
     }
 
     fn analyzeInt(self: *Analyzer, node: *Node) AnalyzerError!*Node {
-        node.ntype = try self.allocator.create(Type);
+        node.ntype = try self.talloc.create(Type);
         node.ntype.?.* = Type.initInt(node.data.int, node.data.int, node.data.int);
         return node;
     }
 
     fn analyzeDec(self: *Analyzer, node: *Node) AnalyzerError!*Node {
-        node.ntype = try self.allocator.create(Type);
+        node.ntype = try self.talloc.create(Type);
         node.ntype.?.* = Type.initFloat(node.data.dec, node.data.dec, node.data.dec);
         return node;
     }
 
     fn analyzeStr(self: *Analyzer, node: *Node) AnalyzerError!*Node {
-        var arr = try self.allocator.alloc(?Type, node.data.str.len);
-        errdefer self.allocator.free(arr);
+        var arr = try self.talloc.alloc(?Type, node.data.str.len);
+        errdefer self.talloc.free(arr);
 
-        var strType = try self.allocator.create(Type);
-        errdefer strType.deinit(self.allocator);
+        const strType = try self.talloc.create(Type);
 
         strType.* = Type.initInt(0, 255, null);
 
@@ -2380,8 +2355,8 @@ pub const Analyzer = struct {
             arr[i] = Type.initInt(c, c, c);
         }
 
-        var arrtype = try self.allocator.create(Type);
-        errdefer arrtype.deinit(self.allocator);
+        var arrtype = try self.talloc.create(Type);
+        errdefer arrtype.deinit(self.talloc);
 
         arrtype.* = Type{ .pointerIndex = 0, .data = .{ .array = .{
             .size = @intCast(node.data.str.len),
@@ -2396,20 +2371,18 @@ pub const Analyzer = struct {
     fn analyzeRef(self: *Analyzer, currctx: *TContext, node: *Node) AnalyzerError!*Node {
         const refType = currctx.get(node.data.ref);
         if (refType) |refT| {
-            node.ntype = try refT.deepCopy(self.allocator);
+            node.ntype = try refT.deepCopy(self.talloc);
             return node;
         }
         return AnalyzerError.UndefinedReference;
     }
 
     fn analyzeUnr(self: *Analyzer, currctx: *TContext, node: *Node) AnalyzerError!*Node {
-        node.ntype = try self.allocator.create(Type);
-        errdefer node.ntype.?.deinit(self.allocator);
+        node.ntype = try self.talloc.create(Type);
 
         const rest = try analyze(self, currctx, node.data.unr.val);
 
-        var unt = try self.allocator.create(Type);
-        errdefer unt.deinit(self.allocator);
+        const unt = try self.talloc.create(Type);
 
         unt.* = Type.synthUnary(node.data.unr.op, rest.ntype.?.*) catch |err| {
             self.errctx.position = node.position;
@@ -2423,10 +2396,9 @@ pub const Analyzer = struct {
         const lhs = try analyze(self, currctx, node.data.bin.lhs);
         const rhs = try analyze(self, currctx, node.data.bin.rhs);
 
-        node.ntype = try self.allocator.create(Type);
-        errdefer node.ntype.?.deinit(self.allocator);
+        node.ntype = try self.talloc.create(Type);
 
-        node.ntype.?.* = Type.binOperate(self.allocator, node.data.bin.op, lhs.ntype.?.*, rhs.ntype.?.*) catch |err| {
+        node.ntype.?.* = Type.binOperate(self.talloc, node.data.bin.op, lhs.ntype.?.*, rhs.ntype.?.*) catch |err| {
             self.errctx.position = node.position;
             return err;
         };
@@ -2438,16 +2410,15 @@ pub const Analyzer = struct {
         const caller = try analyze(self, currctx, node.data.call.caller);
         const callee = try analyze(self, currctx, node.data.call.callee);
 
-        node.ntype = try self.allocator.create(Type);
-        errdefer node.ntype.?.deinit(self.allocator);
-
+        node.ntype = try self.talloc.create(Type);
         node.ntype = try Type.callFunction(caller.ntype.?.*, callee.ntype.?.*);
         return node;
     }
 
     fn analyzeTernary(self: *Analyzer, currctx: *TContext, node: *Node) AnalyzerError!*Node {
         const cond = try analyze(self, currctx, node.data.ter.cond);
-        if (cond.ntype == null or cond.ntype.?.data == .boolean) {
+        if (cond.ntype == null or cond.ntype.?.data != .boolean) {
+            self.errctx = ErrorContext{ .position = cond.position, .value = .{ .NonBooleanDecision = .{ .condtype = cond.ntype.?.* } } };
             return AnalyzerError.NonBooleanDecision;
         }
 
@@ -2497,8 +2468,8 @@ pub const Analyzer = struct {
             const iend = end.ntype.?.data.integer.value;
             //const ivalue = epsilon.ntype.?.data.integer.value;
 
-            const trange = try self.allocator.create(Type);
-            errdefer trange.deinit(self.allocator);
+            const trange = try self.talloc.create(Type);
+            errdefer trange.deinit(self.talloc);
 
             trange.* = Type{ .pointerIndex = 0, .data = .{ .integer = .{
                 .start = istart.?,
@@ -2514,8 +2485,8 @@ pub const Analyzer = struct {
             const dstart = start.ntype.?.data.decimal.value;
             const dend = end.ntype.?.data.decimal.value;
 
-            const trange = try self.allocator.create(Type);
-            errdefer trange.deinit(self.allocator);
+            const trange = try self.talloc.create(Type);
+            errdefer trange.deinit(self.talloc);
 
             trange.* = Type{ .pointerIndex = 0, .data = .{ .decimal = .{
                 .start = dstart.?,
@@ -2555,8 +2526,6 @@ pub const Analyzer = struct {
             const pname = mnode.data.expr.name;
             const modnode = try analyze(self, currctx, mnode);
             const res = try modnode.ntype.?.deepCopy(self.allocator);
-            errdefer res.deinit(self.allocator);
-
             try self.modules.addTree(mod.path, pname, res);
         }
         return node;
@@ -2569,7 +2538,7 @@ pub const Analyzer = struct {
 
         innerctx.parent = currctx;
 
-        var freturn = try self.allocator.create(Type);
+        var freturn = try self.talloc.create(Type);
         freturn.* = Type{
             .pointerIndex = 0,
             .data = .{
@@ -2581,9 +2550,7 @@ pub const Analyzer = struct {
         for (0..expr.params.len) |i| {
             const idx = expr.params.len - i - 1;
             const arg = expr.params[idx];
-            const argT = try self.allocator.create(Type);
-            errdefer argT.deinit(self.allocator);
-
+            const argT = try self.talloc.create(Type);
             argT.* = .{
                 .pointerIndex = 0,
                 .data = .{
@@ -2591,13 +2558,12 @@ pub const Analyzer = struct {
                 },
             };
 
-            arg.ntype = try argT.deepCopy(self.allocator);
-            errdefer arg.ntype.?.deinit(self.allocator);
+            arg.ntype = try argT.deepCopy(self.talloc);
 
             try innerctx.add(arg.data.ref, arg.ntype.?);
 
-            const ft = try self.allocator.create(Type);
-            errdefer ft.deinit(self.allocator);
+            const ft = try self.talloc.create(Type);
+            errdefer ft.deinit(self.talloc);
 
             ft.* = .{
                 .pointerIndex = 0,
@@ -2609,21 +2575,20 @@ pub const Analyzer = struct {
             freturn = ft;
         }
 
-        node.ntype = try freturn.deepCopy(self.allocator);
+        node.ntype = try freturn.deepCopy(self.talloc);
 
         self.castIndex += @intCast(expr.params.len + 1);
 
         if (expr.ntype) |res| {
             _ = try analyze(self, &innerctx, expr.ntype.?);
-            errdefer res.deinit(self.allocator);
-            node.ntype = try res.ntype.?.deepCopy(self.allocator);
-            errdefer node.ntype.?.deinit(self.allocator);
+            errdefer res.deinit(self.talloc);
+            node.ntype = try res.ntype.?.deepCopy(self.talloc);
 
             var paramVal = res.ntype.?;
             for (expr.params) |n| {
                 if (!paramVal.isFunction()) break;
-                n.ntype = try paramVal.data.function.argument.deepCopy(self.allocator);
-                errdefer n.ntype.?.deinit(self.allocator);
+                n.ntype = try paramVal.data.function.argument.deepCopy(self.talloc);
+                errdefer n.ntype.?.deinit(self.talloc);
             }
         }
 
@@ -2634,7 +2599,7 @@ pub const Analyzer = struct {
                 if (node.ntype) |nt| {
                     ptype = try nt.getParameter(@intCast(pidx));
                 } else {
-                    ptype = try self.allocator.create(Type);
+                    ptype = try self.talloc.create(Type);
                     ptype.* = Type.initIdxCasting(self.castIndex);
                     self.castIndex += 1;
                 }
@@ -2738,14 +2703,15 @@ pub const IR = struct {
     }
 
     pub fn fromNode(self: *IR, node: *Node) !void {
-        const val = try self.blockNode(0, node);
+        const bid = try self.newBlock();
+        const val = try self.blockNode(bid, node);
         _ = try self.appendIfConstant(val.from, val);
     }
 
     pub fn newBlock(self: *IR) !BlockOffset {
-        self.blockCounter += 1;
         try self.nodes.put(self.alloc, self.blockCounter, .{});
-        return self.blockCounter;
+        self.blockCounter += 1;
+        return self.blockCounter - 1;
     }
 
     pub fn newEdge(self: *IR, from: BlockOffset, to: BlockOffset) !void {
@@ -2875,7 +2841,6 @@ pub const IR = struct {
 
     fn constantFromType(self: *IR, block: BlockOffset, node: *Node) Value {
         const nodeType = node.ntype.?;
-        node.ntype = null;
         node.deinit(self.alloc);
 
         return Value{ .vtype = nodeType, .from = block, .value = .constant };
@@ -2894,9 +2859,6 @@ pub const IR = struct {
             return self.constantFromType(block, node);
 
         const refType = node.ntype.?;
-        node.ntype = null;
-        errdefer refType.deinit(self.alloc);
-
         const instruction = Instruction{
             .opcode = self.calculateLoadSize(refType) catch |err| {
                 self.errctx.position = node.position;
@@ -2920,8 +2882,6 @@ pub const IR = struct {
 
         const unary = node.data.unr;
         const unrtype = node.ntype;
-        node.ntype = null;
-        errdefer unrtype.?.deinit(self.alloc);
 
         const inner = try self.blockNode(block, unary.val);
 
@@ -2970,7 +2930,9 @@ pub const IR = struct {
 
     fn getBinaryOp(self: *IR, from: BlockOffset, node: *Node, lreg: SNIR.InfiniteRegister, rreg: SNIR.InfiniteRegister) !SNIR.Opcodes {
         const binary = node.data.bin;
-        const bintype = node.ntype.?;
+        const isSigned =
+            (binary.lhs.ntype == null or binary.rhs.ntype == null) or
+            (binary.lhs.ntype.?.data.integer.start < 0 and binary.rhs.ntype.?.data.integer.start < 0);
         return switch (binary.op) {
             .Plus => .addr,
             .Min => .subr,
@@ -2993,8 +2955,8 @@ pub const IR = struct {
                 return .setleur;
             },
             .Cneq => .xorr,
-            .Cgt, .Clt => if (bintype.data.integer.start < 0) .setgsr else .setgur,
-            .Cge, .Cle => if (bintype.data.integer.start < 0) .setlesr else .setleur,
+            .Cgt, .Clt => if (isSigned) .setgsr else .setgur,
+            .Cge, .Cle => if (isSigned) .setlesr else .setleur,
             else => return IRError.InvalidOperation,
         };
     }
@@ -3006,7 +2968,6 @@ pub const IR = struct {
         const binary = node.data.bin;
         const bintype = node.ntype;
         const swap = binary.op == .Cge or binary.op == .Clt;
-        errdefer bintype.?.deinit(self.alloc);
 
         const left = try self.blockNode(block, binary.lhs);
         const lreg = try self.appendIfConstant(left.from, left);
@@ -3039,7 +3000,6 @@ pub const IR = struct {
         const ternary = node.data.ter;
         const ternarytype = node.ntype;
         node.ntype = null;
-        errdefer ternarytype.?.deinit(self.alloc);
 
         const cond = try blockNode(self, block, ternary.cond);
 
@@ -3083,9 +3043,17 @@ pub const IR = struct {
         // jump on false
         try self.addInstruction(cond.from, Instruction{
             .opcode = SNIR.Opcodes.blk_jmp,
-            .rd = @truncate(falseblock),
             .r1 = @intFromEnum(SNIR.BlockJumpCondition.Equal),
+            .r2 = btrue.value.instruction.rd,
+            .rd = 0,
+            .immediate = @truncate(falseblock),
+        });
+
+        try self.addInstruction(cond.from, Instruction{
+            .opcode = SNIR.Opcodes.blk_jmp,
+            .r1 = @intFromEnum(SNIR.BlockJumpCondition.Unconditional),
             .r2 = 0,
+            .immediate = @truncate(trueblock),
         });
 
         return Value{
@@ -3172,12 +3140,9 @@ pub const IR = struct {
     fn blockExpr(self: *IR, block: BlockOffset, node: *Node) IRError!Value {
         // top level expression
 
-        var initialBlock = block;
+        const initialBlock = block;
 
         if (block == 0) {
-            initialBlock = try self.newBlock();
-            errdefer self.deinitBlock(initialBlock);
-
             // refresh registers
             self.regIndex = 8;
         }
