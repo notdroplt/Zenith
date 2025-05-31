@@ -1502,7 +1502,6 @@ pub const Node = struct {
             .ref => {},
             .unr => |v| v.val.deinit(alloc),
             .bin => |v| {
-                std.debug.print("op = {s}\n", .{@tagName(v.op)});
                 v.lhs.deinit(alloc);
                 v.rhs.deinit(alloc);
             },
@@ -2275,18 +2274,15 @@ pub const Analyzer = struct {
     /// Use an arena for types to allow shallow copying
     talloc: std.mem.Allocator,
 
-    aalloc: std.heap.ArenaAllocator,
     context: TContext,
     modules: TContext,
     errctx: ErrorContext = .{ .value = .NoContext },
     castIndex: u32,
 
-    pub fn init(allocator: std.mem.Allocator) !Analyzer {
-        //var arena = std.heap.ArenaAllocator.init(allocator);
+    pub fn init(allocator: std.mem.Allocator, arena: std.mem.Allocator) !Analyzer {
         return Analyzer{
             .allocator = allocator,
-            .aalloc = undefined, //arena,
-            .talloc = allocator,
+            .talloc = arena,
             .context = TContext.init(allocator),
             .modules = TContext.init(allocator),
             .castIndex = 0,
@@ -2304,7 +2300,6 @@ pub const Analyzer = struct {
     pub fn deinit(self: *Analyzer) void {
         self.context.deinit(self.allocator);
         self.modules.deinit(self.allocator);
-        self.aalloc.deinit();
     }
 
     pub fn runAnalysis(self: *Analyzer, node: *Node) !*Node {
@@ -2841,8 +2836,7 @@ pub const IR = struct {
 
     fn constantFromType(self: *IR, block: BlockOffset, node: *Node) Value {
         const nodeType = node.ntype.?;
-        node.deinit(self.alloc);
-
+        _ = self;
         return Value{ .vtype = nodeType, .from = block, .value = .constant };
     }
 
@@ -3153,7 +3147,12 @@ pub const IR = struct {
 
 ///////////
 
-pub const Optimizations = struct {};
+pub const Optimizations = struct {
+    pub const AST = struct {
+        
+
+    };
+};
 
 /// Pipelines the entire compiling process, its the compiler main function
 pub fn pipeline(name: String, alloc: std.mem.Allocator) !u8 {
@@ -3167,6 +3166,10 @@ pub fn pipeline(name: String, alloc: std.mem.Allocator) !u8 {
         return 255;
     };
 
+    var arena = std.heap.ArenaAllocator.init(alloc);
+    const aalloc = arena.allocator();
+    defer arena.deinit();
+
     defer file.close();
 
     const codeLength = (try file.stat()).size;
@@ -3179,7 +3182,7 @@ pub fn pipeline(name: String, alloc: std.mem.Allocator) !u8 {
     if (result != codeLength) return error.EndOfStream;
 
     var parser = Parser.init(buffer, alloc);
-    var analyzer = try Analyzer.init(alloc);
+    var analyzer = try Analyzer.init(alloc, aalloc);
     defer analyzer.deinit();
     var ir = IR.init(alloc);
     defer ir.deinit();
