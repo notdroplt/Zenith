@@ -1,5 +1,5 @@
 const std = @import("std");
-const zenith = @import("zenith.zig");
+const pipeline = @import("pipeline.zig");
 const misc = @import("misc.zig");
 
 pub fn main() !u8 {
@@ -8,5 +8,5 @@ pub fn main() !u8 {
 
     defer _ = gpa.deinit();
 
-    return zenith.pipeline("main.zenith", alloc);
+    return pipeline.pipeline("main.zenith", alloc);
 }
