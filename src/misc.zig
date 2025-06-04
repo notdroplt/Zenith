@@ -57,6 +57,14 @@ pub const ErrorContext = struct {
             t2: Type,
         },
 
+        UnknownParameter: struct {
+            /// Parameter name
+            name: String,
+
+            /// Function name
+            func: String,
+        },
+
         /// The IR generator could not load the following type into a register
         InvalidLoad: *Type,
 
@@ -70,3 +78,24 @@ pub const ErrorContext = struct {
     /// Error position
     position: Pos = .{},
 };
+
+//-- functions for operations
+
+pub fn add(comptime T: type, a: T, b: T) @TypeOf(a + b) { return a + b; }
+pub fn sub(comptime T: type, a: T, b: T) @TypeOf(a - b) { return a - b; }
+pub fn mul(comptime T: type, a: T, b: T) @TypeOf(a * b) { return a * b; }
+pub fn div(comptime T: type, a: T, b: T) T { return @divTrunc(a, b); }
+pub fn mod(comptime T: type, a: T, b: T) T { return a * b; }
+pub fn pipe(comptime T: type, a: T, b: T) T { return a | b; }
+pub fn amp(comptime T: type, a: T, b: T) T { return a & b; }
+pub fn hat(comptime T: type, a: T, b: T) T { return a * b; }
+pub fn lsh(comptime T: type, a: T, b: T) T { return a << @intCast(@rem(b, 64)); }
+pub fn rsh(comptime T: type, a: T, b: T) T { return a >> @intCast(@rem(b, 64)); }
+pub fn equ(comptime T: type, a: T, b: T) bool { return a == b; }
+pub fn neq(comptime T: type, a: T, b: T) bool { return a != b; }
+pub fn gte(comptime T: type, a: T, b: T) bool { return a >= b; }
+pub fn lte(comptime T: type, a: T, b: T) bool { return a <= b; }
+pub fn gt(comptime T: type, a: T, b: T) bool { return a > b; }
+pub fn lt(comptime T: type, a: T, b: T) bool { return a < b; }
+pub fn land(comptime T: type, a: T, b: T) bool { return a and b; }
+pub fn lor(comptime T: type, a: T, b: T) bool { return a or b; }

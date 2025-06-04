@@ -7,7 +7,7 @@ const Types = @import("types.zig");
 const Node = @import("node.zig");
 
 /// Errors thrown by the parser
-const Error = error{
+pub const Error = error{
     /// Could not request a token
     LexerEnd,
 
@@ -371,7 +371,7 @@ fn parseTernary(self: *Parser) Error!*Node {
         self.errctx = .{
             .value = .{ .UnexpectedToken = .{
                 .expected = .Cln,
-                .found = colon.tid,
+                .token = colon,
             } },
             .position = colon.pos,
         };
@@ -455,7 +455,12 @@ fn parseTPrimary(self: *Parser) Error!*Node {
             ptr.* = Node{ .position = newPosition(tok.pos, val.position), .data = .{ .unr = .{ .op = v, .val = ptr } } };
             return ptr;
         },
-        else => self.generateUnexpected(Lexer.Tokens.Lsqb, tok.tid),
+        else => { 
+            try self.generateUnexpected(Lexer.Tokens.Lsqb, tok);
+
+            // generateUnexpected **will** throw, this is just for compliance
+            unreachable;
+        },
     };
 }
 
@@ -478,7 +483,9 @@ fn parseTBinary(self: *Parser, prec: i3) Error!*Node {
             return left;
 
         self.lexer = self.lexer.catchUp(token);
-        const right = try self.parseTBinary(tokenPrecedence + 1);
+        const next_prec: i3 = if (token.tid == .Arrow) tokenPrecedence else tokenPrecedence + 1;
+
+        const right = try self.parseTBinary(next_prec);
         errdefer right.deinit(self.alloc);
 
         left = try self.createBinNode(token.pos, token.tid, left, right);

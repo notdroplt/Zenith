@@ -20,7 +20,7 @@ pub fn Context(comptime T: type) type {
 
         pub fn initTree(alloc: std.mem.Allocator, path: misc.String) !*ctxt {
             const ctx = ctxt.init(alloc);
-            const parts = std.mem.split(u8, path, "/");
+            const parts = std.mem.splitScalar(u8, path, '/');
             var currentCtx = ctx;
 
             while (parts.next()) |part| {
@@ -37,7 +37,7 @@ pub fn Context(comptime T: type) type {
         }
 
         pub fn getTree(self: ctxt, path: misc.String, name: misc.String) ?T {
-            var parts = std.mem.split(u8, path, "/");
+            var parts = std.mem.splitScalar(u8, path, '/');
             var currentCtx = self;
 
             while (parts.next()) |part| {
@@ -50,7 +50,7 @@ pub fn Context(comptime T: type) type {
         }
 
         pub fn addTree(self: *ctxt, path: misc.String, name: misc.String, value: T) !void {
-            var parts = std.mem.split(u8, path, "/");
+            var parts = std.mem.splitScalar(u8, path, '/');
             var currentCtx = self;
 
             while (parts.next()) |part| {

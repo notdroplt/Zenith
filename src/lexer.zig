@@ -2,8 +2,6 @@ const std = @import("std");
 const misc = @import("misc.zig");
 const ErrorContext = misc.ErrorContext;
 
-const String = misc.String;
-
 const Lexer = @This();
 
 /// Possible token types
@@ -153,7 +151,12 @@ pub const Token = struct {
     pos: misc.Pos = .{},
 
     /// Token value (if applicable)
-    val: union(enum) { int: i64, dec: f64, str: String, empty: void } = .empty,
+    val: union(enum) {
+        int: i64,
+        dec: f64,
+        str: misc.String,
+        empty: void,
+    } = .empty,
 
     /// init a token without value
     pub fn init(tid: Tokens, pos: misc.Pos) Token {
@@ -162,7 +165,7 @@ pub const Token = struct {
 };
 
 /// Code string
-code: String,
+code: misc.String,
 
 /// Index of current character
 index: usize = 0,
@@ -175,7 +178,7 @@ last: ?Token = null,
 errctx: ErrorContext = .{ .value = .NoContext },
 
 /// Initialize a lexer
-pub fn init(code: String) Lexer {
+pub fn init(code: misc.String) Lexer {
     return Lexer{ .code = code };
 }
 
@@ -321,7 +324,7 @@ fn consumeNumber(self: Lexer) Error!Token {
 }
 
 /// Parse an int string into an integer token
-fn parseInt(str: String, pos: misc.Pos) Token {
+fn parseInt(str: misc.String, pos: misc.Pos) Token {
     var result: i64 = 0;
 
     for (0..str.len) |idx|
@@ -334,7 +337,7 @@ fn parseInt(str: String, pos: misc.Pos) Token {
     };
 }
 
-fn parseDec(str: String, pos: misc.Pos) Token {
+fn parseDec(str: misc.String, pos: misc.Pos) Token {
     var result: f64 = 0;
     var exp: f64 = 0;
     var sign: f64 = 1;

@@ -1,58 +1,18 @@
 const std = @import("std");
 const misc = @import("misc.zig");
+const debug = @import("debug.zig");
 
 const expect = std.testing.expect;
 const expectEqual = std.testing.expectEqual;
 
-pub const String = []const u8;
-
-////////////////////////////////////////////////////////////////////////
-// Lexer - approx 500 lines                                           //
-////////////////////////////////////////////////////////////////////////
-
-
-
-////////////////////////////////////////////////////////////////////////
-/// Error Contexts
-////////////////////////////////////////////////////////////////////////
-
-
-
-////////////////////////////////////////////////////////////////////////
-// Types - approx 700 lines                                           //
-////////////////////////////////////////////////////////////////////////
-
-
-
-////////////////////////////////////////////////////////////////////////
-// Parser - approx 800 lines                                          //
-////////////////////////////////////////////////////////////////////////
-
-
-////////////////////////////////////////////////////////////////////////
-// Semantic Analyzer - approx 600 lines                               //
-////////////////////////////////////////////////////////////////////////
-
-
-////////////////////////////////////////////////////////////////////////
-/// Intermediate Representation - approx 600 lines                    //
-////////////////////////////////////////////////////////////////////////
-
-
-///////////
-
-pub const Optimizations = struct {
-    pub const AST = struct {
-        
-
-    };
-};
-
 const Parser = @import("parser.zig");
 const Analyzer = @import("analyzer.zig");
 const IR = @import("ir.zig");
+const Optimizer = @import("optimizer.zig");
+
+
 /// Pipelines the entire compiling process, its the compiler main function
-pub fn pipeline(name: String, alloc: std.mem.Allocator) !u8 {
+pub fn pipeline(name: misc.String, alloc: std.mem.Allocator) !u8 {
     const stdout_file = std.io.getStdOut().writer();
     var bw = std.io.bufferedWriter(stdout_file);
     var stdout = bw.writer();
@@ -84,29 +44,33 @@ pub fn pipeline(name: String, alloc: std.mem.Allocator) !u8 {
     var ir = IR.init(alloc);
     defer ir.deinit();
 
-    const node = parser.parseNode() catch |err| {
-        try misc.printError(stdout, name, parser.code, err, parser.errctx);
+    const node = parser.parseNode() catch {
+        try debug.printError(stdout, name, parser.code, parser.errctx);
         try bw.flush();
         return 254;
     };
 
     defer node.deinit(alloc);
 
-    const typed = analyzer.runAnalysis(node) catch |err| {
-        try misc.printError(stdout, name, parser.code, err, analyzer.errctx);
+    try debug.printNode(stdout, node);
+
+    const typed = analyzer.runAnalysis(node) catch {
+        try debug.printError(stdout, name, parser.code, analyzer.errctx);
         try bw.flush();
         return 253;
     };
 
     try bw.flush();
 
-    ir.fromNode(typed) catch |err| {
-        try misc.printError(stdout, name, parser.code, err, ir.errctx);
+    ir.fromNode(typed) catch {
+        try debug.printError(stdout, name, parser.code, ir.errctx);
         try bw.flush();
         return 252;
     };
 
-    try misc.printIR(&ir, stdout);
+    try Optimizer.optimize_ir(&ir, alloc);
+
+    try debug.printIR(&ir, stdout);
 
     try stdout.print("analysis successful\n", .{});
     try bw.flush();

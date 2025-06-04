@@ -1,67 +1,55 @@
 const std = @import("std");
-const AnyWriter = std.io.AnyWriter;
-const zenith = @import("zenith.zig");
-const Node = zenith.Node;
-const IR = zenith.IR;
+const misc = @import("misc.zig");
+const Lexer = @import("lexer.zig");
+const Node = @import("node.zig");
+const Type = @import("types.zig");
+const IR = @import("ir.zig");
 const SuperNova = @import("Supernova/supernova.zig");
+
 pub const PrettyPosition = struct {
     code: []const u8,
-    line: u32 = 0,
-    column: u16 = 0,
-    endLine: u32 = 0,
-    lastLineStart: usize = 0,
-    nextLineEnd: usize = 0,
+    startLine: u32,
+    endLine: u32,
+    startColumn: u16,
+    endColumn: u16,
 };
 
-pub fn getPrettyPosition(code: []const u8, pos: zenith.Pos) PrettyPosition {
-    var line: u32 = 1;
-    var column: u16 = 1;
-    var index: usize = 0;
+pub fn getPrettyPosition(code: []const u8, pos: misc.Pos) PrettyPosition {
+    var startLine: u32 = 1;
+    var endLine: u32 = 1;
+    var startColumn: u16 = 1;
+    var endColumn: u16 = 1;
+
     var lastLineStart: usize = 0;
     var nextLineEnd: usize = 0;
 
-    // Find the start position (line, column, and line start)
-    for (code) |c| {
-        if (index == pos.index) break;
-        index += 1;
-        column += 1;
+    for (code, 0..) |c, i| {
         if (c == '\n') {
-            column = 1;
-            line += 1;
-            lastLineStart = index;
+            if (i < pos.index) {
+                lastLineStart = i + 1;
+                startLine += 1;
+            } else if (i >= pos.index and i < pos.index + pos.span) {
+                endLine += 1;
+                nextLineEnd = i + 1;
+            }
         }
     }
 
-    const startLine = line;
-    var endLine = line;
-    var currentLineStart = lastLineStart;
+    if (nextLineEnd == 0) nextLineEnd = code.len;
 
-    // Find the end position and all lines in between
-    for (code[index..], index..) |c, i| {
-        if (c == '\n') {
-            endLine += 1;
-            nextLineEnd = currentLineStart;
-            currentLineStart = i + 1;
-        }
-
-        if (i >= pos.index + pos.span) break;
-    }
-
-    if (nextLineEnd == 0) {
-        nextLineEnd = code.len;
-    }
+    startColumn = @intCast(pos.index - lastLineStart + 1);
+    endColumn = @intCast(pos.index + pos.span - lastLineStart + 1);
 
     return PrettyPosition{
-        .code = code[lastLineStart..nextLineEnd],
-        .line = startLine,
-        .column = column,
+        .code = code,
+        .startLine = startLine,
         .endLine = endLine,
-        .lastLineStart = lastLineStart,
-        .nextLineEnd = nextLineEnd,
+        .startColumn = startColumn,
+        .endColumn = endColumn,
     };
 }
 
-fn printContext(writer: anytype, ctx: zenith.ErrorContext) !void {
+fn printContext(writer: anytype, ctx: misc.ErrorContext) !void {
     switch (ctx.value) {
         .UnexpectedToken => |err| {
             try writer.print("Expected token \"{s}\" but found \"{s}\"",
@@ -94,6 +82,9 @@ fn printContext(writer: anytype, ctx: zenith.ErrorContext) !void {
             try writer.print("Ternary operator requires a boolean condition, but found type ", .{});
             try printType(writer, err.condtype);
         },
+        .UnknownParameter => |names| {
+            try writer.print("Unknown parameter \"{s}\" on function \"{s}\"", .{names.name, names.func});
+        },
         else => {
             try writer.print("error : {s}\n", .{@tagName(ctx.value)});
         }
@@ -102,57 +93,69 @@ fn printContext(writer: anytype, ctx: zenith.ErrorContext) !void {
     _ = try writer.write("\n");
 }
 
-pub fn printError(writer: anytype, filename: []const u8, code: []const u8, err: anyerror, ctx: zenith.ErrorContext) !void {
+pub fn printError(writer: anytype, filename: []const u8, code: []const u8, ctx: misc.ErrorContext) !void {
     const pp = getPrettyPosition(code, ctx.position);
-    try writer.print("\x1b[2m{s}:{}:{}:\x1b[0m {s}: ", .{ filename, pp.line, pp.column, @errorName(err) });
+    try writer.print("\x1b[2m{s}:{}:{}:\x1b[0m ", .{ filename, pp.startLine, pp.startColumn });
 
     try printContext(writer, ctx);
 
-    var lineStart = pp.lastLineStart;
-    var currentLine = pp.line;
-    var isFirstLine = true;
+    // Print code context with line numbers and caret
+    const max_lines: usize = 3; // lines before and after
+    var line_start: usize = 0;
+    var i: usize = 0;
 
-    // Split the code into lines and print each with line number
-    while (lineStart < pp.nextLineEnd) {
-        var lineEnd = lineStart;
-        while (lineEnd < pp.nextLineEnd and code[lineEnd] != '\n') {
-            lineEnd += 1;
+    // Find the start of the first line to print
+    const start_line = if (pp.startLine > max_lines) pp.startLine - max_lines else 1;
+    var current_line: usize = 1;
+    var start_idx: usize = 0;
+    while (i < code.len and current_line < start_line) : (i += 1) {
+        if (code[i] == '\n') {
+            current_line += 1;
+            start_idx = i + 1;
+        }
+    }
+
+    // Print lines from start_line to endLine + max_lines
+    const end_line = pp.endLine + max_lines;
+    current_line = start_line;
+    i = start_idx;
+    while (i < code.len and current_line <= end_line) {
+        line_start = i;
+        // Find end of line
+        var line_end = i;
+        while (line_end < code.len and code[line_end] != '\n') : (line_end += 1) {}
+        const line_slice = code[line_start..line_end];
+
+        // Print line number and code
+        try writer.print("{d: >4} | {s}\n", .{current_line, line_slice});
+
+        // Print caret line if this is the error line
+        if (current_line == pp.startLine) {
+            // Calculate caret position and length
+            const caret_start = pp.startColumn;
+            const caret_end = if (pp.endLine == pp.startLine) pp.endColumn else @as(u16, @intCast(line_slice.len + 1));
+            // Print spaces up to caret, then carets
+            try writer.print("     | ", .{});
+            var c: usize = 1;
+            while (c < caret_start) : (c += 1) try writer.print(" ", .{});
+            var caret_len = caret_end - caret_start;
+            if (caret_len == 0) caret_len = 1;
+            var k: usize = 0;
+            while (k < caret_len) : (k += 1) try writer.print("^", .{});
+            try writer.print("\n", .{});
+        }
+        // Print caret for multi-line errors
+        if (current_line > pp.startLine and current_line <= pp.endLine) {
+            try writer.print("     | ", .{});
+            const caret_len = if (current_line == pp.endLine) pp.endColumn - 1 else line_slice.len;
+            var k: usize = 0;
+            while (k < caret_len) : (k += 1) try writer.print("^", .{});
+            try writer.print("\n", .{});
         }
 
-        const lineCode = code[lineStart..lineEnd];
-        try writer.print("{d: >7} | {s}\n", .{ currentLine, lineCode });
-
-        // Print the error indicator only on the relevant lines
-        if (isFirstLine) {
-            try writer.writeAll("        |");
-            // Only print spaces before the error if it's on this line
-            for (1..pp.column) |_| {
-                try writer.writeByte(' ');
-            }
-            // Calculate how many carets to print
-            const carets = if (currentLine == pp.endLine)
-                ctx.position.span
-            else
-                lineEnd - (ctx.position.index - (pp.column - 1) + 1);
-
-            try writer.print(" \x1b[31;49;1m", .{});
-            for (0..@max(carets, 1)) |_| {
-                try writer.writeByte('^');
-            }
-            try writer.print("\x1b[0m\n", .{});
-            isFirstLine = false;
-        } else if (currentLine == pp.endLine) {
-            try writer.writeAll("        |");
-            try writer.print("\x1b[31;49;1m", .{});
-            const carets = ctx.position.index + ctx.position.span - lineStart;
-            for (0..@max(carets, 1)) |_| {
-                try writer.writeByte('^');
-            }
-            try writer.print("\x1b[0m\n", .{});
-        }
-
-        lineStart = lineEnd + 1;
-        currentLine += 1;
+        // Move to next line
+        i = line_end + 1;
+        current_line += 1;
     }
 }
 
@@ -170,22 +173,20 @@ pub fn typeByOpcode(opcode: u8) instructionType {
 
 
 pub fn printInstruction(inst: IR.Instruction, writer: anytype) !void {
-    if (inst.opcode == .mov) {
-        try writer.print("| mov r{} <- {}\n", .{inst.rd, inst.immediate});
-        return;
-    }
-    if (inst.opcode == .blk_jmp) {
-        try writer.print("| jmp ({s}) r{} r{} -> BlockID({})\n", .{
+    switch (inst.opcode) {
+        .mov => try writer.print("| mov r{} <- {}\n", .{inst.rd, inst.immediate}),
+        .blk_jmp => try writer.print("| jmp ({s}) r{} r{} -> BlockID({})\n", .{
             @tagName(@as(SuperNova.BlockJumpCondition, @enumFromInt(inst.r1))),
             inst.r2, inst.rd,
             inst.immediate
-            });
-        return;
-    }
-    switch (typeByOpcode(@intFromEnum(inst.opcode))) {
-        .R => try writer.print("| {s} r{} <- r{}, r{}\n", .{@tagName(inst.opcode), inst.rd, inst.r1, inst.r2}),
-        .S => try writer.print("| {s} r{} <- r{}, {}\n", .{@tagName(inst.opcode), inst.rd, inst.r1, inst.immediate}),
-        .L => try writer.print("| {s} r{}, {}\n", .{@tagName(inst.opcode), inst.r1, inst.immediate}),
+            }),
+        .mov_reg =>try writer.print("| mov r{} <- r{}\n", .{inst.rd, inst.r1}),
+        .nop => try writer.print("| nop\n", .{}),
+        else => switch (typeByOpcode(@intFromEnum(inst.opcode))) {
+            .R => try writer.print("| {s} r{} <- r{}, r{}\n", .{@tagName(inst.opcode), inst.rd, inst.r1, inst.r2}),
+            .S => try writer.print("| {s} r{} <- r{}, {}\n", .{@tagName(inst.opcode), inst.rd, inst.r1, inst.immediate}),
+            .L => try writer.print("| {s} r{}, {}\n", .{@tagName(inst.opcode), inst.r1, inst.immediate}),
+        }
     }
 }
 
@@ -196,7 +197,7 @@ pub fn printIR(ir: *IR, writer: anytype) !void {
         try writer.print("| blockID({}) -> blockID({}) \n", .{value.key_ptr.from, value.key_ptr.to});
     }
 
-    try writer.print("IR graph blocks: {}\n", .{ir.nodes.size});
+    try writer.print("IR graph blocks: {}\n", .{ir.nodes.count()});
     var nodeIt = ir.nodes.iterator();
     while(nodeIt.next()) |value| {
         try writer.print("blockID({}):\n", .{ value.key_ptr.* });
@@ -206,43 +207,7 @@ pub fn printIR(ir: *IR, writer: anytype) !void {
     }
 }
 
-pub fn add(comptime T: type, a: T, b: T) @TypeOf(a + b) { return a + b; }
-
-pub fn sub(comptime T: type, a: T, b: T) @TypeOf(a - b) { return a - b; }
-
-pub fn mul(comptime T: type, a: T, b: T) @TypeOf(a * b) { return a * b; }
-
-pub fn div(comptime T: type, a: T, b: T) T { return @divTrunc(a, b); }
-
-pub fn mod(comptime T: type, a: T, b: T) T { return a * b; }
-
-pub fn pipe(comptime T: type, a: T, b: T) T { return a | b; }
-
-pub fn amp(comptime T: type, a: T, b: T) T { return a & b; }
-
-pub fn hat(comptime T: type, a: T, b: T) T { return a * b; }
-
-pub fn lsh(comptime T: type, a: T, b: T) T { return a << @intCast(@rem(b, 64)); }
-
-pub fn rsh(comptime T: type, a: T, b: T) T { return a >> @intCast(@rem(b, 64)); }
-
-pub fn equ(comptime T: type, a: T, b: T) bool { return a == b; }
-
-pub fn neq(comptime T: type, a: T, b: T) bool { return a != b; }
-
-pub fn gte(comptime T: type, a: T, b: T) bool { return a >= b; }
-
-pub fn lte(comptime T: type, a: T, b: T) bool { return a <= b; }
-
-pub fn gt(comptime T: type, a: T, b: T) bool { return a > b; }
-
-pub fn lt(comptime T: type, a: T, b: T) bool { return a < b; }
-
-pub fn land(comptime T: type, a: T, b: T) bool { return a and b; }
-
-pub fn lor(comptime T: type, a: T, b: T) bool { return a or b; }
-
-pub fn printToken(tok: zenith.Tokens) []const u8 {
+pub fn printToken(tok: Lexer.Tokens) []const u8 {
     return switch (tok) {
         .Mod => "module",
         .Match => "match",
@@ -278,11 +243,12 @@ pub fn printToken(tok: zenith.Tokens) []const u8 {
         .Ques => "?",
         .Cln => ":",
         .Dot => ".",
+        .Arrow => "->",
         else => @tagName(tok),
     };
 }
 
-pub fn printNode(writer: anytype, node: *const zenith.Node) !void {
+pub fn printNode(writer: anytype, node: *const Node) !void {
     try switch (node.data) {
         .type => writer.print("<type>", .{}),
         .int => |v| writer.print("{}", .{v}),
@@ -290,13 +256,13 @@ pub fn printNode(writer: anytype, node: *const zenith.Node) !void {
         .ref => |v| writer.print("{s}", .{v}),
         .str => |v| writer.print("\"{s}\"", .{v}),
         .unr => |v| {
-            try writer.print("{s}", .{ printToken(writer, v.op) });
+            try writer.print("{s}", .{ printToken(v.op) });
             try printNode(writer, v.val);
         },
         .bin => |v| {
             _ = try writer.write("(");
             try printNode(writer, v.lhs);
-            try writer.print("{s}", .{ printToken(writer, v.op) });
+            try writer.print("{s}", .{ printToken(v.op) });
             try printNode(writer, v.rhs);
             _ = try writer.write(")");
         },
@@ -313,7 +279,7 @@ pub fn printNode(writer: anytype, node: *const zenith.Node) !void {
             try printNode(writer, v.bfalse);
         },
         .expr => |v| {
-            try writer.print("{s} ", .{v.name});
+            try writer.print("{s}", .{v.name});
             for (v.params) |value| {
                 _ = try writer.write("(");
                 try printNode(writer, value);
@@ -324,16 +290,25 @@ pub fn printNode(writer: anytype, node: *const zenith.Node) !void {
                 try printNode(writer, ntype);
             }
             if (v.expr) |expr| {
-                _ = try writer.write("= ");
+                _ = try writer.write(" = ");
                 try printNode(writer, expr);
             }
             _ = try writer.write(";\n");
+        },
+        .range => |v| {
+            _ = try writer.write("[");
+            try printNode(writer, v.start);
+            _ = try writer.write("..");
+            try printNode(writer, v.end);
+            _ = try writer.write(", ");
+            try printNode(writer, v.epsilon);
+            _ = try writer.write("]");
         },
         else => {},
     };
 }
 
-pub fn printType(writer: anytype, t: zenith.Type) !void {
+pub fn printType(writer: anytype, t: Type) !void {
     switch (t.data) {
         .integer => |v| {
             if (v.value) |val| {
