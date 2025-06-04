@@ -143,7 +143,9 @@ pointerIndex: u8 = 0,
 
 /// Apply arguments into this closure
 partialArgs: ?[]const ?IR.Value = null,
-isParam: bool = false,
+
+/// 1 + param index, making retrieval easier
+paramIdx: u8 = 0,
 
 /// Value for Integer[0, 0]{0}
 pub const zeroInt = Type.initInt(0, 0, 0);
@@ -587,27 +589,30 @@ pub fn deepEqual(t1: Type, t2: Type, checkValued: bool) bool {
 
 pub fn deepCopy(self: Type, alloc: std.mem.Allocator) !*Type {
     const t = try alloc.create(Type);
-    errdefer alloc.destroy(t);
-    t.* = switch (self.data) {
-        .integer => initInt(self.data.integer.start, self.data.integer.end, self.data.integer.value),
-        .decimal => initFloat(self.data.decimal.start, self.data.decimal.end, self.data.decimal.value),
-        .boolean => initBool(self.data.boolean),
-        .array => blk: {
-            var newType = self;
-            newType.data.array.indexer = try self.data.array.indexer.deepCopy(alloc);
-            var newValues = try alloc.alloc(?Type, self.data.array.value.len);
-            for (self.data.array.value, 0..) |value, i| {
+    errdefer alloc.destroy(t); 
+    switch (self.data) {
+        .integer => t.* = initInt(self.data.integer.start, self.data.integer.end, self.data.integer.value),
+        .decimal => t.* = initFloat(self.data.decimal.start, self.data.decimal.end, self.data.decimal.value),
+        .boolean => t.* = initBool(self.data.boolean),
+        .array => |v| {
+            var newValues = try alloc.alloc(?Type, v.value.len);
+            for (v.value, 0..) |value, i| {
                 if (value == null) continue;
                 const res = try value.?.deepCopy(alloc);
                 newValues[i] = res.*;
                 alloc.destroy(res); // only the top
             }
-            newType.data.array.value = newValues;
-            break :blk newType;
+
+            t.data = .{
+                .array = .{
+                    .size = v.size,
+                    .indexer = try v.indexer.deepCopy(alloc),
+                    .value = newValues,
+                }
+            };
         },
-        .aggregate => blk: {
-            var newType = self;
-            const newTypes = try alloc.alloc(Type, self.data.aggregate.types.len);
+        .aggregate => |v| {
+            const newTypes = try alloc.alloc(Type, v.types.len);
             errdefer alloc.free(newTypes);
             for (self.data.aggregate.types, 0..) |value, i| {
                 const res = try value.deepCopy(alloc);
@@ -627,6 +632,7 @@ pub fn deepCopy(self: Type, alloc: std.mem.Allocator) !*Type {
         .casting => self,
     };
 
+    t.paramIdx = self.paramIdx;
     return t;
 }
 

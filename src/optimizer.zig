@@ -33,6 +33,13 @@ fn cse(ir: *IR, alloc: std.mem.Allocator) !void {
 
                 try regMap.put(alloc, inst.rd, res);
             } else {
+                instruction[i] = IR.Instruction {
+                    .opcode = inst.opcode,
+                    .rd = inst.rd,
+                    .r1 = regMap.get(inst.r1) orelse inst.r1,
+                    .r2 = regMap.get(inst.r2) orelse inst.r2,
+                    .immediate = inst.immediate,
+                };
                 try seen.put(alloc, key, inst.rd);
             }
         }
@@ -40,5 +47,7 @@ fn cse(ir: *IR, alloc: std.mem.Allocator) !void {
 }
 
 pub fn optimize_ir(ir: *IR, alloc: std.mem.Allocator) !void {
-    try cse(ir, alloc);
+   _ = ir;
+   _ = alloc;
+   // try cse(ir, alloc);
 }

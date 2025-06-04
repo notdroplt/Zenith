@@ -41,8 +41,6 @@ pub fn pipeline(name: misc.String, alloc: std.mem.Allocator) !u8 {
     var parser = Parser.init(buffer, alloc);
     var analyzer = try Analyzer.init(alloc, aalloc);
     defer analyzer.deinit();
-    var ir = IR.init(alloc);
-    defer ir.deinit();
 
     const node = parser.parseNode() catch {
         try debug.printError(stdout, name, parser.code, parser.errctx);
@@ -62,6 +60,8 @@ pub fn pipeline(name: misc.String, alloc: std.mem.Allocator) !u8 {
 
     try bw.flush();
 
+    var ir = IR.init(alloc, analyzer.context);
+    defer ir.deinit();
     ir.fromNode(typed) catch {
         try debug.printError(stdout, name, parser.code, ir.errctx);
         try bw.flush();
@@ -69,7 +69,6 @@ pub fn pipeline(name: misc.String, alloc: std.mem.Allocator) !u8 {
     };
 
     try Optimizer.optimize_ir(&ir, alloc);
-
     try debug.printIR(&ir, stdout);
 
     try stdout.print("analysis successful\n", .{});

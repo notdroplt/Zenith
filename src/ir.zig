@@ -115,9 +115,12 @@ alloc: std.mem.Allocator,
 /// Error context
 errctx: misc.ErrorContext = .{ .value = .NoContext },
 
+/// Variable context
+context: Context(*Type) = undefined,
+
 /// Instantiate a new IR context
-pub fn init(alloc: std.mem.Allocator) IR {
-    return IR{ .alloc = alloc };
+pub fn init(alloc: std.mem.Allocator, context: Context(*Type)) IR {
+    return IR{ .alloc = alloc, .context = context };
 }
 
 /// Deinitialize the IR context and free all resources
@@ -162,9 +165,7 @@ pub fn addInstruction(self: *IR, blockID: BlockOffset, instruction: Instruction)
 
 pub fn deinitBlock(self: *IR, blockID: BlockOffset) void {
     const block = self.nodes.get(blockID);
-    if (block) |b| {
-        b.result.deinit(self.alloc);
-    }
+    if (block) |b| fb.result.deinit(self.alloc);
 }
 
 fn addPhi(self: *IR, merge: BlockOffset, dest: SNIR.InfiniteRegister, sources: []PhiSource) !void {
@@ -288,10 +289,26 @@ fn blockDecimal(self: *IR, block: BlockOffset, node: *Node) Value {
 }
 
 fn blockReference(self: *IR, block: BlockOffset, node: *Node) IRError!Value {
-    if (node.ntype.?.isValued())
-        return self.constantFromType(block, node);
-
     const refType = node.ntype.?;
+
+    if (refType.isValued())
+        return self.constantFromType(block, node);
+    std.debug.print("paramidx {}\n", .{refType.paramIdx});
+
+    const res = self.context.
+    if (refType.paramIdx > 0) {
+        const instruction = Instruction{
+            .opcode = SNIR.Opcodes.mov_reg,
+            .rd = self.allocateRegister(),
+            .r1 = refType.paramIdx,
+        };
+        return Value{
+            .vtype = refType,
+            .from = block,
+            .value = .{ .instruction = instruction },
+        };
+    }
+
     const instruction = Instruction{
         .opcode = self.calculateLoadSize(refType) catch |err| {
             self.errctx.position = node.position;

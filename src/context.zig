@@ -83,7 +83,7 @@ pub fn Context(comptime T: type) type {
         pub fn add(self: *ctxt, name: misc.String, value: T) !void {
             return self.members.put(name, value);
         }
-
+        
         pub fn isEmpty(self: ctxt) bool {
             return self.members.count() == 0;
         }

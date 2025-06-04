@@ -321,7 +321,7 @@ fn analyzeExpr(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
             .data = .{
                 .casting = .{ .index = @intCast(idx) },
             },
-            .isParam = true,
+            .paramIdx = @intCast(idx + 1),
         };
 
         arg.ntype = try argT.deepCopy(self.talloc);
@@ -355,10 +355,12 @@ fn analyzeExpr(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
         node.ntype = try res.ntype.?.deepCopy(self.talloc);
 
         var paramVal = res.ntype.?;
-        for (expr.params) |n| {
+        for (expr.params, 0..) |n, i| {
+            std.debug.print("at param {}\n", .{i});
             if (!paramVal.isFunction()) break;
             n.ntype = try paramVal.data.function.argument.deepCopy(self.talloc);
             errdefer n.ntype.?.deinit(self.talloc);
+            n.ntype.?.paramIdx = @intCast(i + 1);
         }
     }
 
