@@ -207,7 +207,15 @@ fn parseIntr(self: *Parser, flags: IntrFlags) Error!*Node {
 
     if (flags == IntrFlags.noApp or self.inModule) {
         const node = try self.alloc.create(Node);
-        node.* = Node{ .position = newPosition(start, rcur.pos), .data = .{ .intr = .{ .intermediates = actualImm, .application = null } } };
+        node.* = Node{
+            .position = newPosition(start, rcur.pos),
+            .data = .{
+                .intr = .{
+                    .intermediates = actualImm,
+                    .application = null,
+                },
+            },
+        };
 
         return node;
     }
@@ -455,7 +463,7 @@ fn parseTPrimary(self: *Parser) Error!*Node {
             ptr.* = Node{ .position = newPosition(tok.pos, val.position), .data = .{ .unr = .{ .op = v, .val = ptr } } };
             return ptr;
         },
-        else => { 
+        else => {
             try self.generateUnexpected(Lexer.Tokens.Lsqb, tok);
 
             // generateUnexpected **will** throw, this is just for compliance

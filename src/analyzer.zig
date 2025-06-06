@@ -236,11 +236,16 @@ fn analyzeRange(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
         const trange = try self.talloc.create(Type);
         errdefer trange.deinit(self.talloc);
 
-        trange.* = .{ .pointerIndex = 0, .data = .{ .integer = .{
-            .start = istart.?,
-            .end = iend.?,
-            .value = null,
-        } } };
+        trange.* = .{
+            .pointerIndex = 0,
+            .data = .{
+                .integer = .{
+                    .start = istart.?,
+                    .end = iend.?,
+                    .value = null,
+                },
+            },
+        };
 
         node.ntype = trange;
         return node;
@@ -356,12 +361,13 @@ fn analyzeExpr(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
 
         var paramVal = res.ntype.?;
         for (expr.params, 0..) |n, i| {
-            std.debug.print("at param {}\n", .{i});
             if (!paramVal.isFunction()) break;
-            n.ntype = try paramVal.data.function.argument.deepCopy(self.talloc);
+            expr.params[i].ntype = try paramVal.data.function.argument.deepCopy(self.talloc);
             errdefer n.ntype.?.deinit(self.talloc);
-            n.ntype.?.paramIdx = @intCast(i + 1);
+            expr.params[i].ntype.?.paramIdx = @intCast(i + 1);
+            std.debug.assert(n.ntype.?.paramIdx != 0);
         }
+
     }
 
     for (expr.params, 0..) |param, pidx|
@@ -381,17 +387,18 @@ fn analyzeExpr(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
                     };
                     return err;
                 };
+                ptype.paramIdx = @intCast(pidx + 1);
             } else {
                 ptype = try self.talloc.create(Type);
                 ptype.* = Type.initIdxCasting(self.castIndex);
+                ptype.paramIdx = @intCast(pidx + 1);
                 self.castIndex += 1;
             }
             try innerctx.add(pname, ptype);
         };
 
-    if (expr.expr != null) {
-        _ = try analyze(self, &innerctx, expr.expr.?);
-    }
+    if (expr.expr) |res|
+        _ = try analyze(self, &innerctx, res);
 
     if (expr.ntype != null and expr.expr != null) {
         if (expr.ntype.?.ntype.?.deepEqual(expr.expr.?.ntype.?.*, false))

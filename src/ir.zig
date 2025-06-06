@@ -165,7 +165,7 @@ pub fn addInstruction(self: *IR, blockID: BlockOffset, instruction: Instruction)
 
 pub fn deinitBlock(self: *IR, blockID: BlockOffset) void {
     const block = self.nodes.get(blockID);
-    if (block) |b| fb.result.deinit(self.alloc);
+    if (block) |b| b.result.deinit(self.alloc);
 }
 
 fn addPhi(self: *IR, merge: BlockOffset, dest: SNIR.InfiniteRegister, sources: []PhiSource) !void {
@@ -176,7 +176,7 @@ fn addPhi(self: *IR, merge: BlockOffset, dest: SNIR.InfiniteRegister, sources: [
     };
 
     const block = self.nodes.getPtr(merge).?;
-    try block.*.append(self.alloc, phi_inst);
+    try block.append(self.alloc, phi_inst);
 
     try self.phiSources.put(self.alloc, phi_inst.immediate, sources);
 }
@@ -293,9 +293,7 @@ fn blockReference(self: *IR, block: BlockOffset, node: *Node) IRError!Value {
 
     if (refType.isValued())
         return self.constantFromType(block, node);
-    std.debug.print("paramidx {}\n", .{refType.paramIdx});
 
-    const res = self.context.
     if (refType.paramIdx > 0) {
         const instruction = Instruction{
             .opcode = SNIR.Opcodes.mov_reg,
@@ -449,7 +447,6 @@ fn blockTernary(self: *IR, block: BlockOffset, node: *Node) IRError!Value {
 
     const ternary = node.data.ter;
     const ternarytype = node.ntype;
-    node.ntype = null;
 
     const cond = try blockNode(self, block, ternary.cond);
 
@@ -457,21 +454,24 @@ fn blockTernary(self: *IR, block: BlockOffset, node: *Node) IRError!Value {
         return blockNode(self, cond.from, if (cond.vtype.data.boolean.?) ternary.btrue else ternary.bfalse);
     }
 
+    const condreg = try self.appendIfConstant(cond.from, cond);
     const trueblock = try self.newBlock();
     errdefer self.deinitBlock(trueblock);
 
     const btrue = try self.blockNode(trueblock, ternary.btrue);
+    const treg = try self.appendIfConstant(trueblock, btrue);
 
     const falseblock = try self.newBlock();
     errdefer self.deinitBlock(falseblock);
 
     const bfalse = try self.blockNode(falseblock, ternary.bfalse);
+    const freg = try self.appendIfConstant(falseblock, bfalse);
 
-    if (bfalse.value.instruction.rd != btrue.value.instruction.rd) {
-        try self.addInstruction(trueblock, Instruction{
-            .opcode = SNIR.Opcodes.orr, // best move instruction ever
-            .rd = btrue.value.instruction.rd,
-            .r1 = bfalse.value.instruction.rd,
+    if (treg != freg) {
+        try self.addInstruction(falseblock, Instruction{
+            .opcode = SNIR.Opcodes.mov_reg, // best move instruction ever
+            .rd = treg,
+            .r1 = freg,
         });
     }
 
@@ -494,7 +494,7 @@ fn blockTernary(self: *IR, block: BlockOffset, node: *Node) IRError!Value {
     try self.addInstruction(cond.from, Instruction{
         .opcode = SNIR.Opcodes.blk_jmp,
         .r1 = @intFromEnum(SNIR.BlockJumpCondition.Equal),
-        .r2 = btrue.value.instruction.rd,
+        .r2 = condreg,
         .rd = 0,
         .immediate = @truncate(falseblock),
     });

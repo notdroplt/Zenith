@@ -49,9 +49,6 @@ pub fn pipeline(name: misc.String, alloc: std.mem.Allocator) !u8 {
     };
 
     defer node.deinit(alloc);
-
-    try debug.printNode(stdout, node);
-
     const typed = analyzer.runAnalysis(node) catch {
         try debug.printError(stdout, name, parser.code, analyzer.errctx);
         try bw.flush();
@@ -59,6 +56,8 @@ pub fn pipeline(name: misc.String, alloc: std.mem.Allocator) !u8 {
     };
 
     try bw.flush();
+
+    try debug.printNode(stdout, node);
 
     var ir = IR.init(alloc, analyzer.context);
     defer ir.deinit();

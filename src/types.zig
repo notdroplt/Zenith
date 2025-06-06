@@ -328,7 +328,6 @@ pub fn binOperate(
             .pointerIndex = 0,
             .data = .{
                 .function = .{
-                    .body = null,
                     .argument = left,
                     .ret = right,
                 },
@@ -358,7 +357,6 @@ pub fn binOperate(
                 .function = .{
                     .argument = a.data.function.argument,
                     .ret = b.data.function.ret,
-                    .body = null,
                 },
             },
         };
@@ -589,11 +587,17 @@ pub fn deepEqual(t1: Type, t2: Type, checkValued: bool) bool {
 
 pub fn deepCopy(self: Type, alloc: std.mem.Allocator) !*Type {
     const t = try alloc.create(Type);
-    errdefer alloc.destroy(t); 
+    errdefer alloc.destroy(t);
     switch (self.data) {
-        .integer => t.* = initInt(self.data.integer.start, self.data.integer.end, self.data.integer.value),
-        .decimal => t.* = initFloat(self.data.decimal.start, self.data.decimal.end, self.data.decimal.value),
-        .boolean => t.* = initBool(self.data.boolean),
+        .integer => {
+            t.* = initInt(self.data.integer.start, self.data.integer.end, self.data.integer.value);
+        },
+        .decimal => {
+            t.* = initFloat(self.data.decimal.start, self.data.decimal.end, self.data.decimal.value);
+        },
+        .boolean => {
+            t.* = initBool(self.data.boolean);
+        },
         .array => |v| {
             var newValues = try alloc.alloc(?Type, v.value.len);
             for (v.value, 0..) |value, i| {
@@ -603,34 +607,35 @@ pub fn deepCopy(self: Type, alloc: std.mem.Allocator) !*Type {
                 alloc.destroy(res); // only the top
             }
 
-            t.data = .{
-                .array = .{
-                    .size = v.size,
-                    .indexer = try v.indexer.deepCopy(alloc),
-                    .value = newValues,
-                }
-            };
+            t.data = .{ .array = .{
+                .size = v.size,
+                .indexer = try v.indexer.deepCopy(alloc),
+                .value = newValues,
+            } };
         },
         .aggregate => |v| {
             const newTypes = try alloc.alloc(Type, v.types.len);
             errdefer alloc.free(newTypes);
-            for (self.data.aggregate.types, 0..) |value, i| {
+            for (v.types, 0..) |value, i| {
                 const res = try value.deepCopy(alloc);
                 newTypes[i] = res.*;
                 alloc.destroy(res);
             }
-            newType.data.aggregate.types = newTypes;
-            break :blk newType;
+            t.data.aggregate.types = newTypes;
         },
-        .function => blk: {
-            var newType = self;
-            newType.data.function.argument = try self.data.function.argument.deepCopy(alloc);
-            newType.data.function.ret = try self.data.function.ret.deepCopy(alloc);
-
-            break :blk newType;
+        .function => |v| {
+            t.data = .{
+                .function = .{
+                    .argument = try v.argument.deepCopy(alloc),
+                    .ret = try v.ret.deepCopy(alloc),
+                    .body = v.body,
+                },
+            };
         },
-        .casting => self,
-    };
+        .casting => {
+            t.* = self;
+        },
+    }
 
     t.paramIdx = self.paramIdx;
     return t;
@@ -818,7 +823,6 @@ test "type instancing" {
             .function = .{
                 .argument = &a,
                 .ret = &b,
-                .body = null,
             },
         },
     };
@@ -837,7 +841,6 @@ test "type instancing" {
             .function = .{
                 .argument = &b1,
                 .ret = &b,
-                .body = null,
             },
         },
     };

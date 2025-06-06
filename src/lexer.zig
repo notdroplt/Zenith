@@ -478,7 +478,6 @@ pub fn catchUp(self: Lexer, token: Token) Lexer {
     return Lexer{
         .code = self.code,
         .index = token.pos.index + token.pos.span,
-        .last = null,
     };
 }
 

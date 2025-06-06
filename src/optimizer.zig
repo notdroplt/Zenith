@@ -47,7 +47,7 @@ fn cse(ir: *IR, alloc: std.mem.Allocator) !void {
 }
 
 pub fn optimize_ir(ir: *IR, alloc: std.mem.Allocator) !void {
-   _ = ir;
-   _ = alloc;
-   // try cse(ir, alloc);
+    _ = ir;
+    _ = alloc;
+//   try cse(ir, alloc);
 }
