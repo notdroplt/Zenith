@@ -41,11 +41,13 @@ pub fn Context(comptime T: type) type {
             var currentCtx = self;
 
             while (parts.next()) |part| {
+                std.debug.print("Getting part: {s}\n", .{part});
                 const subCtx = currentCtx.children.get(part);
                 if (subCtx == null) return null;
                 currentCtx = subCtx.?;
             }
 
+            std.debug.print("Getting member: {s}\n", .{name});
             return currentCtx.get(name);
         }
 
@@ -54,10 +56,12 @@ pub fn Context(comptime T: type) type {
             var currentCtx = self;
 
             while (parts.next()) |part| {
+                std.debug.print("Adding part: {s}\n", .{part});
                 var subCtx = currentCtx.children.get(part);
                 if (subCtx == null) {
                     subCtx = ctxt.init(self.alloc);
                     subCtx.?.parent = currentCtx;
+                    std.debug.print("Creating new sub-context for part: {s}\n", .{part});
                     try currentCtx.children.put(part, subCtx.?);
                 }
                 currentCtx = &subCtx.?;
@@ -81,6 +85,7 @@ pub fn Context(comptime T: type) type {
         }
 
         pub fn add(self: *ctxt, name: misc.String, value: T) !void {
+            std.debug.print("Adding member: {s} = {any}\n", .{name, value});
             return self.members.put(name, value);
         }
         
@@ -95,7 +100,7 @@ const expectEqual = std.testing.expectEqual;
 
 test "Context - is empty" {
     const alloc = std.testing.allocator;
-    const ctx = try Context(u8).init(alloc);
+    var ctx = Context(u8).init(alloc);
     defer ctx.deinit(alloc);
 
     try expect(ctx.isEmpty());
@@ -105,7 +110,7 @@ test "Context - is empty" {
 
 test "Context - get/add" {
     const alloc = std.testing.allocator;
-    const ctx = try Context(u8).init(alloc);
+    var ctx = Context(u8).init(alloc);
     defer ctx.deinit(alloc);
 
     try ctx.add("test", 0);
@@ -115,10 +120,12 @@ test "Context - get/add" {
 
 test "Context - getTree/addTree" {
     const alloc = std.testing.allocator;
-    const ctx = try Context(u8).init(alloc);
+    var ctx = Context(u8).init(alloc);
     defer ctx.deinit(alloc);
 
     try ctx.addTree("a/b/c", "test", 0);
-    try expect(ctx.getTree("a/b/c", "test") != null);
-    try expectEqual(ctx.getTree("a/b/c", "test"), 0);
+
+    try expect(false);
+    // try expect(ctx.getTree("a/b/c", "test") != null);
+    // try expectEqual(ctx.getTree("a/b/c", "test"), 0);
 }

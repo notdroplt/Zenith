@@ -10,7 +10,6 @@ const Analyzer = @import("analyzer.zig");
 const IR = @import("ir.zig");
 const Optimizer = @import("optimizer.zig");
 
-
 /// Pipelines the entire compiling process, its the compiler main function
 pub fn pipeline(name: misc.String, alloc: std.mem.Allocator) !u8 {
     const stdout_file = std.io.getStdOut().writer();
@@ -43,11 +42,13 @@ pub fn pipeline(name: misc.String, alloc: std.mem.Allocator) !u8 {
     defer analyzer.deinit();
 
     const node = parser.parseNode() catch {
+        if (parser.errctx.value == .NoContext) {
+            parser.errctx = parser.lexer.errctx;
+        }
         try debug.printError(stdout, name, parser.code, parser.errctx);
         try bw.flush();
         return 254;
     };
-
     defer node.deinit(alloc);
     const typed = analyzer.runAnalysis(node) catch {
         try debug.printError(stdout, name, parser.code, analyzer.errctx);
@@ -74,4 +75,17 @@ pub fn pipeline(name: misc.String, alloc: std.mem.Allocator) !u8 {
     try bw.flush();
 
     return 0;
+}
+
+test {
+    _ = @import("analyzer.zig");
+    _ = @import("context.zig");
+    _ = @import("debug.zig");
+    _ = @import("ir.zig");
+    _ = @import("lexer.zig");
+    _ = @import("misc.zig");
+    _ = @import("node.zig");
+    _ = @import("optimizer.zig");
+    _ = @import("parser.zig");
+    _ = @import("types.zig");
 }

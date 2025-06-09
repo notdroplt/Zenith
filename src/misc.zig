@@ -22,14 +22,11 @@ pub const ErrorContext = struct {
         /// This token was not recognized by the lexer
         MalformedToken: void,
 
-        /// A token that was not expected shows up
-        UnexpectedToken: struct {
-            /// Token received
-            token: Lexer.Token,
+        /// The parser expected a token that was not found
+        MalformedExpression: void,
 
-            /// Token expected
-            expected: Lexer.Tokens,
-        },
+        /// A token that was not expected shows up
+        UnexpectedToken: Lexer.Tokens,
 
         /// An operation between one or two types that was not defined
         UndefinedOperation: struct {

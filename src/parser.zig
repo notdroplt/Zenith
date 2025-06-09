@@ -155,10 +155,7 @@ fn getPrecedence(tid: Lexer.Tokens) i32 {
 fn generateUnexpected(self: *Parser, expected: Lexer.Tokens, got: Lexer.Token) Error!void {
     self.errctx = .{
         .value = .{
-            .UnexpectedToken = .{
-                .expected = expected,
-                .token = got,
-            },
+            .UnexpectedToken = expected,
         },
         .position = got.pos,
     };
@@ -173,8 +170,10 @@ fn parseIntr(self: *Parser, flags: IntrFlags) Error!*Node {
 
     var intermediates: [16]*Node = undefined;
     var idx: usize = 0;
-    errdefer for (0..idx) |i| {
-        intermediates[i].deinit(self.alloc);
+
+    errdefer for (intermediates, 0..) |i, id| {
+        std.debug.print("Deinit intermediate {}\n", .{id});
+        i.deinit(self.alloc);
     };
 
     const lcur = try self.lexer.consume();
@@ -182,14 +181,16 @@ fn parseIntr(self: *Parser, flags: IntrFlags) Error!*Node {
         try self.generateUnexpected(.Lcur, lcur);
 
     self.lexer = self.lexer.catchUp(lcur);
+    for (&intermediates, 0..) |*int, i| {
+        const rcur = try self.lexer.consume();
+        if (rcur.tid == .Rcur or i >= 16) break;
 
-    while ((try self.lexer.consume()).tid != .Rcur and idx < 16) : (idx += 1) {
-        intermediates[idx] = try parseStatement(self);
-
+        int.* = try self.parseStatement();
         const semi = try self.lexer.consume();
         if (semi.tid != .Semi)
             try self.generateUnexpected(.Semi, semi);
         self.lexer = self.lexer.catchUp(semi);
+        idx = i;
     }
 
     const rcur = try self.lexer.consume();
@@ -199,11 +200,8 @@ fn parseIntr(self: *Parser, flags: IntrFlags) Error!*Node {
 
     self.lexer = self.lexer.catchUp(rcur);
 
-    // we use less memory if we reallocate for every idx < 15
     const actualImm = try self.alloc.alloc(*Node, idx);
-
-    for (0..idx) |i|
-        actualImm[i] = intermediates[i];
+    @memcpy(actualImm, intermediates[0..idx]);
 
     if (flags == IntrFlags.noApp or self.inModule) {
         const node = try self.alloc.create(Node);
@@ -229,7 +227,7 @@ fn parseIntr(self: *Parser, flags: IntrFlags) Error!*Node {
         .data = .{ .intr = .{
             .intermediates = actualImm,
             .application = application,
-        } },
+        }, },
     };
     return node;
 }
@@ -242,17 +240,15 @@ fn parseModule(self: *Parser) Error!*Node {
 
     const direction = try self.lexer.consume();
 
-    if (direction.tid != .Rsh and direction.tid != .Lsh) {
+    if (direction.tid != .Rsh and direction.tid != .Lsh) 
         try self.generateUnexpected(.Rsh, direction);
-    }
 
     self.lexer = self.lexer.catchUp(direction);
 
     const name = try self.lexer.consume();
 
-    if (name.tid != .Str) {
+    if (name.tid != .Str)
         try self.generateUnexpected(.Str, name);
-    }
 
     self.lexer = self.lexer.catchUp(name);
     self.inModule = true;
@@ -289,8 +285,9 @@ fn parsePrimary(self: *Parser) Error!*Node {
             errdefer expr.deinit(self.alloc);
 
             const rpar = try self.lexer.consume();
-            if (rpar.tid != .Rpar)
+            if (rpar.tid != .Rpar) {
                 return error.UnclosedParen;
+            }
 
             self.lexer = self.lexer.catchUp(rpar);
             expr.position = newPosition(token.pos, rpar.pos);
@@ -377,10 +374,7 @@ fn parseTernary(self: *Parser) Error!*Node {
     const colon = try self.lexer.consume();
     if (colon.tid != .Cln) {
         self.errctx = .{
-            .value = .{ .UnexpectedToken = .{
-                .expected = .Cln,
-                .token = colon,
-            } },
+            .value = .{ .UnexpectedToken = .Cln },
             .position = colon.pos,
         };
     }
@@ -645,8 +639,8 @@ test "Parser - Primary int" {
 
     const pos = misc.Pos{};
 
-    const expected = try parser.createExprNode(pos, "test", .{}, null, try parser.createIntNode(1, 1, 1));
-    defer expected.deinit();
+    const expected = try parser.createExprNode(pos, "test", &[_]*Node{}, null, try parser.createIntNode(misc.Pos{}, 1));
+    defer expected.deinit(alloc);
 
     try expect(node.data == .expr);
     try expect(std.mem.eql(u8, node.data.expr.name, "test"));

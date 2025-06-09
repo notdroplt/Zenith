@@ -52,8 +52,8 @@ pub fn getPrettyPosition(code: []const u8, pos: misc.Pos) PrettyPosition {
 fn printContext(writer: anytype, ctx: misc.ErrorContext) !void {
     switch (ctx.value) {
         .UnexpectedToken => |err| {
-            try writer.print("Expected token \"{s}\" but found \"{s}\"",
-                .{ printToken(err.expected), printToken(err.token.tid) });
+            try writer.print("Expected token \"{s}\" here",
+                .{ printToken(err) });
         },
         .UndefinedOperation => |err| {
             try writer.print("{s} operation: (", .{ if (err.lhs != null) "binary" else "unary"});

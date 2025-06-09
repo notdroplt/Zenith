@@ -263,8 +263,13 @@ fn consumeString(self: Lexer) Error!Token {
 
     return Token{
         .tid = .Str,
-        .pos = misc.Pos{ .index = start - 1, .span = lex.index - start + 1 },
-        .val = .{ .str = self.code[start .. lex.index - 1] },
+        .pos = misc.Pos{
+            .index = start - 1,
+            .span = lex.index - start + 1,
+        },
+        .val = .{
+            .str = self.code[start .. lex.index - 1],
+        },
     };
 }
 
@@ -280,8 +285,13 @@ fn consumeIdentifier(self: Lexer) Token {
 
     return Token{
         .tid = .Ref,
-        .pos = misc.Pos{ .index = start, .span = lex.index - start },
-        .val = .{ .str = lex.code[start..lex.index] },
+        .pos = misc.Pos{
+            .index = start,
+            .span = lex.index - start,
+        },
+        .val = .{
+            .str = lex.code[start..lex.index],
+        },
     };
 }
 
@@ -380,18 +390,56 @@ fn parseDec(str: misc.String, pos: misc.Pos) Token {
     };
 }
 
+/// Check if the current token is one of the given tokens
+/// Returns the index of the first token that matches, or null if none match
+/// This cannot fail at all, just returns null
+pub fn is_any(self: *Lexer, tokens: []const Tokens, skip: bool) ?Token {
+    const token = self.consume() catch 
+        return null;
+
+    if (skip) self.* = self.catchUp(token);
+
+    for (tokens) |t| {
+        if (token.tid == t) return token;
+    }
+    return null;
+}
+
+pub fn skipToken(self: *Lexer) Error!void {
+    const token = try self.consume();
+    self.catchUp(token);
+}
+
 pub fn consume(self: *Lexer) Error!Token {
     if (self.last) |last| return last;
 
     var lex = self.skipComments();
 
     if (lex.isNumeric()) {
-        self.last = try lex.consumeNumber();
+        self.last = lex.consumeNumber() catch {
+            self.errctx = ErrorContext{
+                .position = misc.Pos{
+                    .index = lex.index,
+                    .span = 1,
+                },
+                .value = .MalformedToken,
+            };
+            return error.MalformedToken;
+        };
         return self.last.?;
     }
 
     if (lex.char('"')) {
-        self.last = try lex.consumeString();
+        self.last = lex.consumeString() catch {
+            self.errctx = ErrorContext{
+                .position = misc.Pos{
+                    .index = lex.index,
+                    .span = 1,
+                },
+                .value = .MalformedToken,
+            };
+            return error.MalformedString;
+        };
         return self.last.?;
     }
 
@@ -415,7 +463,10 @@ pub fn consume(self: *Lexer) Error!Token {
     }
 
     const pos = misc.Pos{ .index = lex.index, .span = 1 };
-    const curr = try lex.current();
+    const curr = lex.current() catch {
+        self.errctx = ErrorContext{ .position = pos, .value = .MalformedToken };
+        return error.MalformedToken;
+    };
 
     const tok: ?Token = switch (curr) {
         '(' => Token.init(.Lpar, pos),
@@ -484,6 +535,7 @@ pub fn catchUp(self: Lexer, token: Token) Lexer {
 const expect = std.testing.expect;
 const expectEqual = std.testing.expectEqual;
 ////////// lexer tests
+
 test Lexer {
     var lexer = Lexer.init(
         \\0 1 0.0 1.0 1e2 1.3e2 
@@ -517,6 +569,8 @@ test Lexer {
         Token{ .tid = .Lsh },
         Token{ .tid = .Rsh },
     };
+
+    std.debug.print("grr", .{});
 
     for (tokens) |token| {
         const tok = try lexer.consume();
