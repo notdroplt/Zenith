@@ -3,94 +3,78 @@ const misc = @import("misc.zig");
 
 pub fn Context(comptime T: type) type {
     return struct {
-        const ctxt = @This();
+        const Self = @This();
 
-        parent: ?*ctxt = null,
-        alloc: std.mem.Allocator,
+        parent: ?*Self = null,
         members: std.StringHashMap(T),
-        children: std.StringHashMap(ctxt),
+        children: std.StringHashMap(Self),
 
-        pub fn init(alloc: std.mem.Allocator) ctxt {
-            return ctxt{
-                .alloc = alloc,
-                .members = std.StringHashMap(T).init(alloc),
-                .children = std.StringHashMap(ctxt).init(alloc),
+        pub fn init(allocator: std.mem.Allocator) Self {
+            return Self{
+                .members = std.StringHashMap(T).init(allocator),
+                .children = std.StringHashMap(Self).init(allocator),
             };
         }
 
-        pub fn initTree(alloc: std.mem.Allocator, path: misc.String) !*ctxt {
-            const ctx = ctxt.init(alloc);
-            const parts = std.mem.splitScalar(u8, path, '/');
-            var currentCtx = ctx;
+        pub fn add(self: *Self, name: misc.String, value: T) !void {
+            try self.members.put(name, value);
+        }
 
-            while (parts.next()) |part| {
-                var subCtx = currentCtx.children.get(part);
-                if (subCtx == null) {
-                    subCtx = ctxt.init(alloc);
-                    subCtx.parent = currentCtx.?;
-                    try currentCtx.children.put(part, subCtx);
+        /// Add a value at a path, creating child contexts as needed.
+        pub fn addTree(self: *Self, allocator: std.mem.Allocator, path: misc.String, name: misc.String, value: T) !void {
+            var ctx = self;
+            var it = std.mem.splitScalar(u8, path, '/');
+            while (it.next()) |segment| {
+                if (segment.len == 0) continue;
+                if (ctx.children.getEntry(segment)) |child| {
+                    ctx = child.value_ptr;
+                } else {
+                    var new_child = Self.init(allocator);
+                    new_child.parent = ctx;
+                    try ctx.children.put(segment, new_child);
+                    ctx = ctx.children.getEntry(segment).?.value_ptr;
                 }
-                currentCtx = subCtx.?;
             }
-
-            return ctx;
+            try ctx.members.put(name, value);
         }
 
-        pub fn getTree(self: ctxt, path: misc.String, name: misc.String) ?T {
-            var parts = std.mem.splitScalar(u8, path, '/');
-            var currentCtx = self;
-
-            while (parts.next()) |part| {
-                std.debug.print("Getting part: {s}\n", .{part});
-                const subCtx = currentCtx.children.get(part);
-                if (subCtx == null) return null;
-                currentCtx = subCtx.?;
-            }
-
-            std.debug.print("Getting member: {s}\n", .{name});
-            return currentCtx.get(name);
-        }
-
-        pub fn addTree(self: *ctxt, path: misc.String, name: misc.String, value: T) !void {
-            var parts = std.mem.splitScalar(u8, path, '/');
-            var currentCtx = self;
-
-            while (parts.next()) |part| {
-                std.debug.print("Adding part: {s}\n", .{part});
-                var subCtx = currentCtx.children.get(part);
-                if (subCtx == null) {
-                    subCtx = ctxt.init(self.alloc);
-                    subCtx.?.parent = currentCtx;
-                    std.debug.print("Creating new sub-context for part: {s}\n", .{part});
-                    try currentCtx.children.put(part, subCtx.?);
+        /// Get a value by path and name, searching up the parent chain if not found locally.
+        pub fn getTree(self: *Self, path: misc.String, name: misc.String) ?T {
+            var ctx: *Self = self;
+            var it = std.mem.splitScalar(u8, path, '/');
+            while (it.next()) |segment| {
+                if (segment.len == 0) continue;
+                if (ctx.children.getEntry(segment)) |child| {
+                    ctx = child.value_ptr;
+                } else {
+                    return null;
                 }
-                currentCtx = &subCtx.?;
             }
-
-            try currentCtx.add(name, value);
+            return ctx.get(name);
         }
 
-        pub fn deinit(self: *ctxt, alloc: std.mem.Allocator) void {
-            var it2 = self.children.iterator();
-            while (it2.next()) |pair| {
-                pair.value_ptr.*.deinit(alloc);
+        /// Get a value by name, searching up the parent chain.
+        pub fn get(self: *Self, name: misc.String) ?T {
+            if (self.members.get(name)) |val| {
+                return val;
+            } else if (self.parent) |p| {
+                return p.get(name);
+            } else {
+                return null;
             }
+        }
 
+        pub fn deinit(self: *Self, allocator: std.mem.Allocator) void {
+            var it = self.children.iterator();
+            while (it.next()) |pair| {
+                pair.value_ptr.deinit(allocator);
+            }
             self.members.deinit();
             self.children.deinit();
         }
 
-        pub fn get(self: ctxt, name: misc.String) ?T {
-            return self.members.get(name) orelse if (self.parent) |p| p.get(name) else null;
-        }
-
-        pub fn add(self: *ctxt, name: misc.String, value: T) !void {
-            std.debug.print("Adding member: {s} = {any}\n", .{name, value});
-            return self.members.put(name, value);
-        }
-        
-        pub fn isEmpty(self: ctxt) bool {
-            return self.members.count() == 0;
+        pub fn isEmpty(self: *Self) bool {
+            return self.members.count() == 0 and self.children.count() == 0;
         }
     };
 }
@@ -123,9 +107,7 @@ test "Context - getTree/addTree" {
     var ctx = Context(u8).init(alloc);
     defer ctx.deinit(alloc);
 
-    try ctx.addTree("a/b/c", "test", 0);
-
-    try expect(false);
-    // try expect(ctx.getTree("a/b/c", "test") != null);
-    // try expectEqual(ctx.getTree("a/b/c", "test"), 0);
+    try ctx.addTree(alloc, "a/b/c", "test", 0);
+    try expect(ctx.getTree("a/b/c", "test") != null);
+    try expectEqual(ctx.getTree("a/b/c", "test"), 0);
 }
