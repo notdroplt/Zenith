@@ -5,18 +5,18 @@ const ErrorContext = misc.ErrorContext;
 const Lexer = @This();
 
 /// Possible token types
-pub const Tokens = enum {
+pub const Tokens = union(enum) {
     /// Integer tokens
-    Int,
+    Int: i64,
 
     /// Decimal Tokens
-    Dec,
+    Dec: f64,
 
     /// String Tokens
-    Str,
+    Str: misc.String,
 
     /// Reference Tokens
-    Ref,
+    Ref: misc.String,
 
     /// "module"
     Mod,
@@ -144,23 +144,15 @@ pub const Error = error{
 
 /// Lexer Token
 pub const Token = struct {
-    /// Token id
-    tid: Tokens,
+    /// Token value
+    val: Tokens,
 
     /// Position in the code
     pos: misc.Pos = .{},
 
-    /// Token value (if applicable)
-    val: union(enum) {
-        int: i64,
-        dec: f64,
-        str: misc.String,
-        empty: void,
-    } = .empty,
-
-    /// init a token without value
+    /// init a token 
     pub fn init(tid: Tokens, pos: misc.Pos) Token {
-        return Token{ .tid = tid, .pos = pos };
+        return Token{ .val = tid, .pos = pos };
     }
 };
 
@@ -183,7 +175,7 @@ pub fn init(code: misc.String) Lexer {
 }
 
 /// Check if end without erroring out
-fn end(self: Lexer) bool {
+inline fn end(self: Lexer) bool {
     return self.code.len <= self.index;
 }
 
@@ -199,23 +191,17 @@ fn char(self: Lexer, c: u8) bool {
 
 /// Performs isAlpha without erroring out
 fn isAlpha(self: Lexer) bool {
-    if (self.end())
-        return false;
-    return std.ascii.isAlphabetic(self.code[self.index]);
+    return if (self.end()) false else std.ascii.isAlphabetic(self.code[self.index]);
 }
 
 /// Performs isDigit without erroring out
 fn isNumeric(self: Lexer) bool {
-    if (self.end())
-        return false;
-    return std.ascii.isDigit(self.code[self.index]);
+    return if (self.end()) false else std.ascii.isDigit(self.code[self.index]);
 }
 
 /// Performs isAlphanumeric without erroring out
 fn isAlphanumeric(self: Lexer) bool {
-    if (self.end())
-        return false;
-    return std.ascii.isAlphanumeric(self.code[self.index]);
+    return if (self.end()) false else std.ascii.isAlphanumeric(self.code[self.index]);
 }
 
 /// Walks into the next character, or don't if end
@@ -230,8 +216,14 @@ fn walk(self: Lexer) Lexer {
 /// Walk until a non whitespace character
 fn consumeWhitespace(self: Lexer) Lexer {
     var lex = self;
-    while (lex.char(' ') or lex.char('\n') or lex.char('\t') or lex.char('\r'))
+    while (!lex.end()) {
+        if (lex.code[lex.index] != ' '
+        and lex.code[lex.index] != '\n'
+        and lex.code[lex.index] != '\r'
+        and lex.code[lex.index] != '\t')
+            break;
         lex = lex.walk();
+    }
     return lex;
 }
 
@@ -241,7 +233,7 @@ fn skipComments(self: Lexer) Lexer {
     var str = self.code[self.index..];
     var lex = self;
     while (str[0] == '/' and str[1] == '/') : (str = lex.code[lex.index..]) {
-        while (lex.char('\n'))
+        while (lex.code[lex.index] != '\n')
             lex = lex.walk();
         lex = lex.consumeWhitespace().walk();
     }
@@ -256,19 +248,19 @@ fn consumeString(self: Lexer) Error!Token {
         lex = lex.walk();
 
     if (lex.end()) {
-        lex.errctx = ErrorContext{ .position = misc.Pos{ .index = start, .span = lex.index - start }, .value = .MalformedToken };
+        lex.errctx = ErrorContext{
+            .position = misc.Pos{ .index = start, .span = lex.index - start },
+            .value = .MalformedToken,
+        };
         return error.MalformedString;
     }
     lex = lex.walk();
 
     return Token{
-        .tid = .Str,
+        .val = .{ .Str = self.code[start .. lex.index - 1] },
         .pos = misc.Pos{
             .index = start - 1,
             .span = lex.index - start + 1,
-        },
-        .val = .{
-            .str = self.code[start .. lex.index - 1],
         },
     };
 }
@@ -284,20 +276,19 @@ fn consumeIdentifier(self: Lexer) Token {
         lex = lex.walk();
 
     return Token{
-        .tid = .Ref,
         .pos = misc.Pos{
             .index = start,
             .span = lex.index - start,
         },
         .val = .{
-            .str = lex.code[start..lex.index],
+            .Ref = lex.code[start..lex.index],
         },
     };
 }
 
 /// Consume an integer or a rational
 fn consumeNumber(self: Lexer) Error!Token {
-    var curr = Tokens.Int;
+    var isInt = true;
     const start = self.index;
     var lex = self;
 
@@ -305,14 +296,14 @@ fn consumeNumber(self: Lexer) Error!Token {
         lex = lex.walk();
 
     if (lex.char('.')) {
-        curr = .Dec;
+        isInt = false;
         lex = lex.walk();
         while (lex.isNumeric())
             lex = lex.walk();
     }
 
     if (lex.char('e')) {
-        curr = .Dec;
+        isInt = false;
         lex = lex.walk();
         if (lex.char('+') or lex.char('-'))
             lex = lex.walk();
@@ -327,7 +318,7 @@ fn consumeNumber(self: Lexer) Error!Token {
 
     const str = lex.code[start .. start + rpos.span];
 
-    if (curr == .Int)
+    if (isInt)
         return Lexer.parseInt(str, rpos);
 
     return Lexer.parseDec(str, rpos);
@@ -341,9 +332,8 @@ fn parseInt(str: misc.String, pos: misc.Pos) Token {
         result = result * 10 + (str[idx] - '0');
 
     return Token{
-        .tid = .Int,
         .pos = pos,
-        .val = .{ .int = result },
+        .val = .{ .Int = result },
     };
 }
 
@@ -384,23 +374,21 @@ fn parseDec(str: misc.String, pos: misc.Pos) Token {
         }
     }
     return Token{
-        .tid = .Dec,
         .pos = pos,
-        .val = .{ .dec = result * std.math.pow(f64, 10, sign * exp) },
+        .val = .{ .Dec = result * std.math.pow(f64, 10, sign * exp) },
     };
 }
 
 /// Check if the current token is one of the given tokens
 /// Returns the index of the first token that matches, or null if none match
-/// This cannot fail at all, just returns null
+/// This cannot fail, just returns null
 pub fn is_any(self: *Lexer, tokens: []const Tokens, skip: bool) ?Token {
-    const token = self.consume() catch 
-        return null;
+    const token = self.consume() catch return null;
 
     if (skip) self.* = self.catchUp(token);
 
     for (tokens) |t| {
-        if (token.tid == t) return token;
+        if (token.value == t) return token;
     }
     return null;
 }
@@ -481,6 +469,7 @@ pub fn consume(self: *Lexer) Error!Token {
         '*' => Token.init(.Star, pos),
         '/' => Token.init(.Bar, pos),
         '&' => lex.generate('&', .Amp, .And),
+        '^' => Token.init(.Hat, pos),
         '~' => Token.init(.Til, pos),
         '!' => lex.generate('=', .Bang, .Cneq),
         '#' => Token.init(.Hash, pos),
@@ -491,6 +480,7 @@ pub fn consume(self: *Lexer) Error!Token {
         '?' => Token.init(.Ques, pos),
         ':' => Token.init(.Cln, pos),
         ';' => Token.init(.Semi, pos),
+        '.' => Token.init(.Dot, pos),
         else => null,
     };
 
@@ -499,7 +489,7 @@ pub fn consume(self: *Lexer) Error!Token {
     if (tok) |t|
         return t;
 
-    self.errctx = ErrorContext{ .position = pos, .value = .MalformedToken };
+    self.errctx = ErrorContext{ .position = pos, .value = .MalformedToken, };
 
     return error.MalformedToken;
 }
@@ -540,44 +530,70 @@ test Lexer {
     var lexer = Lexer.init(
         \\0 1 0.0 1.0 1e2 1.3e2 
         \\"hello" "" 
-        \\identifier a b
-        \\+-*/ == != && || <= >= << >>
+        \\identifier a b'
+        \\(){}[]=;+-*/&~!#|^%<<>>==!=><>=<=&&||?:.->
+        \\module match 
     );
 
     const tokens = [_]Token{
-        Token{ .tid = .Int, .val = .{ .int = 0 } },
-        Token{ .tid = .Int, .val = .{ .int = 1 } },
-        Token{ .tid = .Dec, .val = .{ .dec = 0.0 } },
-        Token{ .tid = .Dec, .val = .{ .dec = 1.0 } },
-        Token{ .tid = .Dec, .val = .{ .dec = 100 } },
-        Token{ .tid = .Dec, .val = .{ .dec = 130 } },
-        Token{ .tid = .Str, .val = .{ .str = "hello" } },
-        Token{ .tid = .Str, .val = .{ .str = "" } },
-        Token{ .tid = .Ref, .val = .{ .str = "identifier" } },
-        Token{ .tid = .Ref, .val = .{ .str = "a" } },
-        Token{ .tid = .Ref, .val = .{ .str = "b" } },
-        Token{ .tid = .Plus },
-        Token{ .tid = .Min },
-        Token{ .tid = .Star },
-        Token{ .tid = .Bar },
-        Token{ .tid = .Cequ },
-        Token{ .tid = .Cneq },
-        Token{ .tid = .And },
-        Token{ .tid = .Or },
-        Token{ .tid = .Cle },
-        Token{ .tid = .Cge },
-        Token{ .tid = .Lsh },
-        Token{ .tid = .Rsh },
+        Token{ .val = .{ .Int = 0 } },
+        Token{ .val = .{ .Int = 1 } },
+        Token{ .val = .{ .Dec = 0.0 } },
+        Token{ .val = .{ .Dec = 1.0 } },
+        Token{ .val = .{ .Dec = 100 } },
+        Token{ .val = .{ .Dec = 130 } },
+        Token{ .val = .{ .Str = "hello" } },
+        Token{ .val = .{ .Str = "" } },
+        Token{ .val = .{ .Ref = "identifier" } },
+        Token{ .val = .{ .Ref = "a" } },
+        Token{ .val = .{ .Ref = "b'" } },
+        Token{ .val = .Lpar },
+        Token{ .val = .Rpar },
+        Token{ .val = .Lcur },
+        Token{ .val = .Rcur },
+        Token{ .val = .Lsqb },
+        Token{ .val = .Rsqb },
+        Token{ .val = .Equ },
+        Token{ .val = .Semi },
+        Token{ .val = .Plus },
+        Token{ .val = .Min },
+        Token{ .val = .Star },
+        Token{ .val = .Bar },
+        Token{ .val = .Amp },
+        Token{ .val = .Til },
+        Token{ .val = .Bang },
+        Token{ .val = .Hash },
+        Token{ .val = .Pipe },
+        Token{ .val = .Hat },
+        Token{ .val = .Per },
+        Token{ .val = .Lsh },
+        Token{ .val = .Rsh },
+        Token{ .val = .Cequ },
+        Token{ .val = .Cneq },
+        Token{ .val = .Cgt },
+        Token{ .val = .Clt },
+        Token{ .val = .Cge },
+        Token{ .val = .Cle },
+        Token{ .val = .And },
+        Token{ .val = .Or },
+        Token{ .val = .Ques },
+        Token{ .val = .Cln },
+        Token{ .val = .Dot },
+        Token{ .val = .Arrow },
+        Token{ .val = .Mod },
+        Token{ .val = .Match },
     };
-
-    std.debug.print("grr", .{});
 
     for (tokens) |token| {
         const tok = try lexer.consume();
-        try expectEqual(token.tid, tok.tid);
-        if (token.val == .str) {
-            try expect(std.mem.eql(u8, token.val.str, tok.val.str));
-        } else try expectEqual(token.val, tok.val);
+        try expectEqual(std.meta.activeTag(token.val), std.meta.activeTag(tok.val));
+        switch (token.val) {
+            .Int => |v| try expectEqual(v, tok.val.Int),
+            .Dec => |v| try expectEqual(v, tok.val.Dec),
+            .Str => |v| try expect(std.mem.eql(u8, v, tok.val.Str)),
+            .Ref => |v| try expect(std.mem.eql(u8, v, tok.val.Ref)),
+            else => {}
+        }
         lexer = lexer.catchUp(tok);
     }
 }

@@ -82,10 +82,10 @@ pub fn add(comptime T: type, a: T, b: T) @TypeOf(a + b) { return a + b; }
 pub fn sub(comptime T: type, a: T, b: T) @TypeOf(a - b) { return a - b; }
 pub fn mul(comptime T: type, a: T, b: T) @TypeOf(a * b) { return a * b; }
 pub fn div(comptime T: type, a: T, b: T) T { return @divTrunc(a, b); }
-pub fn mod(comptime T: type, a: T, b: T) T { return a * b; }
+pub fn mod(comptime T: type, a: T, b: T) T { return @rem(a, b); }
 pub fn pipe(comptime T: type, a: T, b: T) T { return a | b; }
 pub fn amp(comptime T: type, a: T, b: T) T { return a & b; }
-pub fn hat(comptime T: type, a: T, b: T) T { return a * b; }
+pub fn hat(comptime T: type, a: T, b: T) T { return a ^ b; }
 pub fn lsh(comptime T: type, a: T, b: T) T { return a << @intCast(@rem(b, 64)); }
 pub fn rsh(comptime T: type, a: T, b: T) T { return a >> @intCast(@rem(b, 64)); }
 pub fn equ(comptime T: type, a: T, b: T) bool { return a == b; }

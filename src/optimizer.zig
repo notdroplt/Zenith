@@ -33,7 +33,6 @@ fn cse(ir: *IR, alloc: std.mem.Allocator) !void {
 
             if (seen.get(key)) |res| {
                 // we have seen this before, dco time
-                std.debug.print ("grrr\n", .{});
                 try regMap.put(alloc, inst.rd, res);
             } else {
                 instruction[i] = IR.Instruction {

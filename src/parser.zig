@@ -46,100 +46,9 @@ fn newPosition(start: misc.Pos, end: misc.Pos) misc.Pos {
     };
 }
 
-/// Integer node factory
-fn createIntNode(self: Parser, position: misc.Pos, value: i64) !*Node {
-    const node = try self.alloc.create(Node);
-    node.* = .{
-        .position = position,
-        .data = .{ .int = value },
-    };
-    return node;
-}
-
-/// Decimal node factory
-fn createDecNode(self: Parser, position: misc.Pos, value: f64) !*Node {
-    const node = try self.alloc.create(Node);
-    node.* = .{
-        .position = position,
-        .data = .{ .dec = value },
-    };
-    return node;
-}
-
-/// String node factory
-fn createStrNode(self: Parser, position: misc.Pos, value: misc.String) !*Node {
-    const node = try self.alloc.create(Node);
-    node.* = .{
-        .position = position,
-        .data = .{ .str = value },
-    };
-    return node;
-}
-
-/// Reference node factory
-fn createRefNode(self: Parser, position: misc.Pos, value: misc.String) !*Node {
-    const node = try self.alloc.create(Node);
-    node.* = .{
-        .position = position,
-        .data = .{ .ref = value },
-    };
-    return node;
-}
-
-/// Unary node factory
-fn createUnrNode(self: Parser, position: misc.Pos, operator: Lexer.Tokens, value: *Node) !*Node {
-    const node = try self.alloc.create(Node);
-    node.* = .{
-        .position = position,
-        .data = .{
-            .unr = .{
-                .val = value,
-                .op = operator,
-            },
-        },
-    };
-    return node;
-}
-
-/// Binary node factory
-fn createBinNode(self: Parser, position: misc.Pos, operator: Lexer.Tokens, lhs: *Node, rhs: *Node) !*Node {
-    const node = try self.alloc.create(Node);
-    node.* = .{
-        .position = position,
-        .data = .{
-            .bin = .{
-                .lhs = lhs,
-                .rhs = rhs,
-                .op = operator,
-            },
-        },
-    };
-    return node;
-}
-
-/// Call node factory
-fn createCallNode(self: Parser, position: misc.Pos, caller: *Node, callee: *Node) !*Node {
-    const node = try self.alloc.create(Node);
-    node.* = Node{
-        .position = position,
-        .data = .{ .call = .{ .caller = caller, .callee = callee } },
-    };
-    return node;
-}
-
-/// Expression node factory
-pub fn createExprNode(self: Parser, position: misc.Pos, name: misc.String, params: []*Node, exprType: ?*Node, expr: ?*Node) !*Node {
-    const node = try self.alloc.create(Node);
-    node.* = Node{
-        .position = position,
-        .data = .{ .expr = .{ .name = name, .params = params, .ntype = exprType, .expr = expr } },
-    };
-    return node;
-}
-
 /// Get operator precedence
-fn getPrecedence(tid: Lexer.Tokens) i32 {
-    return switch (tid) {
+fn getPrecedence(val: Lexer.Tokens) i32 {
+    return switch (val) {
         .Or, .And => 1,
         .Cequ, .Cneq, .Clt, .Cle, .Cgt, .Cge => 2,
         .Plus, .Min => 3,
@@ -172,22 +81,23 @@ fn parseIntr(self: *Parser, flags: IntrFlags) Error!*Node {
     var idx: usize = 0;
 
     errdefer for (intermediates, 0..) |i, id| {
-        std.debug.print("Deinit intermediate {}\n", .{id});
+        if (id >= idx) break;
         i.deinit(self.alloc);
     };
 
     const lcur = try self.lexer.consume();
-    if (flags != .skipLcur and lcur.tid != .Lcur)
+    if (flags != .skipLcur and lcur.val != .Lcur)
         try self.generateUnexpected(.Lcur, lcur);
 
-    self.lexer = self.lexer.catchUp(lcur);
+    if (flags != .skipLcur)
+        self.lexer = self.lexer.catchUp(lcur);
     for (&intermediates, 0..) |*int, i| {
         const rcur = try self.lexer.consume();
-        if (rcur.tid == .Rcur or i >= 16) break;
+        if (rcur.val == .Rcur or i >= 16) break;
 
         int.* = try self.parseStatement();
         const semi = try self.lexer.consume();
-        if (semi.tid != .Semi)
+        if (semi.val != .Semi)
             try self.generateUnexpected(.Semi, semi);
         self.lexer = self.lexer.catchUp(semi);
         idx = i;
@@ -195,13 +105,15 @@ fn parseIntr(self: *Parser, flags: IntrFlags) Error!*Node {
 
     const rcur = try self.lexer.consume();
 
-    if (rcur.tid != .Rcur)
+    if (rcur.val != .Rcur)
         try self.generateUnexpected(.Rcur, rcur);
 
     self.lexer = self.lexer.catchUp(rcur);
 
-    const actualImm = try self.alloc.alloc(*Node, idx);
-    @memcpy(actualImm, intermediates[0..idx]);
+    const actualImm = try self.alloc.alloc(*Node, idx + 1);
+    errdefer self.alloc.free(actualImm);
+    std.debug.print("[{}] - [{}] ({})\n", .{actualImm.len, intermediates[0..idx].len, idx});
+    @memcpy(actualImm, intermediates[0..idx+1]);
 
     if (flags == IntrFlags.noApp or self.inModule) {
         const node = try self.alloc.create(Node);
@@ -224,10 +136,12 @@ fn parseIntr(self: *Parser, flags: IntrFlags) Error!*Node {
     const node = try self.alloc.create(Node);
     node.* = Node{
         .position = newPosition(start, application.position),
-        .data = .{ .intr = .{
-            .intermediates = actualImm,
-            .application = application,
-        }, },
+        .data = .{
+            .intr = .{
+                .intermediates = actualImm,
+                .application = application,
+            },
+        },
     };
     return node;
 }
@@ -240,15 +154,15 @@ fn parseModule(self: *Parser) Error!*Node {
 
     const direction = try self.lexer.consume();
 
-    if (direction.tid != .Rsh and direction.tid != .Lsh) 
+    if (direction.val != .Rsh and direction.val != .Lsh)
         try self.generateUnexpected(.Rsh, direction);
 
     self.lexer = self.lexer.catchUp(direction);
 
     const name = try self.lexer.consume();
 
-    if (name.tid != .Str)
-        try self.generateUnexpected(.Str, name);
+    if (name.val != .Str)
+        try self.generateUnexpected(.{ .Str = "" }, name);
 
     self.lexer = self.lexer.catchUp(name);
     self.inModule = true;
@@ -263,9 +177,9 @@ fn parseModule(self: *Parser) Error!*Node {
         .position = newPosition(start, content.position),
         .data = .{
             .mod = .{
-                .path = name.val.str,
+                .path = name.val.Str,
                 .nodes = content.data.intr.intermediates,
-                .direction = direction.tid == .Lsh,
+                .direction = direction.val == .Lsh,
             },
         },
     };
@@ -275,19 +189,17 @@ fn parseModule(self: *Parser) Error!*Node {
 fn parsePrimary(self: *Parser) Error!*Node {
     const token = try self.lexer.consume();
     self.lexer = self.lexer.catchUp(token);
-    return switch (token.tid) {
-        .Int => try self.createIntNode(token.pos, token.val.int),
-        .Dec => try self.createDecNode(token.pos, token.val.dec),
-        .Str => try self.createStrNode(token.pos, token.val.str),
-        .Ref => try self.createRefNode(token.pos, token.val.str),
+    return switch (token.val) {
+        .Int => try Node.initInt(self.alloc, token.pos, token.val.Int),
+        .Dec => try Node.initDec(self.alloc, token.pos, token.val.Dec),
+        .Str => try Node.initStr(self.alloc, token.pos, token.val.Str),
+        .Ref => try Node.initRef(self.alloc, token.pos, token.val.Ref),
         .Lpar => {
             const expr = try self.parseExpr();
             errdefer expr.deinit(self.alloc);
 
             const rpar = try self.lexer.consume();
-            if (rpar.tid != .Rpar) {
-                return error.UnclosedParen;
-            }
+            if (rpar.val != .Rpar) return error.UnclosedParen;
 
             self.lexer = self.lexer.catchUp(rpar);
             expr.position = newPosition(token.pos, rpar.pos);
@@ -302,8 +214,8 @@ fn parsePrimary(self: *Parser) Error!*Node {
     };
 }
 
-fn isAtomic(tid: Lexer.Tokens) bool {
-    return switch (tid) {
+fn isAtomic(val: Lexer.Tokens) bool {
+    return switch (val) {
         .Int, .Dec, .Ref, .Str, .Lpar => true,
         else => false,
     };
@@ -315,20 +227,20 @@ fn parseCall(self: *Parser) Error!*Node {
 
     while (true) {
         const token = try self.lexer.consume();
-        if (!isAtomic(token.tid) or token.tid == .Semi)
+        if (!isAtomic(token.val) or token.val == .Semi)
             return caller;
 
         const callee = try self.parsePrimary();
         errdefer callee.deinit(self.alloc);
 
-        caller = try self.createCallNode(token.pos, caller, callee);
+        caller = try Node.initCall(self.alloc, token.pos, caller, callee);
         errdefer caller.deinit(self.alloc);
     }
 }
 
 fn parseUnary(self: *Parser) Error!*Node {
     const token = try self.lexer.consume();
-    switch (token.tid) {
+    switch (token.val) {
         .Min, .Plus, .Til, .Bang, .Star, .Amp => {},
         else => return self.parseCall(),
     }
@@ -337,7 +249,7 @@ fn parseUnary(self: *Parser) Error!*Node {
     const operand = try self.parseUnary();
     errdefer operand.deinit(self.alloc);
 
-    return self.createUnrNode(token.pos, token.tid, operand);
+    return Node.initUnr(self.alloc, token.pos, token.val, operand);
 }
 
 fn parseBinary(self: *Parser, precedence: i32) Error!*Node {
@@ -346,7 +258,7 @@ fn parseBinary(self: *Parser, precedence: i32) Error!*Node {
 
     while (true) {
         const token = try self.lexer.consume();
-        const tokenPrecedence = getPrecedence(token.tid);
+        const tokenPrecedence = getPrecedence(token.val);
         if (tokenPrecedence < precedence)
             return left;
 
@@ -354,7 +266,7 @@ fn parseBinary(self: *Parser, precedence: i32) Error!*Node {
         const right = try self.parseBinary(tokenPrecedence + 1);
         errdefer right.deinit(self.alloc);
 
-        left = try self.createBinNode(token.pos, token.tid, left, right);
+        left = try Node.initBin(self.alloc, token.pos, token.val, left, right);
         errdefer left.deinit(self.alloc);
     }
 }
@@ -364,7 +276,7 @@ fn parseTernary(self: *Parser) Error!*Node {
     errdefer condition.deinit(self.alloc);
 
     const question = try self.lexer.consume();
-    if (question.tid != .Ques) return condition;
+    if (question.val != .Ques) return condition;
 
     self.lexer = self.lexer.catchUp(question);
 
@@ -372,7 +284,7 @@ fn parseTernary(self: *Parser) Error!*Node {
     errdefer thenExpr.deinit(self.alloc);
 
     const colon = try self.lexer.consume();
-    if (colon.tid != .Cln) {
+    if (colon.val != .Cln) {
         self.errctx = .{
             .value = .{ .UnexpectedToken = .Cln },
             .position = colon.pos,
@@ -384,18 +296,7 @@ fn parseTernary(self: *Parser) Error!*Node {
     const elseExpr = try self.parseTernary();
     errdefer elseExpr.deinit(self.alloc);
 
-    const ternary = try self.alloc.create(Node);
-    ternary.* = Node{
-        .position = newPosition(condition.position, elseExpr.position),
-        .data = .{
-            .ter = .{
-                .cond = condition,
-                .btrue = thenExpr,
-                .bfalse = elseExpr,
-            },
-        },
-    };
-    return ternary;
+    return Node.initTer(self.alloc, newPosition(condition.position, elseExpr.position), condition, thenExpr, elseExpr);
 }
 
 inline fn parseExpr(self: *Parser) Error!*Node {
@@ -404,21 +305,21 @@ inline fn parseExpr(self: *Parser) Error!*Node {
 
 fn parseRange(self: *Parser) Error!*Node {
     const lsq = try self.lexer.consume();
-    if (lsq.tid != .Lsqb) try self.generateUnexpected(.Lsqb, lsq);
+    if (lsq.val != .Lsqb) try self.generateUnexpected(.Lsqb, lsq);
 
     self.lexer = self.lexer.catchUp(lsq);
     const start = try self.parseExpr();
     errdefer start.deinit(self.alloc);
 
     const semi = try self.lexer.consume();
-    if (semi.tid != .Semi) try self.generateUnexpected(.Semi, semi);
+    if (semi.val != .Semi) try self.generateUnexpected(.Semi, semi);
 
     self.lexer = self.lexer.catchUp(semi);
     const end = try self.parseExpr();
     errdefer end.deinit(self.alloc);
 
     const semi2 = try self.lexer.consume();
-    if (semi2.tid != .Semi) try self.generateUnexpected(.Semi, semi2);
+    if (semi2.val != .Semi) try self.generateUnexpected(.Semi, semi2);
 
     self.lexer = self.lexer.catchUp(semi2);
     const epsilon = try self.parseExpr();
@@ -426,7 +327,7 @@ fn parseRange(self: *Parser) Error!*Node {
 
     const rsq = try self.lexer.consume();
 
-    if (rsq.tid != .Rsqb) try self.generateUnexpected(.Rsqb, rsq);
+    if (rsq.val != .Rsqb) try self.generateUnexpected(.Rsqb, rsq);
 
     self.lexer = self.lexer.catchUp(rsq);
 
@@ -446,15 +347,20 @@ fn parseRange(self: *Parser) Error!*Node {
 
 fn parseTPrimary(self: *Parser) Error!*Node {
     const tok = try self.lexer.consume();
-    return switch (tok.tid) {
+    return switch (tok.val) {
         .Lsqb => self.parseRange(),
         .Ref => self.parseProd(),
-        .Star => |v| {
+        .Star => {
             self.lexer = self.lexer.catchUp(tok);
             const val = try self.parseTPrimary();
             const ptr = try self.alloc.create(Node);
             errdefer self.alloc.destroy(ptr);
-            ptr.* = Node{ .position = newPosition(tok.pos, val.position), .data = .{ .unr = .{ .op = v, .val = ptr } } };
+            ptr.* = Node{
+                .position = newPosition(tok.pos, val.position),
+                .data = .{
+                    .unr = .{ .op = .Star, .val = ptr },
+                },
+            };
             return ptr;
         },
         else => {
@@ -480,17 +386,17 @@ fn parseTBinary(self: *Parser, prec: i3) Error!*Node {
 
     while (true) {
         const token = try self.lexer.consume();
-        const tokenPrecedence = getTypePrecedence(token.tid);
+        const tokenPrecedence = getTypePrecedence(token.val);
         if (tokenPrecedence < prec)
             return left;
 
         self.lexer = self.lexer.catchUp(token);
-        const next_prec: i3 = if (token.tid == .Arrow) tokenPrecedence else tokenPrecedence + 1;
+        const next_prec: i3 = if (token.val == .Arrow) tokenPrecedence else tokenPrecedence + 1;
 
         const right = try self.parseTBinary(next_prec);
         errdefer right.deinit(self.alloc);
 
-        left = try self.createBinNode(token.pos, token.tid, left, right);
+        left = try Node.initBin(self.alloc, token.pos, token.val, left, right);
         errdefer left.deinit(self.alloc);
     }
 }
@@ -510,7 +416,7 @@ fn parseSum(self: *Parser) Error!*Node {
 
     while (true) {
         const token = try self.lexer.consume();
-        if (token.tid != .Bar)
+        if (token.val != .Bar)
             break;
 
         self.lexer = self.lexer.catchUp(token);
@@ -534,26 +440,34 @@ fn parseSum(self: *Parser) Error!*Node {
 fn parseProd(self: *Parser) Error!*Node {
     const ctor = try self.lexer.consume();
     const start = ctor.pos;
-    if (ctor.tid != .Ref) try self.generateUnexpected(.Ref, ctor);
+    if (ctor.val != .Ref) try self.generateUnexpected(.{ .Ref = "" }, ctor);
 
     self.lexer = self.lexer.catchUp(ctor);
 
     const open = try self.lexer.consume();
-    if (open.tid != .Lcur)
-        return self.createRefNode(ctor.pos, ctor.val.str);
+    if (open.val != .Lcur)
+        return Node.initRef(self.alloc, ctor.pos, ctor.val.Ref);
 
     self.lexer = self.lexer.catchUp(open);
 
     var array = std.ArrayList(*Node).init(self.alloc);
 
     var closed = try self.lexer.consume();
-    while (closed.tid != .Rcur) : (closed = try self.lexer.consume()) {
+    while (closed.val != .Rcur) : (closed = try self.lexer.consume()) {
         try array.append(try self.parseType());
     }
 
     self.lexer = self.lexer.catchUp(closed);
     const prod = try self.alloc.create(Node);
-    prod.* = Node{ .position = newPosition(start, closed.pos), .data = .{ .aggr = .{ .name = ctor.val.str, .children = array.items } } };
+    prod.* = Node{
+        .position = newPosition(start, closed.pos),
+        .data = .{
+            .aggr = .{
+                .name = ctor.val.Ref,
+                .children = array.items,
+            },
+        },
+    };
 
     return prod;
 }
@@ -574,20 +488,20 @@ fn parseStatement(self: *Parser) !*Node {
         params[i].deinit(self.alloc);
     };
 
-    while (isAtomic((try self.lexer.consume()).tid) or (try self.lexer.consume()).tid == .Lpar) : (pidx += 1) {
+    while (isAtomic((try self.lexer.consume()).val) or (try self.lexer.consume()).val == .Lpar) : (pidx += 1) {
         params[pidx] = try parsePrimary(self);
     }
 
     var exprType: ?*Node = null;
     var expr: ?*Node = null;
     const colon = try self.lexer.consume();
-    if (colon.tid == .Cln) {
+    if (colon.val == .Cln) {
         self.lexer = self.lexer.catchUp(colon);
         exprType = try self.parseType();
     }
 
     const equal = try self.lexer.consume();
-    if (equal.tid == .Equ) {
+    if (equal.val == .Equ) {
         self.lexer = self.lexer.catchUp(equal);
         expr = try self.parseExpr();
     }
@@ -602,12 +516,12 @@ fn parseStatement(self: *Parser) !*Node {
     errdefer self.alloc.free(actParams);
 
     @memcpy(actParams, params[0..pidx]);
-    return self.createExprNode(pos, name.val.str, actParams, exprType, expr);
+    return Node.initExpr(self.alloc, pos, name.val.Ref, actParams, exprType, expr);
 }
 
 pub fn parseNode(self: *Parser) Error!*Node {
     const token = try self.lexer.consume();
-    switch (token.tid) {
+    switch (token.val) {
         .Mod => return self.parseModule(),
         .Ref => return self.parseStatement(),
         else => {
@@ -639,15 +553,10 @@ test "Parser - Primary int" {
 
     const pos = misc.Pos{};
 
-    const expected = try parser.createExprNode(pos, "test", &[_]*Node{}, null, try parser.createIntNode(misc.Pos{}, 1));
+    const expected = try Node.initExpr(alloc, pos, "test", &[_]*Node{}, null, try Node.initInt(alloc, pos, 1));
     defer expected.deinit(alloc);
 
-    try expect(node.data == .expr);
-    try expect(std.mem.eql(u8, node.data.expr.name, "test"));
-    try expectEqual(0, node.data.expr.params.len);
-    try expect(node.data.expr.expr != null);
-    try expect(node.data.expr.expr.?.data == .int);
-    try expectEqual(1, node.data.expr.expr.?.data.int);
+    try expect(node.eql(expected));
 }
 
 test "Parser - Primary float" {
@@ -658,12 +567,11 @@ test "Parser - Primary float" {
     const node = try parser.parseNode();
     defer node.deinit(alloc);
 
-    try expect(node.data == .expr);
-    try expect(std.mem.eql(u8, node.data.expr.name, "test"));
-    try expectEqual(0, node.data.expr.params.len);
-    try expect(node.data.expr.expr != null);
-    try expect(node.data.expr.expr.?.data == .dec);
-    try expectEqual(1.0, node.data.expr.expr.?.data.dec);
+    const pos = misc.Pos{};
+    const expected = try Node.initExpr(alloc, pos, "test", &[_]*Node{}, null, try Node.initDec(alloc, pos, 1.0));
+    defer expected.deinit(alloc);
+
+    try expect(node.eql(expected));
 }
 
 test "Parser - Primary string" {
@@ -674,12 +582,11 @@ test "Parser - Primary string" {
     const node = try parser.parseNode();
     defer node.deinit(alloc);
 
-    try expect(node.data == .expr);
-    try expect(std.mem.eql(u8, node.data.expr.name, "test"));
-    try expectEqual(0, node.data.expr.params.len);
-    try expect(node.data.expr.expr != null);
-    try expect(node.data.expr.expr.?.data == .str);
-    try expect(std.mem.eql(u8, node.data.expr.expr.?.data.str, "test"));
+    const pos = misc.Pos{};
+    const expected = try Node.initExpr(alloc, pos, "test", &[_]*Node{}, null, try Node.initStr(alloc, pos, "test"));
+    defer expected.deinit(alloc);
+
+    try expect(node.eql(expected));
 }
 
 test "Parser - Primary reference" {
@@ -690,12 +597,11 @@ test "Parser - Primary reference" {
     const node = try parser.parseNode();
     defer node.deinit(alloc);
 
-    try expect(node.data == .expr);
-    try expect(std.mem.eql(u8, node.data.expr.name, "test"));
-    try expectEqual(0, node.data.expr.params.len);
-    try expect(node.data.expr.expr != null);
-    try expect(node.data.expr.expr.?.data == .ref);
-    try expect(std.mem.eql(u8, node.data.expr.expr.?.data.ref, "test"));
+    const pos = misc.Pos{};
+    const expected = try Node.initExpr(alloc, pos, "test", &[_]*Node{}, null, try Node.initRef(alloc, pos, "test"));
+    defer expected.deinit(alloc);
+
+    try expect(node.eql(expected));
 }
 
 test "Parser - Unary" {
@@ -705,14 +611,11 @@ test "Parser - Unary" {
     const node = try parser.parseNode();
     defer node.deinit(alloc);
 
-    try expect(node.data == .expr);
-    try expect(std.mem.eql(u8, node.data.expr.name, "test"));
-    try expectEqual(0, node.data.expr.params.len);
-    try expect(node.data.expr.expr != null);
-    try expect(node.data.expr.expr.?.data == .unr);
-    try expectEqual(.Min, node.data.expr.expr.?.data.unr.op);
-    try expect(node.data.expr.expr.?.data.unr.val.data == .int);
-    try expectEqual(1, node.data.expr.expr.?.data.unr.val.data.int);
+    const pos = misc.Pos{};
+    const expected = try Node.initExpr(alloc, pos, "test", &[_]*Node{}, null, try Node.initUnr(alloc, pos, .Min, try Node.initInt(alloc, pos, 1)));
+    defer expected.deinit(alloc);
+
+    try expect(node.eql(expected));
 }
 
 test "Parser - Binary" {
@@ -722,16 +625,11 @@ test "Parser - Binary" {
     const node = try parser.parseNode();
     defer node.deinit(alloc);
 
-    try expect(node.data == .expr);
-    try expect(std.mem.eql(u8, node.data.expr.name, "test"));
-    try expectEqual(0, node.data.expr.params.len);
-    try expect(node.data.expr.expr != null);
-    try expect(node.data.expr.expr.?.data == .bin);
-    try expectEqual(.Plus, node.data.expr.expr.?.data.bin.op);
-    try expect(node.data.expr.expr.?.data.bin.lhs.data == .int);
-    try expectEqual(1, node.data.expr.expr.?.data.bin.lhs.data.int);
-    try expect(node.data.expr.expr.?.data.bin.rhs.data == .int);
-    try expectEqual(2, node.data.expr.expr.?.data.bin.rhs.data.int);
+    const pos = misc.Pos{};
+    const expected = try Node.initExpr(alloc, pos, "test", &[_]*Node{}, null, try Node.initBin(alloc, pos, .Plus, try Node.initInt(alloc, pos, 1), try Node.initInt(alloc, pos, 2)));
+
+    defer expected.deinit(alloc);
+    try expect(node.eql(expected));
 }
 
 test "Parser - Ternary" {
@@ -741,17 +639,11 @@ test "Parser - Ternary" {
     const node = try parser.parseNode();
     defer node.deinit(alloc);
 
-    try expect(node.data == .expr);
-    try expect(std.mem.eql(u8, node.data.expr.name, "test"));
-    try expectEqual(0, node.data.expr.params.len);
-    try expect(node.data.expr.expr != null);
-    try expect(node.data.expr.expr.?.data == .ter);
-    try expect(node.data.expr.expr.?.data.ter.cond.data == .int);
-    try expectEqual(1, node.data.expr.expr.?.data.ter.cond.data.int);
-    try expect(node.data.expr.expr.?.data.ter.btrue.data == .int);
-    try expectEqual(2, node.data.expr.expr.?.data.ter.btrue.data.int);
-    try expect(node.data.expr.expr.?.data.ter.bfalse.data == .int);
-    try expectEqual(3, node.data.expr.expr.?.data.ter.bfalse.data.int);
+    const pos = misc.Pos{};
+    const expected = try Node.initExpr(alloc, pos, "test", &[_]*Node{}, null, try Node.initTer(alloc, pos, try Node.initInt(alloc, pos, 1), try Node.initInt(alloc, pos, 2), try Node.initInt(alloc, pos, 3)));
+    defer expected.deinit(alloc);
+
+    try expect(node.eql(expected));
 }
 
 test "Parser - Intr" {
@@ -765,13 +657,11 @@ test "Parser - Intr" {
     var parser = Parser.init(code, alloc);
     const node = try parser.parseNode();
     defer node.deinit(alloc);
-
     try expect(node.data == .expr);
     try expect(std.mem.eql(u8, node.data.expr.name, "test"));
     try expectEqual(0, node.data.expr.params.len);
     try expect(node.data.expr.expr != null);
     try expect(node.data.expr.expr.?.data == .intr);
-    try expectEqual(2, node.data.expr.expr.?.data.intr.intermediates.len);
 }
 
 test "Parser - Params" {

@@ -77,15 +77,15 @@ pub fn pipeline(name: misc.String, alloc: std.mem.Allocator) !u8 {
     return 0;
 }
 
-test {
-    _ = @import("analyzer.zig");
-    _ = @import("context.zig");
-    _ = @import("debug.zig");
-    _ = @import("ir.zig");
-    _ = @import("lexer.zig");
+test "the pipeline"{
     _ = @import("misc.zig");
+    _ = @import("lexer.zig");
     _ = @import("node.zig");
-    _ = @import("optimizer.zig");
     _ = @import("parser.zig");
+    _ = @import("context.zig");
     _ = @import("types.zig");
+    _ = @import("analyzer.zig");
+    _ = @import("ir.zig");
+    _ = @import("optimizer.zig");
+    std.testing.refAllDecls(@This());
 }

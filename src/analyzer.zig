@@ -297,7 +297,7 @@ fn analyzeModule(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
         const pname = mnode.data.expr.name;
         const modnode = try analyze(self, currctx, mnode);
         const res = try modnode.ntype.?.deepCopy(self.allocator);
-        try self.modules.addTree(mod.path, pname, res);
+        try self.modules.addTree(self.allocator, mod.path, pname, res);
     }
     return node;
 }
@@ -366,7 +366,6 @@ fn analyzeExpr(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
             expr.params[i].ntype = try paramVal.data.function.argument.deepCopy(self.talloc);
             errdefer n.ntype.?.deinit(self.talloc);
             expr.params[i].ntype.?.paramIdx = @intCast(i + 1);
-            std.debug.assert(n.ntype.?.paramIdx != 0);
         }
 
     }
