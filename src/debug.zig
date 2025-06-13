@@ -56,7 +56,7 @@ fn printContext(writer: anytype, ctx: misc.ErrorContext) !void {
                 .{ printToken(err) });
         },
         .UndefinedOperation => |err| {
-            try writer.print("{s} operation: (", .{ if (err.lhs != null) "binary" else "unary"});
+            try writer.print("operation (", .{});
             if (err.lhs) |lhs| {
                 try printType(writer, lhs);
                 try writer.print(" ", .{});

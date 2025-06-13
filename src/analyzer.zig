@@ -159,8 +159,16 @@ fn analyzeBin(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
     node.ntype = try self.talloc.create(Type);
 
     node.ntype.?.* = Type.binOperate(self.talloc, node.data.bin.op, lhs.ntype.?.*, rhs.ntype.?.*) catch |err| {
-        std.debug.print("laaalal", .{});
-        self.errctx.position = node.position;
+        self.errctx = .{
+            .position = node.position,
+            .value = .{
+                .UndefinedOperation = .{
+                    .lhs = lhs.ntype.?.*,
+                    .rhs = rhs.ntype.?.*,
+                    .token = node.data.bin.op,
+                }
+            }
+        };
         return err;
     };
 

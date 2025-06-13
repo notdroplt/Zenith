@@ -80,9 +80,9 @@ fn parseIntr(self: *Parser, flags: IntrFlags) Error!*Node {
     var intermediates: [16]*Node = undefined;
     var idx: usize = 0;
 
-    errdefer for (intermediates, 0..) |i, id| {
-        if (id >= idx) break;
-        i.deinit(self.alloc);
+    errdefer for (intermediates, 0..) |intr, i| {
+        if (i >= idx) break;
+        intr.deinit(self.alloc);
     };
 
     const lcur = try self.lexer.consume();
@@ -112,7 +112,6 @@ fn parseIntr(self: *Parser, flags: IntrFlags) Error!*Node {
 
     const actualImm = try self.alloc.alloc(*Node, idx + 1);
     errdefer self.alloc.free(actualImm);
-    std.debug.print("[{}] - [{}] ({})\n", .{actualImm.len, intermediates[0..idx].len, idx});
     @memcpy(actualImm, intermediates[0..idx+1]);
 
     if (flags == IntrFlags.noApp or self.inModule) {
@@ -182,6 +181,7 @@ fn parseModule(self: *Parser) Error!*Node {
                 .direction = direction.val == .Lsh,
             },
         },
+        .ntype = undefined,
     };
     return node;
 }
