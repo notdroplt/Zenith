@@ -227,8 +227,9 @@ fn parseCall(self: *Parser) Error!*Node {
 
     while (true) {
         const token = try self.lexer.consume();
+        std.debug.print("token: {}\n", .{token});
         if (!isAtomic(token.val) or token.val == .Semi)
-            return caller;
+                return caller;
 
         const callee = try self.parsePrimary();
         errdefer callee.deinit(self.alloc);

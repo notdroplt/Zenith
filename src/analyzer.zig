@@ -134,6 +134,10 @@ fn analyzeRef(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
         node.ntype = try refT.deepCopy(self.talloc);
         return node;
     }
+    self.errctx = .{
+        .position = node.position,
+        .value = .NoContext
+    };
     return error.UndefinedReference;
 }
 
@@ -153,7 +157,9 @@ fn analyzeUnr(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
 }
 
 fn analyzeBin(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
+
     const lhs = try analyze(self, currctx, node.data.bin.lhs);
+    std.debug.print("hrtt\n", .{});
     const rhs = try analyze(self, currctx, node.data.bin.rhs);
 
     node.ntype = try self.talloc.create(Type);
@@ -377,7 +383,6 @@ fn analyzeExpr(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
         }
 
     }
-
     for (expr.params, 0..) |param, pidx|
         if (param.data == .ref) {
             const pname = param.data.ref;
@@ -404,6 +409,8 @@ fn analyzeExpr(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
             }
             try innerctx.add(pname, ptype);
         };
+
+
 
     if (expr.expr) |res|
         _ = try analyze(self, &innerctx, res);

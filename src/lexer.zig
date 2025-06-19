@@ -265,6 +265,14 @@ fn consumeString(self: Lexer) Error!Token {
     };
 }
 
+/// Check if char is a non alphanumeric token
+fn isToken(c: u8) bool {
+    return c == '!' or c == '#' or c == '%' or c == '&' or c == '[' or c == ']' or c == '^'
+       or (c >= '(' and c <= '/') 
+       or (c >= ':' and c <= '?') 
+       or (c >= '{' and c <= '~');
+}
+
 /// Consume an identifier
 fn consumeIdentifier(self: Lexer) Token {
     const start = self.index;
@@ -272,13 +280,13 @@ fn consumeIdentifier(self: Lexer) Token {
 
     lex = lex.walk();
 
-    while (lex.isAlphanumeric() or lex.char('_') or lex.char('\''))
+    while (!lex.end() and !isToken(lex.code[lex.index]))
         lex = lex.walk();
 
     return Token{
         .pos = misc.Pos{
             .index = start,
-            .span = lex.index - start,
+            .span = lex.index - start - 1,
         },
         .val = .{
             .Ref = lex.code[start..lex.index],
@@ -457,31 +465,34 @@ pub fn consume(self: *Lexer) Error!Token {
     };
 
     const tok: ?Token = switch (curr) {
-        '(' => Token.init(.Lpar, pos),
-        ')' => Token.init(.Rpar, pos),
-        '{' => Token.init(.Lcur, pos),
-        '}' => Token.init(.Rcur, pos),
-        '[' => Token.init(.Lsqb, pos),
-        ']' => Token.init(.Rsqb, pos),
-        '=' => lex.generate('=', .Equ, .Cequ),
-        '+' => Token.init(.Plus, pos),
-        '-' => lex.generate('>', .Min, .Arrow),
-        '*' => Token.init(.Star, pos),
-        '/' => Token.init(.Bar, pos),
-        '&' => lex.generate('&', .Amp, .And),
-        '^' => Token.init(.Hat, pos),
-        '~' => Token.init(.Til, pos),
-        '!' => lex.generate('=', .Bang, .Cneq),
-        '#' => Token.init(.Hash, pos),
-        '|' => lex.generate('|', .Pipe, .Or),
-        '%' => Token.init(.Per, pos),
-        '<' => lex.doubleGenerate('=', '<', .Cle, .Lsh, .Clt),
-        '>' => lex.doubleGenerate('=', '>', .Cge, .Rsh, .Cgt),
-        '?' => Token.init(.Ques, pos),
-        ':' => Token.init(.Cln, pos),
-        ';' => Token.init(.Semi, pos),
-        '.' => Token.init(.Dot, pos),
-        else => null,
+        '(', => Token.init(.Lpar, pos),
+        ')', => Token.init(.Rpar, pos),
+        '{', => Token.init(.Lcur, pos),
+        '}', => Token.init(.Rcur, pos),
+        '[', => Token.init(.Lsqb, pos),
+        ']', => Token.init(.Rsqb, pos),
+        '=', => lex.generate('=', .Equ, .Cequ),
+        '+', => Token.init(.Plus, pos),
+        '-', => lex.generate('>', .Min, .Arrow),
+        '*', => Token.init(.Star, pos),
+        '/', => Token.init(.Bar, pos),
+        '&', => lex.generate('&', .Amp, .And),
+        '^', => Token.init(.Hat, pos),
+        '~', => Token.init(.Til, pos),
+        '!', => lex.generate('=', .Bang, .Cneq),
+        '#', => Token.init(.Hash, pos),
+        '|', => lex.generate('|', .Pipe, .Or),
+        '%', => Token.init(.Per, pos),
+        '<', => lex.doubleGenerate('=', '<', .Cle, .Lsh, .Clt),
+        '>', => lex.doubleGenerate('=', '>', .Cge, .Rsh, .Cgt),
+        '?', => Token.init(.Ques, pos),
+        ':', => Token.init(.Cln, pos),
+        ';', => Token.init(.Semi, pos),
+        '.', => Token.init(.Dot, pos),
+        else => {
+            self.last = lex.consumeIdentifier();
+            return self.last.?;
+        },
     };
 
     self.last = tok;

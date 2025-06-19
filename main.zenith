@@ -1,1 +1,2 @@
 func x y = x + y;
+aaa = func 3 4;
