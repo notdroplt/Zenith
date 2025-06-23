@@ -132,45 +132,44 @@ Types sets are given from now on as follows:
 - Sums: $S$
 - Castings: any letter followed by `'`
 - Pointers: $^*T'$
-- Arrays: $T'#I$
+- Arrays: $T'\#I$
  
 Some operators offer like behavior into the Numeric set 
-$N = I \cup R \cup N#I$, which offer less redundancy to write in the
+$N = I \cup R \cup N\#I$, which offer less redundancy to write in the
 documentation
 
 All operations are well defined for types given below:
 
-$$
-\begin{align}
-    +^1 &= N \to N \\
-    -^1 &= N \to N \\
-    *^1 &= *a' \to a' \\
-    \\&^1 &= a' \to *a' \\
-    \sim^1 &= N \to N \\
-    !^1 &= B \to B \\
-    \\#^2 &= a'[I] \to I \to a' \\
-    .^2 &= (a' \to b') \to (b' \to c') \to (a' \to c') \\
-    |^2 &= I \to I \to I \\
-    \\&^2 &= I \to I \to I \\
-    \wedge^2 &= I \to I \to I \\
-    |^2 &= I \to I \to I \\
-    \ll^2 &= I \to I \to I \\
-    \gg^2 &= I \to I \to I \\
-    +^2 &= N \to N \to N \\
-    -^2 &= N \to N \to N \\
-    *^2 &= N \to N \to N \\
-    /^2 &= N \to N \to N \\
-    \%^2 &= I \to I \to I \\
-    ==^2 &= a' \to a' \to B \\
-    !=^2 &= a' \to a' \to B \\
-    >^2 &= a' \to a' \to B \\
-    >=^2 &= a' \to a' \to B \\
-    <^2 &= a' \to a' \to B \\
-    <=^2 &= a' \to a' \to B \\
-    ||^2 &= B \to B \to B \\
-    \\&\\&^2 &= B \to B \to B
-\end{align}
-$$
+| function | notation |
+| :-: | :-: |
+| `+`$^1$ | $N \to N$ |
+| `-`$^1$ | $N \to N$ |
+| `*`$^1$ | $*a' \to a'$ |
+| `&`$^1$ | $a' \to *a'$ |
+| `~`$^1$ | $N \to N$ |
+| `!`$^1$ | $B \to B$ |
+|||
+| `->`$^2$| $a' \to b' \to (a' \to b')$ |
+| `#`$^2$ | $a'[I] \to I \to a'$ |
+| `.`$^2$ | $(a' \to b') \to (b' \to c') \to (a' \to c')$ |
+| `\|`$^2$ | $I \to I \to I$ |
+| `&`$^2$ | $I \to I \to I$ |
+| `^`$^2$ | $I \to I \to I$ |
+| `<<`$^2$ | $I \to I \to I$ |
+| `>>`$^2$ | $I \to I \to I$ |
+| `+`$^2$ | $N \to N \to N$ |
+| `-`$^2$ | $N \to N \to N$ |
+| `*`$^2$ | $N \to N \to N$ |
+| `/`$^2$ | $N \to N \to N$ |
+| `%`$^2$ | $I \to I \to I$ |
+| `==`$^2$ | $a' \to a' \to B$ |
+| `!=`$^2$ | $a' \to a' \to B$ |
+| `>`$^2$ | $a' \to a' \to B$ |
+| `>=`$^2$ | $a' \to a' \to B$ |
+| `<`$^2$ | $a' \to a' \to B$ |
+| `<=`$^2$ | $a' \to a' \to B$ |
+| `\|\|`$^2$ | $B \to B \to B$ |
+| `&&`$^2$ | $B \to B \to B$ |
 
 ### 2.3. Induction and deduction rules
 

@@ -1,6 +1,5 @@
 const std = @import("std");
 const zenith = @import("zenith.zig");
-const misc = @import("misc.zig");
 
 pub fn main() !u8 {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};

@@ -41,7 +41,7 @@ pub fn pipeline(name: misc.String, alloc: std.mem.Allocator) !u8 {
     var analyzer = try Analyzer.init(alloc, aalloc);
     defer analyzer.deinit();
 
-    const node = parser.parseNode() catch {
+    var nodes = parser.parseNodes() catch {
         if (parser.errctx.value == .NoContext) {
             parser.errctx = parser.lexer.errctx;
         }
@@ -49,8 +49,13 @@ pub fn pipeline(name: misc.String, alloc: std.mem.Allocator) !u8 {
         try bw.flush();
         return 254;
     };
-    defer node.deinit(alloc);
-    const typed = analyzer.runAnalysis(node) catch {
+    
+    defer { 
+        for (nodes.items) |node| node.deinit(alloc);
+        nodes.deinit(alloc);
+    }
+
+    analyzer.runAnalysis(nodes.items) catch {
         try debug.printError(stdout, name, parser.code, analyzer.errctx);
         try bw.flush();
         return 253;
@@ -58,11 +63,10 @@ pub fn pipeline(name: misc.String, alloc: std.mem.Allocator) !u8 {
 
     try bw.flush();
 
-    try debug.printNode(stdout, node);
-
     var ir = IR.init(alloc, analyzer.context);
     defer ir.deinit();
-    ir.fromNode(typed) catch {
+
+    ir.fromNode(nodes.items[0]) catch {
         try debug.printError(stdout, name, parser.code, ir.errctx);
         try bw.flush();
         return 252;

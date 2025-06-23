@@ -30,7 +30,7 @@ pos: misc.Pos = .{},
 alloc: std.mem.Allocator,
 
 /// Error context
-errctx: misc.ErrorContext,
+errctx: misc.ErrorContext = .{},
 
 /// Lexer instance
 lexer: Lexer,
@@ -61,7 +61,7 @@ fn getPrecedence(val: Lexer.Tokens) i32 {
 }
 
 /// Generate an unexpected token error
-fn generateUnexpected(self: *Parser, expected: Lexer.Tokens, got: Lexer.Token) Error!void {
+fn generateUnexpected(self: *Parser, expected: []const Lexer.Tokens, got: Lexer.Token) Error!void {
     self.errctx = .{
         .value = .{
             .UnexpectedToken = expected,
@@ -87,10 +87,11 @@ fn parseIntr(self: *Parser, flags: IntrFlags) Error!*Node {
 
     const lcur = try self.lexer.consume();
     if (flags != .skipLcur and lcur.val != .Lcur)
-        try self.generateUnexpected(.Lcur, lcur);
+        try self.generateUnexpected(&[_]Lexer.Tokens{.Lcur}, lcur);
 
     if (flags != .skipLcur)
         self.lexer = self.lexer.catchUp(lcur);
+
     for (&intermediates, 0..) |*int, i| {
         const rcur = try self.lexer.consume();
         if (rcur.val == .Rcur or i >= 16) break;
@@ -98,7 +99,7 @@ fn parseIntr(self: *Parser, flags: IntrFlags) Error!*Node {
         int.* = try self.parseStatement();
         const semi = try self.lexer.consume();
         if (semi.val != .Semi)
-            try self.generateUnexpected(.Semi, semi);
+            try self.generateUnexpected(&[_]Lexer.Tokens{ .Semi }, semi);
         self.lexer = self.lexer.catchUp(semi);
         idx = i;
     }
@@ -106,17 +107,17 @@ fn parseIntr(self: *Parser, flags: IntrFlags) Error!*Node {
     const rcur = try self.lexer.consume();
 
     if (rcur.val != .Rcur)
-        try self.generateUnexpected(.Rcur, rcur);
+        try self.generateUnexpected(&[_]Lexer.Tokens{.Rcur}, rcur);
 
     self.lexer = self.lexer.catchUp(rcur);
 
     const actualImm = try self.alloc.alloc(*Node, idx + 1);
     errdefer self.alloc.free(actualImm);
-    @memcpy(actualImm, intermediates[0..idx+1]);
+    @memcpy(actualImm, intermediates[0 .. idx + 1]);
 
     if (flags == IntrFlags.noApp or self.inModule) {
         const node = try self.alloc.create(Node);
-        node.* = Node{
+        node.* = .{
             .position = newPosition(start, rcur.pos),
             .data = .{
                 .intr = .{
@@ -133,7 +134,7 @@ fn parseIntr(self: *Parser, flags: IntrFlags) Error!*Node {
     errdefer application.deinit(self.alloc);
 
     const node = try self.alloc.create(Node);
-    node.* = Node{
+    node.* = .{
         .position = newPosition(start, application.position),
         .data = .{
             .intr = .{
@@ -154,14 +155,14 @@ fn parseModule(self: *Parser) Error!*Node {
     const direction = try self.lexer.consume();
 
     if (direction.val != .Rsh and direction.val != .Lsh)
-        try self.generateUnexpected(.Rsh, direction);
+        try self.generateUnexpected(&[_]Lexer.Tokens{ .Lsh, .Rsh }, direction);
 
     self.lexer = self.lexer.catchUp(direction);
 
     const name = try self.lexer.consume();
 
     if (name.val != .Str)
-        try self.generateUnexpected(.{ .Str = "" }, name);
+        try self.generateUnexpected(&[_]Lexer.Tokens{.{ .Str = "" }}, name);
 
     self.lexer = self.lexer.catchUp(name);
     self.inModule = true;
@@ -172,7 +173,7 @@ fn parseModule(self: *Parser) Error!*Node {
     self.inModule = false;
 
     const node = try self.alloc.create(Node);
-    node.* = Node{
+    node.* = .{
         .position = newPosition(start, content.position),
         .data = .{
             .mod = .{
@@ -190,16 +191,17 @@ fn parsePrimary(self: *Parser) Error!*Node {
     const token = try self.lexer.consume();
     self.lexer = self.lexer.catchUp(token);
     return switch (token.val) {
-        .Int => try Node.initInt(self.alloc, token.pos, token.val.Int),
-        .Dec => try Node.initDec(self.alloc, token.pos, token.val.Dec),
-        .Str => try Node.initStr(self.alloc, token.pos, token.val.Str),
-        .Ref => try Node.initRef(self.alloc, token.pos, token.val.Ref),
+        .Int => |v| try Node.initInt(self.alloc, token.pos, v),
+        .Dec => |v| try Node.initDec(self.alloc, token.pos, v),
+        .Str => |v| try Node.initStr(self.alloc, token.pos, v),
+        .Ref => |v| try Node.initRef(self.alloc, token.pos, v),
         .Lpar => {
             const expr = try self.parseExpr();
             errdefer expr.deinit(self.alloc);
 
             const rpar = try self.lexer.consume();
-            if (rpar.val != .Rpar) return error.UnclosedParen;
+            if (rpar.val != .Rpar) 
+                try self.generateUnexpected(&[_]Lexer.Tokens{.Rpar}, rpar);
 
             self.lexer = self.lexer.catchUp(rpar);
             expr.position = newPosition(token.pos, rpar.pos);
@@ -208,7 +210,13 @@ fn parsePrimary(self: *Parser) Error!*Node {
         .Lcur => try self.parseIntr(IntrFlags.skipLcur),
         else => {
             self.pos = token.pos;
-            try self.generateUnexpected(.Lpar, token);
+            try self.generateUnexpected(&[_]Lexer.Tokens{
+                .{ .Int = 0 },
+                .{ .Dec = 0 },
+                .{ .Ref = "" },
+                .{ .Str = "" },
+                .Lpar,
+            }, token);
             unreachable;
         },
     };
@@ -220,6 +228,7 @@ fn isAtomic(val: Lexer.Tokens) bool {
         else => false,
     };
 }
+const debug = @import("debug.zig");
 
 fn parseCall(self: *Parser) Error!*Node {
     var caller = try self.parsePrimary();
@@ -227,9 +236,9 @@ fn parseCall(self: *Parser) Error!*Node {
 
     while (true) {
         const token = try self.lexer.consume();
-        std.debug.print("token: {}\n", .{token});
-        if (!isAtomic(token.val) or token.val == .Semi)
-                return caller;
+        if (!isAtomic(token.val)) {
+            return caller;
+        }
 
         const callee = try self.parsePrimary();
         errdefer callee.deinit(self.alloc);
@@ -286,10 +295,7 @@ fn parseTernary(self: *Parser) Error!*Node {
 
     const colon = try self.lexer.consume();
     if (colon.val != .Cln) {
-        self.errctx = .{
-            .value = .{ .UnexpectedToken = .Cln },
-            .position = colon.pos,
-        };
+        try self.generateUnexpected(&[_]Lexer.Tokens{.Cln}, colon);
     }
 
     self.lexer = self.lexer.catchUp(colon);
@@ -306,21 +312,21 @@ inline fn parseExpr(self: *Parser) Error!*Node {
 
 fn parseRange(self: *Parser) Error!*Node {
     const lsq = try self.lexer.consume();
-    if (lsq.val != .Lsqb) try self.generateUnexpected(.Lsqb, lsq);
+    if (lsq.val != .Lsqb) try self.generateUnexpected(&[_]Lexer.Tokens{.Lsqb}, lsq);
 
     self.lexer = self.lexer.catchUp(lsq);
     const start = try self.parseExpr();
     errdefer start.deinit(self.alloc);
 
     const semi = try self.lexer.consume();
-    if (semi.val != .Semi) try self.generateUnexpected(.Semi, semi);
+    if (semi.val != .Semi) try self.generateUnexpected(&[_]Lexer.Tokens{.Semi}, semi);
 
     self.lexer = self.lexer.catchUp(semi);
     const end = try self.parseExpr();
     errdefer end.deinit(self.alloc);
 
     const semi2 = try self.lexer.consume();
-    if (semi2.val != .Semi) try self.generateUnexpected(.Semi, semi2);
+    if (semi2.val != .Semi) try self.generateUnexpected(&[_]Lexer.Tokens{.Semi}, semi2);
 
     self.lexer = self.lexer.catchUp(semi2);
     const epsilon = try self.parseExpr();
@@ -328,12 +334,12 @@ fn parseRange(self: *Parser) Error!*Node {
 
     const rsq = try self.lexer.consume();
 
-    if (rsq.val != .Rsqb) try self.generateUnexpected(.Rsqb, rsq);
+    if (rsq.val != .Rsqb) try self.generateUnexpected(&[_]Lexer.Tokens{.Rsqb}, rsq);
 
     self.lexer = self.lexer.catchUp(rsq);
 
     const range = try self.alloc.create(Node);
-    range.* = Node{
+    range.* = .{
         .position = newPosition(lsq.pos, rsq.pos),
         .data = .{
             .range = .{
@@ -356,7 +362,7 @@ fn parseTPrimary(self: *Parser) Error!*Node {
             const val = try self.parseTPrimary();
             const ptr = try self.alloc.create(Node);
             errdefer self.alloc.destroy(ptr);
-            ptr.* = Node{
+            ptr.* = .{
                 .position = newPosition(tok.pos, val.position),
                 .data = .{
                     .unr = .{ .op = .Star, .val = ptr },
@@ -365,7 +371,7 @@ fn parseTPrimary(self: *Parser) Error!*Node {
             return ptr;
         },
         else => {
-            try self.generateUnexpected(Lexer.Tokens.Lsqb, tok);
+            try self.generateUnexpected(&[_]Lexer.Tokens{ .Lsqb, .{.Ref = ""}, .Star }, tok);
 
             // generateUnexpected **will** throw, this is just for compliance
             unreachable;
@@ -441,7 +447,7 @@ fn parseSum(self: *Parser) Error!*Node {
 fn parseProd(self: *Parser) Error!*Node {
     const ctor = try self.lexer.consume();
     const start = ctor.pos;
-    if (ctor.val != .Ref) try self.generateUnexpected(.{ .Ref = "" }, ctor);
+    if (ctor.val != .Ref) try self.generateUnexpected(&[_]Lexer.Tokens{.{.Ref = ""}}, ctor);
 
     self.lexer = self.lexer.catchUp(ctor);
 
@@ -460,7 +466,7 @@ fn parseProd(self: *Parser) Error!*Node {
 
     self.lexer = self.lexer.catchUp(closed);
     const prod = try self.alloc.create(Node);
-    prod.* = Node{
+    prod.* = .{
         .position = newPosition(start, closed.pos),
         .data = .{
             .aggr = .{
@@ -517,6 +523,14 @@ fn parseStatement(self: *Parser) !*Node {
     errdefer self.alloc.free(actParams);
 
     @memcpy(actParams, params[0..pidx]);
+
+    const semi = try self.lexer.consume();
+    if (semi.val != .Semi) {
+        try self.generateUnexpected(&[_]Lexer.Tokens{.Semi}, colon);
+    }
+
+    self.lexer = self.lexer.catchUp(semi);
+
     return Node.initExpr(self.alloc, pos, name.val.Ref, actParams, exprType, expr);
 }
 
@@ -526,15 +540,26 @@ pub fn parseNode(self: *Parser) Error!*Node {
         .Mod => return self.parseModule(),
         .Ref => return self.parseStatement(),
         else => {
-            self.pos = token.pos;
-            return error.UnexpectedToken;
+            try self.generateUnexpected(&[_]Lexer.Tokens{ .Mod, .{.Ref = ""} }, token);
+            unreachable;
         },
     }
 }
 
+pub fn parseNodes(self: *Parser) Error!std.ArrayListUnmanaged(*Node) {
+    var nodes = std.ArrayListUnmanaged(*Node){};
+    errdefer nodes.deinit(self.alloc);
+
+    while (!self.lexer.end()) {
+        const node = try self.parseNode();
+        try nodes.append(self.alloc, node);
+    }
+
+    return nodes;
+}
+
 pub fn init(code: misc.String, alloc: std.mem.Allocator) Parser {
     return Parser{
-        .errctx = .{ .value = .NoContext },
         .code = code,
         .alloc = alloc,
         .lexer = Lexer.init(code),

@@ -152,7 +152,7 @@ pub const Token = struct {
 
     /// init a token 
     pub fn init(tid: Tokens, pos: misc.Pos) Token {
-        return Token{ .val = tid, .pos = pos };
+        return .{ .val = tid, .pos = pos };
     }
 };
 
@@ -170,12 +170,12 @@ last: ?Token = null,
 errctx: ErrorContext = .{ .value = .NoContext },
 
 /// Initialize a lexer
-pub fn init(code: misc.String) Lexer {
-    return Lexer{ .code = code };
+pub inline fn init(code: misc.String) Lexer {
+    return .{ .code = code };
 }
 
 /// Check if end without erroring out
-inline fn end(self: Lexer) bool {
+pub inline fn end(self: Lexer) bool {
     return self.code.len <= self.index;
 }
 
@@ -206,7 +206,7 @@ fn isAlphanumeric(self: Lexer) bool {
 
 /// Walks into the next character, or don't if end
 fn walk(self: Lexer) Lexer {
-    return Lexer{
+    return .{
         .code = self.code,
         .index = self.index + @intFromBool(!self.end()),
         .last = self.last,
@@ -217,10 +217,8 @@ fn walk(self: Lexer) Lexer {
 fn consumeWhitespace(self: Lexer) Lexer {
     var lex = self;
     while (!lex.end()) {
-        if (lex.code[lex.index] != ' '
-        and lex.code[lex.index] != '\n'
-        and lex.code[lex.index] != '\r'
-        and lex.code[lex.index] != '\t')
+        const c = lex.code[lex.index];
+        if (c != ' ' and c != '\n' and c != '\r' and c != '\t')
             break;
         lex = lex.walk();
     }
@@ -248,29 +246,31 @@ fn consumeString(self: Lexer) Error!Token {
         lex = lex.walk();
 
     if (lex.end()) {
-        lex.errctx = ErrorContext{
-            .position = misc.Pos{ .index = start, .span = lex.index - start },
+        lex.errctx = .{
+            .position = .{ .index = start, .span = lex.index - start },
             .value = .MalformedToken,
         };
         return error.MalformedString;
     }
     lex = lex.walk();
 
-    return Token{
+    return .{
         .val = .{ .Str = self.code[start .. lex.index - 1] },
-        .pos = misc.Pos{
+        .pos = .{
             .index = start - 1,
             .span = lex.index - start + 1,
         },
     };
 }
 
-/// Check if char is a non alphanumeric token
+/// Check if char is something invalid for an identifier
 fn isToken(c: u8) bool {
-    return c == '!' or c == '#' or c == '%' or c == '&' or c == '[' or c == ']' or c == '^'
+    return c == '!' or c == '#' or c == '%' or c == '&' or c == '[' 
+       or c == ']' or c == '^'
        or (c >= '(' and c <= '/') 
        or (c >= ':' and c <= '?') 
-       or (c >= '{' and c <= '~');
+       or (c >= '{' and c <= '~')
+       or c == ' ' or c == '\n' or c == '\t' or c == '\r';
 }
 
 /// Consume an identifier
@@ -283,10 +283,10 @@ fn consumeIdentifier(self: Lexer) Token {
     while (!lex.end() and !isToken(lex.code[lex.index]))
         lex = lex.walk();
 
-    return Token{
-        .pos = misc.Pos{
+    return .{
+        .pos = .{
             .index = start,
-            .span = lex.index - start - 1,
+            .span = lex.index - start,
         },
         .val = .{
             .Ref = lex.code[start..lex.index],
@@ -339,7 +339,7 @@ fn parseInt(str: misc.String, pos: misc.Pos) Token {
     for (0..str.len) |idx|
         result = result * 10 + (str[idx] - '0');
 
-    return Token{
+    return .{
         .pos = pos,
         .val = .{ .Int = result },
     };
@@ -388,8 +388,7 @@ fn parseDec(str: misc.String, pos: misc.Pos) Token {
 }
 
 /// Check if the current token is one of the given tokens
-/// Returns the index of the first token that matches, or null if none match
-/// This cannot fail, just returns null
+/// Returns the index of first token that matches, null otherwise
 pub fn is_any(self: *Lexer, tokens: []const Tokens, skip: bool) ?Token {
     const token = self.consume() catch return null;
 
@@ -413,8 +412,8 @@ pub fn consume(self: *Lexer) Error!Token {
 
     if (lex.isNumeric()) {
         self.last = lex.consumeNumber() catch {
-            self.errctx = ErrorContext{
-                .position = misc.Pos{
+            self.errctx = .{
+                .position = .{
                     .index = lex.index,
                     .span = 1,
                 },
@@ -427,11 +426,8 @@ pub fn consume(self: *Lexer) Error!Token {
 
     if (lex.char('"')) {
         self.last = lex.consumeString() catch {
-            self.errctx = ErrorContext{
-                .position = misc.Pos{
-                    .index = lex.index,
-                    .span = 1,
-                },
+            self.errctx = .{
+                .position = .{ .index = lex.index, .span = 1 },
                 .value = .MalformedToken,
             };
             return error.MalformedString;
@@ -442,13 +438,13 @@ pub fn consume(self: *Lexer) Error!Token {
     const str = lex.code[lex.index..];
 
     if (std.mem.startsWith(u8, str, "module")) {
-        const tok = Token.init(.Mod, misc.Pos{ .index = lex.index, .span = 6 });
+        const tok = Token.init(.Mod, .{ .index = lex.index, .span = 6 });
         self.last = tok;
         return tok;
     }
 
     if (std.mem.startsWith(u8, str, "match")) {
-        const tok = Token.init(.Match, misc.Pos{ .index = self.index, .span = 5 });
+        const tok = Token.init(.Match, .{ .index = self.index, .span = 5 });
         self.last = tok;
         return tok;
     }
@@ -460,7 +456,7 @@ pub fn consume(self: *Lexer) Error!Token {
 
     const pos = misc.Pos{ .index = lex.index, .span = 1 };
     const curr = lex.current() catch {
-        self.errctx = ErrorContext{ .position = pos, .value = .MalformedToken };
+        self.errctx = .{ .position = pos, .value = .MalformedToken };
         return error.MalformedToken;
     };
 
@@ -500,7 +496,7 @@ pub fn consume(self: *Lexer) Error!Token {
     if (tok) |t|
         return t;
 
-    self.errctx = ErrorContext{ .position = pos, .value = .MalformedToken, };
+    self.errctx = .{ .position = pos, .value = .MalformedToken, };
 
     return error.MalformedToken;
 }
@@ -527,7 +523,7 @@ fn doubleGenerate(self: Lexer, c1: u8, c2: u8, t1: Tokens, t2: Tokens, telse: To
 
 /// After consuming a token, go to the next position
 pub fn catchUp(self: Lexer, token: Token) Lexer {
-    return Lexer{
+    return .{
         .code = self.code,
         .index = token.pos.index + token.pos.span,
     };
@@ -547,52 +543,52 @@ test Lexer {
     );
 
     const tokens = [_]Token{
-        Token{ .val = .{ .Int = 0 } },
-        Token{ .val = .{ .Int = 1 } },
-        Token{ .val = .{ .Dec = 0.0 } },
-        Token{ .val = .{ .Dec = 1.0 } },
-        Token{ .val = .{ .Dec = 100 } },
-        Token{ .val = .{ .Dec = 130 } },
-        Token{ .val = .{ .Str = "hello" } },
-        Token{ .val = .{ .Str = "" } },
-        Token{ .val = .{ .Ref = "identifier" } },
-        Token{ .val = .{ .Ref = "a" } },
-        Token{ .val = .{ .Ref = "b'" } },
-        Token{ .val = .Lpar },
-        Token{ .val = .Rpar },
-        Token{ .val = .Lcur },
-        Token{ .val = .Rcur },
-        Token{ .val = .Lsqb },
-        Token{ .val = .Rsqb },
-        Token{ .val = .Equ },
-        Token{ .val = .Semi },
-        Token{ .val = .Plus },
-        Token{ .val = .Min },
-        Token{ .val = .Star },
-        Token{ .val = .Bar },
-        Token{ .val = .Amp },
-        Token{ .val = .Til },
-        Token{ .val = .Bang },
-        Token{ .val = .Hash },
-        Token{ .val = .Pipe },
-        Token{ .val = .Hat },
-        Token{ .val = .Per },
-        Token{ .val = .Lsh },
-        Token{ .val = .Rsh },
-        Token{ .val = .Cequ },
-        Token{ .val = .Cneq },
-        Token{ .val = .Cgt },
-        Token{ .val = .Clt },
-        Token{ .val = .Cge },
-        Token{ .val = .Cle },
-        Token{ .val = .And },
-        Token{ .val = .Or },
-        Token{ .val = .Ques },
-        Token{ .val = .Cln },
-        Token{ .val = .Dot },
-        Token{ .val = .Arrow },
-        Token{ .val = .Mod },
-        Token{ .val = .Match },
+        .{ .val = .{ .Int = 0 } },
+        .{ .val = .{ .Int = 1 } },
+        .{ .val = .{ .Dec = 0.0 } },
+        .{ .val = .{ .Dec = 1.0 } },
+        .{ .val = .{ .Dec = 100 } },
+        .{ .val = .{ .Dec = 130 } },
+        .{ .val = .{ .Str = "hello" } },
+        .{ .val = .{ .Str = "" } },
+        .{ .val = .{ .Ref = "identifier" } },
+        .{ .val = .{ .Ref = "a" } },
+        .{ .val = .{ .Ref = "b'" } },
+        .{ .val = .Lpar },
+        .{ .val = .Rpar },
+        .{ .val = .Lcur },
+        .{ .val = .Rcur },
+        .{ .val = .Lsqb },
+        .{ .val = .Rsqb },
+        .{ .val = .Equ },
+        .{ .val = .Semi },
+        .{ .val = .Plus },
+        .{ .val = .Min },
+        .{ .val = .Star },
+        .{ .val = .Bar },
+        .{ .val = .Amp },
+        .{ .val = .Til },
+        .{ .val = .Bang },
+        .{ .val = .Hash },
+        .{ .val = .Pipe },
+        .{ .val = .Hat },
+        .{ .val = .Per },
+        .{ .val = .Lsh },
+        .{ .val = .Rsh },
+        .{ .val = .Cequ },
+        .{ .val = .Cneq },
+        .{ .val = .Cgt },
+        .{ .val = .Clt },
+        .{ .val = .Cge },
+        .{ .val = .Cle },
+        .{ .val = .And },
+        .{ .val = .Or },
+        .{ .val = .Ques },
+        .{ .val = .Cln },
+        .{ .val = .Dot },
+        .{ .val = .Arrow },
+        .{ .val = .Mod },
+        .{ .val = .Match },
     };
 
     for (tokens) |token| {

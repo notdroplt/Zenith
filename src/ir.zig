@@ -120,7 +120,7 @@ context: Context(*Type) = undefined,
 
 /// Instantiate a new IR context
 pub fn init(alloc: std.mem.Allocator, context: Context(*Type)) IR {
-    return IR{ .alloc = alloc, .context = context };
+    return .{ .alloc = alloc, .context = context };
 }
 
 /// Deinitialize the IR context and free all resources
@@ -132,8 +132,6 @@ pub fn deinit(self: *IR) void {
     }
     self.nodes.deinit(self.alloc);
     self.phiSources.deinit(self.alloc);
-    //var it = self.nodes.valueIterator();
-    // value.deinit(self.alloc); // we *might need to delete partials
 }
 
 pub fn fromNode(self: *IR, node: *Node) !void {
@@ -253,7 +251,7 @@ fn appendIfConstant(self: *IR, block: BlockOffset, value: Value) IRError!SNIR.In
     return switch (v) {
         .constant => {
             const reg = self.allocateRegister();
-            try self.addInstruction(block, Instruction{
+            try self.addInstruction(block, .{
                 .opcode = SNIR.Opcodes.mov,
                 .rd = reg,
                 .r1 = 0,
@@ -273,7 +271,7 @@ fn appendIfConstant(self: *IR, block: BlockOffset, value: Value) IRError!SNIR.In
 fn constantFromType(self: *IR, block: BlockOffset, node: *Node) Value {
     const nodeType = node.ntype.?;
     _ = self;
-    return Value{
+    return .{
         .vtype = nodeType,
         .from = block,
         .value = .constant,
@@ -295,32 +293,33 @@ fn blockReference(self: *IR, block: BlockOffset, node: *Node) IRError!Value {
         return self.constantFromType(block, node);
 
     if (refType.paramIdx > 0) {
-        const instruction = Instruction{
-            .opcode = SNIR.Opcodes.mov_reg,
-            .rd = self.allocateRegister(),
-            .r1 = refType.paramIdx,
-        };
-        return Value{
+        return .{
             .vtype = refType,
             .from = block,
-            .value = .{ .instruction = instruction },
+            .value = .{
+                .instruction = .{
+                    .opcode = SNIR.Opcodes.mov_reg,
+                    .rd = self.allocateRegister(),
+                    .r1 = refType.paramIdx,
+                },
+            },
         };
     }
 
-    const instruction = Instruction{
-        .opcode = self.calculateLoadSize(refType) catch |err| {
-            self.errctx.position = node.position;
-            return err;
-        },
-        .rd = self.allocateRegister(),
-        .r1 = 0,
-        .immediate = 0, // todo: come back here
-    };
-
-    return Value{
+    return .{
         .vtype = refType,
         .from = block,
-        .value = .{ .instruction = instruction },
+        .value = .{
+            .instruction = .{
+                .opcode = self.calculateLoadSize(refType) catch |err| {
+                    self.errctx.position = node.position;
+                    return err;
+                },
+                .rd = self.allocateRegister(),
+                .r1 = 0,
+                .immediate = 0, // todo: come back here
+            },
+        },
     };
 }
 
@@ -369,7 +368,7 @@ fn blockUnary(self: *IR, block: BlockOffset, node: *Node) IRError!Value {
         else => IRError.InvalidBlock,
     };
 
-    return Value{
+    return .{
         .vtype = unrtype.?,
         .from = inner.from,
         .value = .{ .instruction = instruction },
@@ -381,6 +380,7 @@ fn getBinaryOp(self: *IR, from: BlockOffset, node: *Node, lreg: SNIR.InfiniteReg
     const isSigned =
         (binary.lhs.ntype == null or binary.rhs.ntype == null) or
         (binary.lhs.ntype.?.data.integer.start < 0 and binary.rhs.ntype.?.data.integer.start < 0);
+    
     return switch (binary.op) {
         .Plus => .addr,
         .Min => .subr,
@@ -393,7 +393,7 @@ fn getBinaryOp(self: *IR, from: BlockOffset, node: *Node, lreg: SNIR.InfiniteReg
         .Lsh => .llsr,
         .Rsh => .lrsr,
         .Cequ => {
-            try self.addInstruction(from, Instruction{
+            try self.addInstruction(from, .{
                 .opcode = SNIR.Opcodes.xorr,
                 .rd = self.allocateRegister(),
                 .r1 = lreg,
@@ -427,11 +427,11 @@ fn blockBinary(self: *IR, block: BlockOffset, node: *Node) IRError!Value {
 
     const instrOp = try self.getBinaryOp(right.from, node, lreg, rreg);
 
-    return Value{
+    return .{
         .vtype = bintype.?,
         .from = right.from,
         .value = .{
-            .instruction = Instruction{
+            .instruction = .{
                 .opcode = instrOp,
                 .rd = self.allocateRegister(),
                 .r1 = if (swap) rreg else lreg,
@@ -468,8 +468,8 @@ fn blockTernary(self: *IR, block: BlockOffset, node: *Node) IRError!Value {
     const freg = try self.appendIfConstant(falseblock, bfalse);
 
     if (treg != freg) {
-        try self.addInstruction(falseblock, Instruction{
-            .opcode = SNIR.Opcodes.mov_reg, // best move instruction ever
+        try self.addInstruction(falseblock, .{
+            .opcode = SNIR.Opcodes.mov_reg,
             .rd = treg,
             .r1 = freg,
         });
@@ -491,7 +491,7 @@ fn blockTernary(self: *IR, block: BlockOffset, node: *Node) IRError!Value {
     try self.newEdge(bfalse.from, mergeblock);
 
     // jump on false
-    try self.addInstruction(cond.from, Instruction{
+    try self.addInstruction(cond.from, .{
         .opcode = SNIR.Opcodes.blk_jmp,
         .r1 = @intFromEnum(SNIR.BlockJumpCondition.Equal),
         .r2 = condreg,
@@ -499,18 +499,18 @@ fn blockTernary(self: *IR, block: BlockOffset, node: *Node) IRError!Value {
         .immediate = @truncate(falseblock),
     });
 
-    try self.addInstruction(cond.from, Instruction{
+    try self.addInstruction(cond.from, .{
         .opcode = SNIR.Opcodes.blk_jmp,
         .r1 = @intFromEnum(SNIR.BlockJumpCondition.Unconditional),
         .r2 = 0,
         .immediate = @truncate(trueblock),
     });
 
-    return Value{
+    return .{
         .vtype = ternarytype.?,
         .from = mergeblock,
         .value = .{
-            .instruction = Instruction{
+            .instruction = .{
                 .opcode = SNIR.Opcodes.blk_jmp,
                 .rd = @truncate(mergeblock),
                 .r1 = @intFromEnum(SNIR.BlockJumpCondition.Unconditional),
@@ -581,7 +581,7 @@ fn blockCall(self: *IR, block: BlockOffset, node: *Node) !Value {
 
     try self.addInstruction(caller.from, instr);
 
-    return Value{
+    return .{
         .vtype = callee.vtype.data.function.ret,
         .value = .{ .instruction = instr },
     };

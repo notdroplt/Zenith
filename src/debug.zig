@@ -52,19 +52,33 @@ pub fn getPrettyPosition(code: []const u8, pos: misc.Pos) PrettyPosition {
 fn printContext(writer: anytype, ctx: misc.ErrorContext) !void {
     switch (ctx.value) {
         .UnexpectedToken => |err| {
-            try writer.print("Expected token \"{s}\" here",
-                .{ printToken(err) });
+            try writer.print("Expected", .{});
+
+            for (err, 0..) |tok, i| {
+                if (tok == .Int or tok == .Dec or tok == .Str or tok == .Ref) {
+                    try writer.print(" {s}", .{printToken(tok)});
+                } else 
+                    try writer.print(" '{s}'", .{printToken(tok)}); 
+                
+                if (err.len > 2 and i == err.len - 2) {
+                    try writer.print(" or", .{});
+                } else if (i < err.len - 1) {
+                    try writer.print(",", .{});
+                } 
+            }
+
+            try writer.print(" here:", .{});
         },
         .UndefinedOperation => |err| {
             try writer.print("operation (", .{});
             if (err.lhs) |lhs| {
-                try printType(writer, lhs);
+                try printType(writer, lhs.*);
                 try writer.print(" ", .{});
             }
 
             try writer.print("{s} ", .{ printToken(err.token) });
-            try printType(writer, err.rhs);
-            try writer.print(") has no defined outcome", .{});
+            try printType(writer, err.rhs.*);
+            try writer.print(") has no defined outcome, or types are invalid", .{});
         },
         .DisjointTypes => |err| {
             try writer.print("Types\n1:", .{});
@@ -84,6 +98,9 @@ fn printContext(writer: anytype, ctx: misc.ErrorContext) !void {
         },
         .UnknownParameter => |names| {
             try writer.print("Unknown parameter \"{s}\" on function \"{s}\"", .{names.name, names.func});
+        },
+        .UnknownReference => |names| {
+            try writer.print("Unknown reference \"{s}\"", .{names.name});
         },
         else => {
             try writer.print("error : {s}\n", .{@tagName(ctx.value)});
@@ -209,6 +226,10 @@ pub fn printIR(ir: *IR, writer: anytype) !void {
 
 pub fn printToken(tok: Lexer.Tokens) []const u8 {
     return switch (tok) {
+        .Int => "an integer",
+        .Dec => "a decimal",
+        .Str => "a string",
+        .Ref => "a reference",
         .Mod => "module",
         .Match => "match",
         .Lpar => "(",
@@ -244,7 +265,6 @@ pub fn printToken(tok: Lexer.Tokens) []const u8 {
         .Cln => ":",
         .Dot => ".",
         .Arrow => "->",
-        else => @tagName(tok),
     };
 }
 

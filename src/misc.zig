@@ -26,18 +26,18 @@ pub const ErrorContext = struct {
         MalformedExpression: void,
 
         /// A token that was not expected shows up
-        UnexpectedToken: Lexer.Tokens,
+        UnexpectedToken: []const Lexer.Tokens,
 
         /// An operation between one or two types that was not defined
         UndefinedOperation: struct {
             /// Left hand side of the operation
-            lhs: ?Type,
+            lhs: ?*Type,
 
             /// Operation token
             token: Lexer.Tokens,
 
             /// Right hand side
-            rhs: Type,
+            rhs: *Type,
         },
 
         NonBooleanDecision: struct {
@@ -62,15 +62,26 @@ pub const ErrorContext = struct {
             func: String,
         },
 
+        UnknownReference: struct {
+            /// Parameter name
+            name: String
+        },
+
         /// The IR generator could not load the following type into a register
         InvalidLoad: *Type,
 
         /// The IR generator could not store the following type into a register
         InvalidStore: *Type,
 
+        /// Tried to call a non function
+        InvalidCall,
+
+        /// Tried to divide by zero
+        DivisionByZero,
+
         /// Base case
-        NoContext: void,
-    },
+        NoContext,
+    } = .NoContext,
 
     /// Error position
     position: Pos = .{},
