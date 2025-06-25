@@ -135,6 +135,7 @@ pub fn deinit(self: *IR) void {
 }
 
 pub fn fromNode(self: *IR, node: *Node) !void {
+    self.blockCounter += 256; // "global" ish blocks
     const bid = try self.newBlock();
     const val = try self.blockNode(bid, node);
     _ = try self.appendIfConstant(val.from, val);
@@ -251,12 +252,21 @@ fn appendIfConstant(self: *IR, block: BlockOffset, value: Value) IRError!SNIR.In
     return switch (v) {
         .constant => {
             const reg = self.allocateRegister();
-            try self.addInstruction(block, .{
-                .opcode = SNIR.Opcodes.mov,
-                .rd = reg,
-                .r1 = 0,
-                .immediate = @bitCast(value.vtype.data.integer.value.?),
-            });
+            if (value.vtype.data == .decimal) {
+                try self.addInstruction(block, .{
+                    .opcode = SNIR.Opcodes.mov,
+                    .rd = reg,
+                    .r1 = 0,
+                    .immediate = @bitCast(value.vtype.data.decimal.value.?),
+                });    
+            } else {
+                try self.addInstruction(block, .{
+                    .opcode = SNIR.Opcodes.mov,
+                    .rd = reg,
+                    .r1 = 0,
+                    .immediate = @bitCast(value.vtype.data.integer.value.?),
+                });
+            }
             return reg;
         },
         .instruction => {
@@ -377,6 +387,15 @@ fn blockUnary(self: *IR, block: BlockOffset, node: *Node) IRError!Value {
 
 fn getBinaryOp(self: *IR, from: BlockOffset, node: *Node, lreg: SNIR.InfiniteRegister, rreg: SNIR.InfiniteRegister) !SNIR.Opcodes {
     const binary = node.data.bin;
+
+    if (node.ntype.?.data == .casting) {
+        self.errctx = .{
+            .position = node.position,
+            .value = .{ .InvalidLoad = node.ntype.? }
+        };
+        return error.InvalidLoad;
+    }
+
     const isSigned =
         (binary.lhs.ntype == null or binary.rhs.ntype == null) or
         (binary.lhs.ntype.?.data.integer.start < 0 and binary.rhs.ntype.?.data.integer.start < 0);

@@ -520,6 +520,7 @@ fn parseStatement(self: *Parser) !*Node {
 
     const pos = newPosition(start, endPos);
     const actParams = try self.alloc.alloc(*Node, pidx);
+
     errdefer self.alloc.free(actParams);
 
     @memcpy(actParams, params[0..pidx]);
@@ -548,9 +549,15 @@ pub fn parseNode(self: *Parser) Error!*Node {
 
 pub fn parseNodes(self: *Parser) Error!std.ArrayListUnmanaged(*Node) {
     var nodes = std.ArrayListUnmanaged(*Node){};
-    errdefer nodes.deinit(self.alloc);
+    errdefer {
+        for (nodes.items) |node|{
+            node.deinit(self.alloc);
+        }
+        nodes.deinit(self.alloc);
+    }
 
     while (!self.lexer.end()) {
+        _ = self.lexer.consume() catch break;
         const node = try self.parseNode();
         try nodes.append(self.alloc, node);
     }

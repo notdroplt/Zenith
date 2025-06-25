@@ -55,8 +55,6 @@ castIndex: u32 = 0,
 /// cast substitutions
 substitutions: std.HashMapUnmanaged(Type, *Type, Type.TypeContext, std.hash_map.default_max_load_percentage) = .{},
 
-
-
 /// Initialize an analyzer
 pub fn init(allocator: std.mem.Allocator, arena: std.mem.Allocator) !Analyzer {
     return .{
@@ -88,15 +86,13 @@ pub fn getModules(self: *Analyzer, path: misc.String) ?*TContext {
 pub fn deinit(self: *Analyzer) void {
     self.context.deinit(self.allocator);
     self.modules.deinit(self.allocator);
+    self.substitutions.deinit(self.allocator);
 }
-
-const debug = @import("debug.zig");
 
 /// Analyze nodes
 pub fn runAnalysis(self: *Analyzer, nodes: []*Node) !void {
     for (nodes) |node| {
         _ = try self.analyze(&self.context, node);
-        try debug.printType(std.io.getStdOut().writer(), node.ntype.?.*);
         self.reset();
     }
 }
@@ -180,9 +176,9 @@ fn analyzeRef(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
 
 fn undefinedOperation(self: *Analyzer, tok: Lexer.Tokens, lhs: ?*Type, rhs: *Type, pos: misc.Pos) !void {
     self.errctx = .{
-        .position = pos, 
-        .value = .{ 
-            .UndefinedOperation = .{ 
+        .position = pos,
+        .value = .{
+            .UndefinedOperation = .{
                 .lhs = lhs,
                 .token = tok,
                 .rhs = rhs,
@@ -192,7 +188,7 @@ fn undefinedOperation(self: *Analyzer, tok: Lexer.Tokens, lhs: ?*Type, rhs: *Typ
     return error.UndefinedOperation;
 }
 
-fn minMax(comptime T: type, x1: T, x2: T, y1: T, y2: T, f: fn(comptime type, T, T) T) struct { T, T } {
+fn minMax(comptime T: type, x1: T, x2: T, y1: T, y2: T, f: fn (comptime type, T, T) T) struct { T, T } {
     if (T == bool) {
         return .{ false, true };
     } else {
@@ -225,7 +221,7 @@ fn analyzeUnr(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
                 try self.substitutions.put(self.allocator, val.*, unt);
             } else if (val.pointerIndex == 0)
                 try self.undefinedOperation(.Star, null, val, node.position);
-            
+
             unt.*.pointerIndex -= 1;
         },
         .Bang => {
@@ -273,7 +269,7 @@ fn analyzeUnr(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
                 try self.undefinedOperation(.Min, null, val, node.position);
             }
         },
-        else => try self.undefinedOperation(op, null, val, node.position)
+        else => try self.undefinedOperation(op, null, val, node.position),
     }
 
     if (val.data == .casting) instantiate(rest, val, unt);
@@ -282,14 +278,13 @@ fn analyzeUnr(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
     return node;
 }
 
-
 fn analyzeBin(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
     const lhs = try analyze(self, currctx, node.data.bin.lhs);
     const rhs = try analyze(self, currctx, node.data.bin.rhs);
     const op = node.data.bin.op;
 
     const tlhs = lhs.ntype.?;
-    const trhs = lhs.ntype.?;
+    const trhs = rhs.ntype.?;
 
     var bint = try self.talloc.create(Type);
 
@@ -299,7 +294,6 @@ fn analyzeBin(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
             // being cast types
             try self.substitutions.put(self.allocator, trhs.*, tlhs);
             instantiate(rhs, trhs, tlhs);
-
         } else if (tlhs.data == .casting) {
             try self.substitutions.put(self.allocator, tlhs.*, trhs);
             instantiate(lhs, tlhs, trhs);
@@ -307,14 +301,14 @@ fn analyzeBin(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
     }
 
     // substitution mapping MIGHT be unused but who knows without testing
-    // 
+    //
 
     if (op == .Hash) {
         if (tlhs.data != .array and trhs.data != .integer) {
             try self.undefinedOperation(.Hash, tlhs, trhs, node.position);
         }
 
-        if(tlhs.isValued() and trhs.isValued()) {
+        if (tlhs.isValued() and trhs.isValued()) {
             bint.* = tlhs.data.array.value[@intCast(trhs.data.integer.value.?)].?;
         } else {
             bint = try tlhs.data.array.indexer.deepCopy(self.allocator);
@@ -325,14 +319,7 @@ fn analyzeBin(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
     }
 
     if (op == .Arrow) {
-        node.ntype.?.* = .{
-            .data = .{
-                .function = .{
-                    .argument = tlhs,
-                    .ret = trhs
-                }
-            }
-        };
+        node.ntype.?.* = .{ .data = .{ .function = .{ .argument = tlhs, .ret = trhs } } };
         return node;
     }
 
@@ -346,7 +333,9 @@ fn analyzeBin(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
     }
 
     switch (tlhs.data) {
-        .casting => {},
+        .casting => {
+            bint.* = tlhs.*;
+        },
         .integer => |ia| {
             const ib = tlhs.data.integer;
             switch (op) {
@@ -354,11 +343,8 @@ fn analyzeBin(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
                 .Min => bint.* = intMinMax(misc.sub, ia, ib),
                 .Star => bint.* = intMinMax(misc.mul, ia, ib),
                 .Bar => {
-                    if (ib.value != null and ib.value.? == 0){
-                        self.errctx = .{
-                            .position =  node.position,
-                            .value = .DivisionByZero
-                        };
+                    if (ib.value != null and ib.value.? == 0) {
+                        self.errctx = .{ .position = node.position, .value = .DivisionByZero };
                         return error.DivisionByZero;
                     }
                     // todo: add "possible division by zero"
@@ -367,10 +353,7 @@ fn analyzeBin(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
                 },
                 .Per => {
                     if (ib.value != null and ib.value.? == 0) {
-                        self.errctx = .{
-                            .position =  node.position,
-                            .value = .DivisionByZero
-                        };   
+                        self.errctx = .{ .position = node.position, .value = .DivisionByZero };
                         return error.DivisionByZero;
                     }
                     // todo: add "possible division by zero"
@@ -397,11 +380,8 @@ fn analyzeBin(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
                 .Min => bint.* = fltMinMax(misc.sub, fa, fb),
                 .Star => bint.* = fltMinMax(misc.mul, fa, fb),
                 .Bar => {
-                    if (fb.value != null and fb.value.? == 0){
-                        self.errctx = .{
-                            .position =  node.position,
-                            .value = .DivisionByZero
-                        };
+                    if (fb.value != null and fb.value.? == 0) {
+                        self.errctx = .{ .position = node.position, .value = .DivisionByZero };
                         return error.DivisionByZero;
                     }
                     // todo: add "possible division by zero"
@@ -417,7 +397,7 @@ fn analyzeBin(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
                 else => try self.undefinedOperation(op, tlhs, trhs, node.position),
             }
         },
-        else => try self.undefinedOperation(op, tlhs, trhs, node.position)
+        else => try self.undefinedOperation(op, tlhs, trhs, node.position),
     }
 
     node.ntype = bint;
@@ -437,7 +417,7 @@ fn analyzeCall(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
     }
 
     const argtype = caller.ntype.?.data.function.argument;
- 
+
     if (argtype.data == .casting) {
         instantiate(caller, argtype, callee.ntype.?);
     } else if (!argtype.deepEqual(callee.ntype.?.*, false)) {
@@ -511,7 +491,6 @@ fn analyzeRange(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
         //const ivalue = epsilon.ntype.?.data.integer.value;
 
         const trange = try self.talloc.create(Type);
-        errdefer trange.deinit(self.talloc);
 
         trange.* = .{
             .pointerIndex = 0,
@@ -533,13 +512,17 @@ fn analyzeRange(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
         const dend = end.ntype.?.data.decimal.value;
 
         const trange = try self.talloc.create(Type);
-        errdefer trange.deinit(self.talloc);
 
-        trange.* = .{ .pointerIndex = 0, .data = .{ .decimal = .{
-            .start = dstart.?,
-            .end = dend.?,
-            .value = null,
-        } } };
+        trange.* = .{
+            .pointerIndex = 0,
+            .data = .{
+                .decimal = .{
+                    .start = dstart.?,
+                    .end = dend.?,
+                    .value = null,
+                },
+            },
+        };
 
         node.ntype = trange;
         return node;
@@ -579,113 +562,82 @@ fn analyzeModule(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
 }
 
 fn analyzeExpr(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
-    var expr = node.data.expr;
+    const expr = node.data.expr;
     var innerctx = TContext{};
     defer innerctx.deinit(self.allocator);
-
     innerctx.parent = currctx;
 
-    var freturn = try self.talloc.create(Type);
-    freturn.* = .{
-        .pointerIndex = 0,
-        .data = .{
-            .casting = .{ .index = @intCast(self.castIndex + expr.params.len) },
-        },
-    };
+    var param_types = try self.talloc.alloc(*Type, expr.params.len);
+    defer self.talloc.free(param_types);
 
-    // generate function type
-    for (0..expr.params.len) |i| {
-        const idx = expr.params.len - i - 1;
-        const arg = expr.params[idx];
-        const argT = try self.talloc.create(Type);
-        argT.* = .{
-            .pointerIndex = 0,
-            .data = .{
-                .casting = .{ .index = @intCast(idx) },
-            },
-            .paramIdx = @intCast(idx + 1),
-        };
+    for (expr.params, 0..) |param, i| {
+        const cast_idx = self.castIndex + @as(u32, @intCast(i));
+        const param_type = try self.talloc.create(Type);
+        param_type.* = Type.initIdxCasting(cast_idx);
+        param_type.paramIdx = @intCast(i + 1);
+        param.ntype = try param_type.deepCopy(self.talloc);
+        param_types[i] = param_type;
+        try innerctx.add(self.allocator, param.data.ref, param.ntype.?);
+    }
 
-        arg.ntype = try argT.deepCopy(self.talloc);
+    self.castIndex += @intCast(expr.params.len);
 
-        try innerctx.add(self.allocator, arg.data.ref, arg.ntype.?);
+    if (expr.ntype) |type_node| {
+        _ = try analyze(self, &innerctx, type_node);
+        errdefer type_node.deinit(self.talloc);
 
+        var annotated_type = type_node.ntype.?;
+        for (expr.params, 0..) |param, i| {
+            if (annotated_type.data != .function) break;
+            const ann_param_type = try annotated_type.data.function.argument.deepCopy(self.talloc);
+            ann_param_type.paramIdx = @intCast(i + 1);
+            param.ntype = ann_param_type;
+            param_types[i] = ann_param_type;
+            annotated_type = annotated_type.data.function.ret;
+        }
+    }
+
+    var return_type: *Type = undefined;
+    if (expr.expr) |body_node| {
+        _ = try analyze(self, &innerctx, body_node);
+        if (body_node.ntype) |body_type| {
+            return_type = try body_type.deepCopy(self.talloc);
+        } else {
+            return_type = try self.talloc.create(Type);
+            return_type.* = Type.initIdxCasting(self.castIndex);
+            self.castIndex += 1;
+        }
+    } else {
+        return_type = try self.talloc.create(Type);
+        return_type.* = Type.initIdxCasting(self.castIndex);
+        self.castIndex += 1;
+    }
+
+    var func_type = return_type;
+    for (1..expr.params.len + 1) |idx| {
+        const i = expr.params.len - idx;
         const ft = try self.talloc.create(Type);
-        errdefer ft.deinit(self.talloc);
-
         ft.* = .{
             .pointerIndex = 0,
             .data = .{
                 .function = .{
-                    .argument = argT,
-                    .ret = freturn,
+                    .argument = param_types[i],
+                    .ret = func_type,
                     .body = null,
                 },
             },
         };
-
-        freturn = ft;
+        func_type = ft;
     }
 
-    node.ntype = try freturn.deepCopy(self.talloc);
-
-    self.castIndex += @intCast(expr.params.len + 1);
-
-    if (expr.ntype) |res| {
-        _ = try analyze(self, &innerctx, expr.ntype.?);
-        errdefer res.deinit(self.talloc);
-        node.ntype = try res.ntype.?.deepCopy(self.talloc);
-
-        var paramVal = res.ntype.?;
-        for (expr.params, 0..) |n, i| {
-            if (paramVal.data != .function) break;
-            expr.params[i].ntype = try paramVal.data.function.argument.deepCopy(self.talloc);
-            errdefer n.ntype.?.deinit(self.talloc);
-            expr.params[i].ntype.?.paramIdx = @intCast(i + 1);
-        }
-    }
-    for (expr.params, 0..) |param, pidx|
-        if (param.data == .ref) {
-            const pname = param.data.ref;
-            var ptype: *Type = undefined;
-            if (node.ntype) |nt| {
-                ptype = nt.getParameter(@intCast(pidx)) catch |err| {
-                    self.errctx = .{
-                        .position = param.position,
-                        .value = .{
-                            .UnknownParameter = .{
-                                .func = expr.name,
-                                .name = pname,
-                            },
-                        },
-                    };
-                    return err;
-                };
-                ptype.paramIdx = @intCast(pidx + 1);
-            } else {
-                ptype = try self.talloc.create(Type);
-                ptype.* = Type.initIdxCasting(self.castIndex);
-                ptype.paramIdx = @intCast(pidx + 1);
-                self.castIndex += 1;
-            }
-            try innerctx.add(self.allocator, pname, ptype);
-        };
-
-    if (expr.expr) |res|
-        _ = try analyze(self, &innerctx, res);
-
-    if (expr.ntype != null and expr.expr != null) {
-        if (expr.ntype.?.ntype.?.deepEqual(expr.expr.?.ntype.?.*, false))
-            return error.TypeMismatch;
-    }
+    node.ntype = try func_type.deepCopy(self.talloc);
 
     var it = self.substitutions.iterator();
-    while(it.next()) |val| {
+    while (it.next()) |val| {
         instantiate(node, val.key_ptr, val.value_ptr.*);
     }
-
-
-    try currctx.add(self.allocator, expr.name, freturn);
+    // Step 6: Add to current context
+    try currctx.add(self.allocator, expr.name, func_type);
 
     return node;
 }
@@ -711,13 +663,43 @@ fn doBoolMinMax(comptime T: type, func: anytype, ma: anytype, mb: anytype) Type 
     return Type.initBool(binopt(T, ma.value, mb.value, func));
 }
 
+fn instantiateType(haysack: *Type, find: *Type, replace: *Type) void {
+    switch (haysack.data) {
+        .integer, .decimal, .boolean, .casting => {
+            if (haysack.deepEqual(find.*, true)) {
+                haysack.* = replace.*;
+            }
+        },
+        .array => |v| {
+            instantiateType(v.indexer, find, replace);
+
+            for (v.value) |*i| {
+                if (i.*) |_| {
+                    instantiateType(&(i.*.?), find, replace);
+                }
+            }
+        },
+        .aggregate => |v| {
+            for (v.types) |*i| {
+                instantiateType(i, find, replace);
+            }
+
+            for (v.values) |*i| {
+                if (i.*) |_| {
+                    instantiateType(&(i.*.?), find, replace);
+                }
+            }
+        },
+        .function => |v| {
+            instantiateType(v.argument, find, replace);
+            instantiateType(v.ret, find, replace);
+        },
+    }
+}
+
 /// given a node tree, instantiate "find" with "replace"
 fn instantiate(node: *Node, find: *Type, replace: *Type) void {
-    if (node.ntype) |nt| {
-        if (nt.deepEqual(find.*, true)) {
-            node.ntype.? = replace;
-        }
-    }
+    instantiateType(node.ntype.?, find, replace);
 
     switch (node.data) {
         .int, .dec, .str, .ref, .mod, .type => {},
@@ -738,7 +720,7 @@ fn instantiate(node: *Node, find: *Type, replace: *Type) void {
             instantiate(v.callee, find, replace);
         },
         .intr => |v| {
-            for (v.intermediates) |i| 
+            for (v.intermediates) |i|
                 instantiate(i, find, replace);
 
             if (v.application) |app|
@@ -763,7 +745,7 @@ fn instantiate(node: *Node, find: *Type, replace: *Type) void {
 
             if (v.ntype) |nt|
                 instantiate(nt, find, replace);
-            
+
             if (v.expr) |expr|
                 instantiate(expr, find, replace);
         },

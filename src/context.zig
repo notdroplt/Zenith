@@ -54,9 +54,9 @@ pub fn Context(comptime T: type) type {
         }
 
         pub fn deinit(self: *Self, allocator: std.mem.Allocator) void {
-            var it = self.children.iterator();
+            var it = self.children.valueIterator();
             while (it.next()) |pair| {
-                pair.value_ptr.deinit(allocator);
+                pair.deinit(allocator);
             }
             self.members.deinit(allocator);
             self.children.deinit(allocator);

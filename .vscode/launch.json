@@ -1,0 +1,13 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "cppdbg",
+      "request": "launch",
+      "name": "Debug Zenith Executable",
+      "program": "${workspaceFolder}/zig-out/bin/zenith",
+      "preLaunchTask": "zig build",
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}

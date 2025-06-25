@@ -332,6 +332,7 @@ pub fn printType(writer: anytype, t: Type) !void {
     switch (t.data) {
         .integer => |v| {
             if (v.value) |val| {
+                
                 try writer.print("Int({})", .{val});
             } else {
                 try writer.print("Int[{}, {}]", .{ v.start, v.end });

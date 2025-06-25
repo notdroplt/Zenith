@@ -58,60 +58,34 @@ pub const Casting = union(enum) {
     }
 };
 
-/// Create a templated range type for numeric values
-pub fn Numeric(comptime T: type) type {
-    return struct {
-        const Self = @This();
-
-        /// Range start, inclusive
-        start: T,
-
-        /// Range end, inclusive
-        end: T,
-
-        /// Current value, if any
-        value: ?T,
-
-        /// Check if a range is a subset of other
-        pub fn subset(self: Self, other: Self) bool {
-            return self.start >= other.start and self.end <= other.start;
-        }
-
-        /// Check if a value is contained in a range
-        pub fn contains(self: Self, value: T) bool {
-            return self.start <= value and self.end >= value;
-        }
-
-        /// Take the union of two ranges
-        pub fn unite(self: Self, other: Self) Self {
-            return Self{
-                .start = @min(self.start, other.start),
-                .end = @max(self.end, other.end),
-                .value = null,
-            };
-        }
-
-        /// Take the intersection of two ranges
-        pub fn intersect(self: Self, other: Self) Self {
-            return Self {
-                .start = @max(self.start, other.start),
-                .end = @min(self.end, other.end),
-                .value = null,
-            };
-        }
-    };
-}
-
 /// Value inside the type
 data: union(enum) {
     /// Boolean: can be true/false/valueless (trool  lol)
     boolean: ?bool,
 
     /// Interval [start, end] subset of all integers, can have a value
-    integer: Numeric(i64),
+    integer: struct {
+        /// Range start, inclusive
+        start: i64,
+
+        /// Range end, inclusive
+        end: i64,
+
+        /// Current value, if any
+        value: ?i64,
+    },
 
     /// Interval [start, end] subset of all rationals, can have a value
-    decimal: Numeric(f64),
+    decimal: struct {
+        /// Range start, inclusive
+        start: f64,
+
+        /// Range end, inclusive
+        end: f64,
+
+        /// Current value, if any
+        value: ?f64,
+    },
 
     /// Sized collection of elements
     array: struct {
@@ -233,6 +207,16 @@ pub fn isValued(self: Type) bool {
         },
         .function => |v| v.body != null,
         .casting => false,
+    };
+}
+
+pub fn isTemplated(self: Type) bool {
+    return switch (self.data) {
+        .casting => true,
+        .function => |f| f.argument.isTemplated() or f.ret.isTemplated(),
+        .array => |a| a.indexer.isTemplated(),
+        .aggregate => |a| for (a.types) |t| if (t.isTemplated()) return true,
+        else => false,
     };
 }
 

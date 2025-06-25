@@ -61,7 +61,6 @@ pub fn pipeline(name: misc.String, alloc: std.mem.Allocator) !u8 {
         return 253;
     };
 
-    try bw.flush();
 
     var ir = IR.init(alloc, analyzer.context);
     defer ir.deinit();

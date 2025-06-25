@@ -1,0 +1,14 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "type": "shell",
+      "label": "zig build",
+      "command": "zig",
+      "args": [
+        "build"
+      ],
+      "problemMatcher": []
+    }
+  ]
+}

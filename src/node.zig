@@ -368,6 +368,36 @@ pub fn initExpr(alloc: std.mem.Allocator, position: misc.Pos, name: misc.String,
     return node;
 }
 
+/// Calculate a weight for how many instructions would a node be in a tree, 
+/// allowing for 
+pub fn weight(self: *const Node) usize {
+    return switch (self.data) {
+        .type, .range, .aggr, .sum, .mod => 0,
+        .int, .dec, .str, .ref => 1,
+        .unr => |v| 1 + v.val.weight(),
+        .bin => |v| 2 + v.lhs.weight() + v.rhs.weight(),
+        .ter => |v| 3 + v.cond.weight() + v.btrue.weight() + v.bfalse.weight(),
+        .call => |v| 4 + v.caller.weight() + v.callee.weight(),
+        .expr => |v| blk: {
+            var sum: usize = 1;
+            for (v.params) |param| sum += param.weight();
+            if (v.ntype) |nt| sum += nt.weight();
+            if (v.expr) |ex| sum += ex.weight();
+            break :blk sum;
+        },
+        .intr => |v| blk: {
+            var sum: usize = 2;
+            for (v.intermediates) |i| sum += i.weight();
+            if (v.application) |app| sum += app.weight();
+            break :blk sum;
+        },
+    };
+}
+
+pub fn isInline(self: *const Node) bool {
+    return self.weight() < 69; //TODO: find a better weight
+}
+
 test Node {
     const alloc = std.testing.allocator;
 
