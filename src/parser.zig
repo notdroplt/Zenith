@@ -184,6 +184,10 @@ fn parseModule(self: *Parser) Error!*Node {
     return node;
 }
 
+fn parseArray(self: *Parser) Error!*Node {
+
+}
+
 fn parsePrimary(self: *Parser) Error!*Node {
     const token = try self.lexer.consume();
     self.lexer = self.lexer.catchUp(token);
@@ -204,6 +208,35 @@ fn parsePrimary(self: *Parser) Error!*Node {
             expr.position = newPosition(token.pos, rpar.pos);
             return expr;
         },
+        .Lsqb => {
+            var array = std.ArrayListUnmanaged(*Node){};
+            errdefer {
+                for (array.items) |v| {
+                    v.deinit(self.alloc);
+                }
+                array.deinit(self.alloc);
+            }
+            while (!self.lexer.end()) {
+                const tok = try self.lexer.consume();
+                if (tok.val == .Semi or tok.val == .Rsqb) {
+                    self.lexer.catchUp(tok);
+                    if (tok.val == .Rsqb) 
+                        break;
+                }
+                const el = try self.parseExpr();
+                try array.append(self.alloc, el);
+            }
+
+            const rsqb = try self.lexer.consume();
+
+            if (rsqb.val != .Rsqb) {
+                try self.generateUnexpected(&[_]Lexer.Tokens{ .Rsqb }, rsqb);
+            }
+
+            return Node.initArr(self.alloc, newPosition(token.pos, rsqb.pos), array.toOwnedSlice(self.alloc));
+
+
+        },
         .Lcur => try self.parseIntr(IntrFlags.skipLcur),
         else => {
             self.pos = token.pos;
@@ -213,6 +246,8 @@ fn parsePrimary(self: *Parser) Error!*Node {
                 .{ .Ref = "" },
                 .{ .Str = "" },
                 .Lpar,
+                .Lsqb,
+                .Lcur,
             }, token);
             unreachable;
         },

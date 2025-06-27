@@ -29,6 +29,9 @@ data: union(enum) {
     /// Reference to a variable or function
     ref: misc.String,
 
+    /// Array of elements
+    arr: []*Node,
+
     /// Unary operation
     unr: struct {
         /// Node operand
@@ -143,6 +146,13 @@ pub fn eql(self: Node, other: *const Node) bool {
         .dec => |v| return v == od.dec,
         .str => |v| return std.mem.eql(u8, v, od.str),
         .ref => |v| return std.mem.eql(u8, v, od.ref),
+        .arr => |v| {
+            if (v.len != od.arr.len) return false;
+            for (v, od.arr) |v1, v2|
+                if (!v1.eql(v2))
+                    return false;
+            return true;
+        },
         .unr => |v| return std.meta.activeTag(v.op) == od.unr.op and v.val.eql(od.unr.val),
         .bin => |v| return std.meta.activeTag(v.op) == od.bin.op and v.lhs.eql(od.bin.lhs) and v.rhs.eql(od.bin.rhs),
         .ter => |v| return v.cond.eql(od.ter.cond) and v.btrue.eql(od.ter.btrue) and v.bfalse.eql(od.ter.bfalse),
@@ -206,6 +216,10 @@ pub fn eql(self: Node, other: *const Node) bool {
 pub fn deinit(self: *Node, alloc: std.mem.Allocator) void {
     switch (self.data) {
         .type, .int, .dec, .str, .ref => {},
+        .arr => |v| {
+            for (v) |i|
+                i.deinit(alloc);
+        },
         .unr => |v| v.val.deinit(alloc),
         .bin => |v| {
             v.lhs.deinit(alloc);
@@ -288,6 +302,15 @@ pub fn initStr(alloc: std.mem.Allocator, position: misc.Pos, value: misc.String)
     node.* = .{
         .position = position,
         .data = .{ .str = value },
+    };
+    return node;
+}
+
+pub fn initArr(alloc: std.mem.Allocator, position: misc.Pos, value: []*Node) !*Node {
+    const node = try alloc.create(Node);
+    node.* = .{
+        .position = position,
+        .data = .{.arr = value}
     };
     return node;
 }

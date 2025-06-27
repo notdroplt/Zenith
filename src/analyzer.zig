@@ -101,7 +101,6 @@ pub fn deinit(self: *Analyzer) void {
 /// Analyze nodes
 pub fn runAnalysis(self: *Analyzer, nodes: []*Node) !void {
     for (nodes) |node| {
-        std.debug.print("expected weight for this node: {}\n", .{node.weight()});
         _ = try self.analyze(&self.context, node);
         self.reset();
     }

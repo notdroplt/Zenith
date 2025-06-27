@@ -30,7 +30,7 @@ Literals are constant values written directly on the code, they can be:
 - Strings
   - A text surrounded by quotes: `"right text"`
 - Arrays
-  - Values between braces separated by commas: `{ 0, 2, 0, 4 }`
+  - Values between braces separated by commas: `[ 0; 2; 0; 4 ]`
 
 #### Type Literals
 

@@ -41,7 +41,7 @@ Ternary  = Binary "?" Binary ":" Ternary ;
 Binary   = [ Binary BinaryOp ] Unary ;
 Unary    = UnaryOp ( Unary | Call ) ;
 Call     = ( Call | Primary ) [ Primary ] ;
-Primary  = Int | Float | String | ID | "(" Expr ")" | Match | Intr Primary;
+Primary  = Int | Float | String | ID | "[" { Expr ";" } "]" | "(" Expr ")" | Match | Intr Primary;
 
 Intr     = "{" { Formula } "}" ;
 IntrApp  = Intr Primary ;

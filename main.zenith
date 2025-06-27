@@ -8,6 +8,10 @@ module >> "@echo" {
     message = 123;
 }
 
+module >> "@importList" {
+    load = { "std" } ; 
+}
+
 module >> "test" {
     true = true;
 }
