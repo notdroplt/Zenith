@@ -5,6 +5,7 @@ const Node = @import("node.zig");
 const Type = @import("types.zig");
 const IR = @import("ir.zig");
 const SuperNova = @import("Supernova/supernova.zig");
+const Context = @import("context.zig").Context;
 
 pub const PrettyPosition = struct {
     code: []const u8,
@@ -81,11 +82,11 @@ fn printContext(writer: anytype, ctx: misc.ErrorContext) !void {
             try writer.print(") has no defined outcome, or types are invalid", .{});
         },
         .DisjointTypes => |err| {
-            try writer.print("Types\n1:", .{});
+            try writer.print("Types (", .{});
             try printType(writer, err.t1);
-            try writer.print("\n2: ", .{});
+            try writer.print(") and (", .{});
             try printType(writer, err.t2);
-            try writer.print("\nDo not intersect anywhere in their domains", .{});
+            try writer.print(") do not intersect anywhere in their domains", .{});
         },
         .InvalidLoad => |err| {
             try writer.print("Type ", .{});
@@ -97,17 +98,52 @@ fn printContext(writer: anytype, ctx: misc.ErrorContext) !void {
             try printType(writer, err.condtype);
         },
         .UnknownParameter => |names| {
-            try writer.print("Unknown parameter \"{s}\" on function \"{s}\"", .{names.name, names.func});
+            try writer.print("Unknown parameter `{s}` on function `{s}`", .{names.name, names.func});
         },
         .UnknownReference => |names| {
-            try writer.print("Unknown reference \"{s}\"", .{names.name});
+            try writer.print("Unknown reference `{s}`", .{names.name});
         },
+        .UndefinedExternSymbol => |np| 
+            try writer.print("Could not find symbol `{s}` on path `{s}`", .{np.name, np.path}),
         else => {
             try writer.print("error : {s}\n", .{@tagName(ctx.value)});
         }
     }
 
     _ = try writer.write("\n");
+}
+fn tabout(writer: anytype, idx: u8) !void {
+    for (0..idx) |_| _ = try writer.write("    ");
+}
+
+fn printContextImpl(writer: anytype, ctx: Context(*Type), idx: u8) !void {
+    try tabout(writer, idx);
+    _ = try writer.write("{\n");
+    try tabout(writer, idx + 1);
+    var memIt = ctx.members.iterator();
+
+    while(memIt.next()) |val| {
+        try tabout(writer, idx);
+        try writer.print("{s}: ", .{val.key_ptr.*});
+        try printType(writer, val.value_ptr.*.*);
+        try writer.print(",\n", .{});
+    }
+
+    var childIt = ctx.children.iterator();
+
+    while(childIt.next()) |val| {
+        try tabout(writer, idx);
+        try writer.print("{s}: ", .{val.key_ptr.*});
+        try printContextImpl(writer, val.value_ptr.*, idx + 1);
+        try writer.print(",\n", .{});
+    }
+
+    try tabout(writer, idx);
+    _ = try writer.write("}");
+}
+
+pub fn printTypeContext(writer: anytype, ctx: Context(*Type)) !void {
+    return printContextImpl(writer, ctx, 0);
 }
 
 pub fn printError(writer: anytype, filename: []const u8, code: []const u8, ctx: misc.ErrorContext) !void {
@@ -208,6 +244,16 @@ pub fn printInstruction(inst: IR.Instruction, writer: anytype) !void {
 }
 
 pub fn printIR(ir: *IR, writer: anytype) !void {
+    const cnt = ir.data.count();
+    try writer.print("Data section: {} entr{s} \n", .{cnt, if (cnt != 1) "ies" else "y"});
+    var dataIt = ir.data.iterator();
+
+    while(dataIt.next()) |value| {
+        try writer.print("| {s}: ", .{value.key_ptr.*});
+        try printType(writer, value.value_ptr.*.*);
+        try writer.print("\n", .{});
+    }
+
     try writer.print("IR graph edge count: {}\n", .{ir.edges.size});
     var edgeIt = ir.edges.iterator();
     while (edgeIt.next()) |value| {
@@ -299,7 +345,7 @@ pub fn printNode(writer: anytype, node: *const Node) !void {
             try printNode(writer, v.bfalse);
         },
         .expr => |v| {
-            try writer.print("{s}", .{v.name});
+            try writer.print("{s} ", .{v.name});
             for (v.params) |value| {
                 _ = try writer.write("(");
                 try printNode(writer, value);
@@ -308,9 +354,10 @@ pub fn printNode(writer: anytype, node: *const Node) !void {
             if (v.ntype) |ntype| {
                 _ = try writer.write(": ");
                 try printNode(writer, ntype);
+                _ = try writer.write(" ");
             }
             if (v.expr) |expr| {
-                _ = try writer.write(" = ");
+                _ = try writer.write("= ");
                 try printNode(writer, expr);
             }
             _ = try writer.write(";\n");
@@ -324,15 +371,25 @@ pub fn printNode(writer: anytype, node: *const Node) !void {
             try printNode(writer, v.epsilon);
             _ = try writer.write("]");
         },
-        else => {},
+        .mod => |v| {
+            try writer.print("module {s} \"{s}\" {{\n", .{ if (v.direction) "<<" else ">>", v.path});
+            for (v.nodes) |n| {
+                _ = try writer.write("  ");
+                try printNode(writer, n);
+            }
+            _ = try writer.write("}\n");
+
+        },
+        else => {
+            try writer.print("#{s}#", .{@tagName(node.data)});
+        },
     };
 }
 
 pub fn printType(writer: anytype, t: Type) !void {
     switch (t.data) {
         .integer => |v| {
-            if (v.value) |val| {
-                
+            if (v.value) |val| {     
                 try writer.print("Int({})", .{val});
             } else {
                 try writer.print("Int[{}, {}]", .{ v.start, v.end });
@@ -357,10 +414,7 @@ pub fn printType(writer: anytype, t: Type) !void {
             try printType(writer, arr.indexer.*);
         },
         .casting => |c| {
-            switch (c) {
-                .index => |v| try writer.print("<{}>", .{v}),
-                .name => |v| try writer.print("<{s}>", .{v}),
-            }
+             try writer.print("<{}>", .{c});
         },
         .function => |f| {
             try printType(writer, f.argument.*);

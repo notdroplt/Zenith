@@ -63,7 +63,7 @@ pub fn Context(comptime T: type) type {
         }
 
         pub fn isEmpty(self: *Self) bool {
-            return !self.members.count() and !self.children.count();
+            return self.members.count() == 0 and self.children.count() == 0;
         }
     };
 }
@@ -73,27 +73,27 @@ const expectEqual = std.testing.expectEqual;
 
 test "Context - is empty" {
     const alloc = std.testing.allocator;
-    var ctx = Context(u8).init(alloc);
+    var ctx = Context(u8){};
     defer ctx.deinit(alloc);
 
     try expect(ctx.isEmpty());
-    try ctx.add("test", 0);
+    try ctx.add(alloc, "test", 0);
     try expect(!ctx.isEmpty());
 }
 
 test "Context - get/add" {
     const alloc = std.testing.allocator;
-    var ctx = Context(u8).init(alloc);
+    var ctx = Context(u8){};
     defer ctx.deinit(alloc);
 
-    try ctx.add("test", 0);
+    try ctx.add(alloc, "test", 0);
     try expect(ctx.get("test") != null);
     try expectEqual(0, ctx.get("test"));
 }
 
 test "Context - getTree/addTree" {
     const alloc = std.testing.allocator;
-    var ctx = Context(u8).init(alloc);
+    var ctx = Context(u8){};
     defer ctx.deinit(alloc);
 
     try ctx.addTree(alloc, "a/b/c", "test", 0);

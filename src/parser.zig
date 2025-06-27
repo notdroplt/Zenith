@@ -97,10 +97,6 @@ fn parseIntr(self: *Parser, flags: IntrFlags) Error!*Node {
         if (rcur.val == .Rcur or i >= 16) break;
 
         int.* = try self.parseStatement();
-        const semi = try self.lexer.consume();
-        if (semi.val != .Semi)
-            try self.generateUnexpected(&[_]Lexer.Tokens{ .Semi }, semi);
-        self.lexer = self.lexer.catchUp(semi);
         idx = i;
     }
 
@@ -169,10 +165,12 @@ fn parseModule(self: *Parser) Error!*Node {
 
     const content = try self.parseIntr(.noApp);
     errdefer content.deinit(self.alloc);
-
+    defer self.alloc.destroy(content);
     self.inModule = false;
 
     const node = try self.alloc.create(Node);
+    errdefer node.deinit(self.alloc);
+
     node.* = .{
         .position = newPosition(start, content.position),
         .data = .{
@@ -182,7 +180,6 @@ fn parseModule(self: *Parser) Error!*Node {
                 .direction = direction.val == .Lsh,
             },
         },
-        .ntype = undefined,
     };
     return node;
 }
@@ -228,7 +225,6 @@ fn isAtomic(val: Lexer.Tokens) bool {
         else => false,
     };
 }
-const debug = @import("debug.zig");
 
 fn parseCall(self: *Parser) Error!*Node {
     var caller = try self.parsePrimary();
@@ -711,4 +707,24 @@ test "Parser - Params" {
     try expect(std.mem.eql(u8, node.data.expr.params[0].data.ref, "a"));
     try expect(node.data.expr.params[7].data == .ref);
     try expect(std.mem.eql(u8, node.data.expr.params[7].data.ref, "h"));
+}
+
+test "Parser - Range" {
+    const code = "byte : [0; 256; 1];";
+    const alloc = std.testing.allocator;
+    var parser = Parser.init(code, alloc);
+    const node = try parser.parseNode();
+    defer node.deinit(alloc);
+
+    try expect(node.data == .expr);
+    try expect(std.mem.eql(u8, node.data.expr.name, "byte"));
+    try expect(node.data.expr.ntype != null);
+    const ntype = node.data.expr.ntype.?;
+    try expect(ntype.data == .range);
+    try expect(ntype.data.range.start.data == .int);
+    try expectEqual(0, ntype.data.range.start.data.int);
+    try expect(ntype.data.range.end.data == .int);
+    try expectEqual(256, ntype.data.range.end.data.int);
+    try expect(ntype.data.range.epsilon.data == .int);
+    try expectEqual(1, ntype.data.range.epsilon.data.int);
 }

@@ -233,8 +233,8 @@ pub fn deinit(self: *Node, alloc: std.mem.Allocator) void {
         .mod => |v| {
             for (v.nodes) |node| {
                 node.deinit(alloc);
-                alloc.destroy(node);
             }
+            alloc.free(v.nodes);
         },
         .range => |v| {
             v.start.deinit(alloc);

@@ -11,6 +11,7 @@ pub const IRError = error{
     InvalidStore,
     InvalidBlock,
     InvalidOperation,
+    ConstantReassignment,
 };
 
 // all jumps are relative to the start of the block
@@ -94,14 +95,48 @@ const EdgeValue = struct {
     to: BlockOffset,
 };
 
+const PolyRegistryKey = struct {
+    name: misc.String,
+    polyType: *Type,
+};
+
+/// Key and context for monomorphised functions
+const TemplateRegistry = struct {
+    /// at which block does this function start from
+    blockId: BlockOffset = 0, 
+
+    /// castings at the same index are instanced into the according types
+    instances: []const Type = &[_]Type{},
+};
+
+/// information about polymorphic functions
+const PolyRegistryContext = struct {
+    pub fn hash(_: PolyRegistryContext, v: PolyRegistryKey) u64 {
+        var h = std.hash.Wyhash.init(0);
+        h.update(v.name);
+        h.update(std.mem.asBytes(&v.polyType.hash()));
+        return h.final();
+    }
+
+    pub fn eql(_: PolyRegistryContext, pk1: PolyRegistryKey, pk2: PolyRegistryKey) bool {
+        if (!std.mem.eql(u8, pk1.name, pk2.name))
+            return false;
+        
+        if (!pk1.polyType.deepEqual(pk2.polyType.*, true))
+            return false;
+
+        return true;
+    }
+};
+
 /// Current edges inside this graph
 edges: std.AutoHashMapUnmanaged(EdgeValue, void) = .{},
 
 /// All IR graph blocks
 nodes: std.AutoArrayHashMapUnmanaged(BlockOffset, Block) = .{},
 
-// is this used
-phiSources: std.AutoArrayHashMapUnmanaged(u64, std.ArrayListUnmanaged(PhiSource)) = .{},
+/// Expressions that result in constants go into this map instead
+data: std.StringHashMapUnmanaged(*Type) = .{},
 
 /// Current block counter, unique incremental id
 blockCounter: BlockOffset = 0,
@@ -118,6 +153,13 @@ errctx: misc.ErrorContext = .{ .value = .NoContext },
 /// Variable context
 context: Context(*Type) = undefined,
 
+polyregistry: std.HashMapUnmanaged(
+    PolyRegistryKey,
+    std.ArrayListUnmanaged(TemplateRegistry),
+    PolyRegistryContext,
+    std.hash_map.default_max_load_percentage
+) = .{},
+
 /// Instantiate a new IR context
 pub fn init(alloc: std.mem.Allocator, context: Context(*Type)) IR {
     return .{ .alloc = alloc, .context = context };
@@ -131,14 +173,46 @@ pub fn deinit(self: *IR) void {
         node.value_ptr.*.instructions.deinit(self.alloc);
     }
     self.nodes.deinit(self.alloc);
-    self.phiSources.deinit(self.alloc);
+    self.polyregistry.deinit(self.alloc);
+    self.data.deinit(self.alloc);
 }
 
-pub fn fromNode(self: *IR, node: *Node) !void {
-    self.blockCounter += 256; // "global" ish blocks
-    const bid = try self.newBlock();
-    const val = try self.blockNode(bid, node);
-    _ = try self.appendIfConstant(val.from, val);
+pub fn fromNodes(self: *IR, nodes: []*Node) !void {
+    for (nodes) |node| {
+        if (node.data == .mod) {
+            // we should see what the module does, but for now we skip
+            continue;
+        }
+        if (node.ntype.?.isTemplated()) {
+            const key = PolyRegistryKey{
+                .name = node.data.expr.name,
+                .polyType = node.ntype.?,
+            };
+
+            try self.polyregistry.put(self.alloc, key, .{});
+            continue;
+        }
+
+        if (node.ntype.?.isValued()) {
+            if (self.data.getEntry(node.data.expr.name)) |_| {
+                self.errctx = .{
+                    .position = node.position,
+                    .value = .ConstantReassignment
+                };
+                return error.ConstantReassignment;
+            }
+            try self.data.put(self.alloc, node.data.expr.name, node.ntype.?);
+            continue;
+        }
+
+        const bid = try self.newBlock();
+        const val = try self.blockNode(bid, node);
+
+        _ = try self.appendIfConstant(val.from, val);
+        self.blockCounter = (self.blockCounter | 0x3FF) + 1;
+
+        // split blocks apart
+    }
 }
 
 pub fn newBlock(self: *IR) !BlockOffset {
@@ -165,19 +239,6 @@ pub fn addInstruction(self: *IR, blockID: BlockOffset, instruction: Instruction)
 pub fn deinitBlock(self: *IR, blockID: BlockOffset) void {
     const block = self.nodes.get(blockID);
     if (block) |b| b.result.deinit(self.alloc);
-}
-
-fn addPhi(self: *IR, merge: BlockOffset, dest: SNIR.InfiniteRegister, sources: []PhiSource) !void {
-    const phi_inst = Instruction{
-        .opcode = SNIR.Instruction.phi,
-        .rd = dest,
-        .immediate = self.phi_sources.count(),
-    };
-
-    const block = self.nodes.getPtr(merge).?;
-    try block.append(self.alloc, phi_inst);
-
-    try self.phiSources.put(self.alloc, phi_inst.immediate, sources);
 }
 
 fn allocateRegister(self: *IR) SNIR.InfiniteRegister {
@@ -615,6 +676,8 @@ fn blockExpr(self: *IR, block: BlockOffset, node: *Node) IRError!Value {
         // refresh registers
         self.regIndex = 8;
     }
+
+    
 
     return self.blockNode(initialBlock, node.data.expr.expr.?);
 }

@@ -76,8 +76,20 @@ pub const ErrorContext = struct {
         /// Tried to call a non function
         InvalidCall,
 
+        /// Tried to reassign a constant
+        ConstantReassignment,
+
         /// Tried to divide by zero
         DivisionByZero,
+
+        /// Empty module import/export
+        EmptyImport: bool,
+
+        /// Could not resolve the current symbol
+        UndefinedExternSymbol: struct {
+            path: String,
+            name: String
+        },
 
         /// Base case
         NoContext,

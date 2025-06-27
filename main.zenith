@@ -1,1 +1,17 @@
-func x y = x + y;
+true = 0 == 0;
+
+max x y = y < x ? x : y;
+
+res = max 3 45;
+
+module >> "@echo" {
+    message = 123;
+}
+
+module >> "test" {
+    true = true;
+}
+
+module << "test" {
+    false = true;
+}

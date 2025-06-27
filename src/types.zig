@@ -39,24 +39,7 @@ pub const Error = error{
 };
 
 /// Define a cast type
-pub const Casting = union(enum) {
-    /// Casting by name
-    name: misc.String,
-
-    /// Compiler generated casts
-    index: u32,
-
-    /// Check if two castings are equal
-    pub fn eql(self: Casting, other: Casting) bool {
-        if (std.meta.activeTag(self) != std.meta.activeTag(other))
-            return false;
-
-        return switch (self) {
-            .name => std.mem.eql(u8, self.name, other.name),
-            .index => self.index == other.index,
-        };
-    }
-};
+pub const Casting = u32;
 
 /// Value inside the type
 data: union(enum) {
@@ -179,10 +162,10 @@ pub inline fn initBool(value: ?bool) Type {
 }
 
 /// Initalize a casting by index
-pub inline fn initIdxCasting(value: u32) Type {
+pub inline fn initCasting(value: u32) Type {
     return .{
         .data = .{
-            .casting = .{ .index = value },
+            .casting = value,
         },
     };
 }
@@ -213,9 +196,14 @@ pub fn isValued(self: Type) bool {
 pub fn isTemplated(self: Type) bool {
     return switch (self.data) {
         .casting => true,
-        .function => |f| f.argument.isTemplated() or f.ret.isTemplated(),
+        .function => |f| f.argument.isTemplated() and f.ret.isTemplated(),
         .array => |a| a.indexer.isTemplated(),
-        .aggregate => |a| for (a.types) |t| if (t.isTemplated()) return true,
+        .aggregate => |a| {
+            for (a.types) |t|
+                if (t.isTemplated())
+                    return true;
+            return false;
+        },
         else => false,
     };
 }
@@ -256,7 +244,7 @@ pub fn deepEqual(t1: Type, t2: Type, checkValued: bool) bool {
             if (!deepEqual(v.argument.*, t2.data.function.argument.*, checkValued)) return false;
             return deepEqual(v.ret.*, t2.data.function.ret.*, checkValued);
         },
-        .casting => |v| v.eql(t2.data.casting),
+        .casting => |v| v == t2.data.casting,
     };
 }
 
@@ -327,6 +315,34 @@ pub fn getParameter(self: Type, index: u8) Error!*Type {
     return error.UnknownParameter;
 }
 
+pub fn getCastings(self: Type, alloc: std.mem.Allocator) ![]const Casting {
+    var list = std.ArrayList(Casting).init(alloc);
+    defer list.deinit();
+
+    const function = struct {
+        fn collect(t: *const Type, l: *std.ArrayList(Casting)) !void {
+            switch (t.data) {
+                .casting => |c| {
+                    for (l.items) |existing|
+                        if (c.eql(existing)) return;
+
+                    try l.append(c);
+                },
+                .array => |a| try collect(a.indexer, l),
+                .aggregate => |a| for (a.types) |ts| try collect(&ts, l),
+                .function => |f| {
+                    try collect(f.argument, l);
+                    try collect(f.ret, l);
+                },
+                else => {},
+            }
+        }
+    }.collect;
+
+    try function(&self, &list);
+    return try list.toOwnedSlice();
+}
+
 pub fn hash(self: Type) u64 {
     var hasher = std.hash.Wyhash.init(0);
 
@@ -367,21 +383,164 @@ pub fn hash(self: Type) u64 {
             hasher.update(std.mem.asBytes(&v.ret.hash()));
         },
         .casting => |v| {
-            switch (v) {
-                .name => |s| hasher.update(s),
-                .index => |idx| hasher.update(std.mem.asBytes(&idx)),
-            }
+            hasher.update(std.mem.asBytes(&v));
         },
-        
     }
     return hasher.final();
 }
 
+pub fn serialize(self: Type, writer: anytype) !void {
+    try writer.writeByte(@intFromEnum(self.data));
+    try writer.writeByte(self.pointerIndex);
+    try writer.writeByte(self.paramIdx);
+
+    switch (self.data) {
+        .boolean => |v| {
+            try writer.writeByte(if (v == null) 2 else if (v.?) 1 else 0);
+        },
+        .integer => |v| {
+            try writer.writeInt(i64, v.start, .little);
+            try writer.writeInt(i64, v.end, .little);
+            try writer.writeByte(if (v.value == null) 0 else 1);
+            if (v.value) |val| try writer.writeInt(i64, val, .little);
+        },
+        .decimal => |v| {
+            try writer.writeFloat(f64, v.start, .little);
+            try writer.writeFloat(f64, v.end, .little);
+            try writer.writeByte(if (v.value == null) 0 else 1);
+            if (v.value) |val| try writer.writeFloat(f64, val, .little);
+        },
+        .array => |v| {
+            try v.indexer.serialize(writer);
+            try writer.writeInt(i64, v.size, .little);
+            try writer.writeInt(u32, @intCast(v.value.len), .little);
+            for (v.value) |elem| {
+                try writer.writeByte(if (elem == null) 0 else 1);
+                if (elem) |e| try e.serialize(writer);
+            }
+        },
+        .aggregate => |v| {
+            try writer.writeInt(u32, @intCast(v.types.len), .little);
+            for (v.types) |t| try t.serialize(writer);
+            try writer.writeInt(u32, @intCast(v.indexes.len), .little);
+            for (v.indexes) |idx| try writer.writeInt(i64, idx, .little);
+            try writer.writeInt(u32, @intCast(v.values.len), .little);
+            for (v.values) |val| {
+                try writer.writeByte(if (val == null) 0 else 1);
+                if (val) |v2| try v2.serialize(writer);
+            }
+        },
+        .function => |v| {
+            try v.argument.serialize(writer);
+            try v.ret.serialize(writer);
+        },
+        .casting => |v| {
+            switch (v) {
+                .name => |s| {
+                    try writer.writeInt(u32, @intCast(s.len), .little);
+                    try writer.writeAll(s);
+                },
+                .index => |idx| {
+                    try writer.writeInt(u32, idx, .little);
+                },
+            }
+        },
+    }
+}
+
+pub fn deserialize(reader: anytype, allocator: std.mem.Allocator) !Type {
+    const tag = @as(@TypeOf(Type.data), try reader.readByte());
+    const pointerIndex = try reader.readByte();
+    const paramIdx = try reader.readByte();
+
+    var t: Type = undefined;
+    t.pointerIndex = pointerIndex;
+    t.paramIdx = paramIdx;
+
+    switch (@as(Type.data, @enumFromInt(tag))) {
+        .boolean => {
+            const b = try reader.readByte();
+            t.data = .{ .boolean = if (b == 2) null else b == 1 };
+        },
+        .integer => {
+            const start = try reader.readInt(i64, .little);
+            const end = try reader.readInt(i64, .little);
+            const has_value = try reader.readByte();
+            const value = if (has_value == 1) try reader.readInt(i64, .little) else null;
+            t.data = .{ .integer = .{ .start = start, .end = end, .value = value } };
+        },
+        .decimal => {
+            const start = try reader.readFloat(f64, .little);
+            const end = try reader.readFloat(f64, .little);
+            const has_value = try reader.readByte();
+            const value = if (has_value == 1) try reader.readFloat(f64, .little) else null;
+            t.data = .{ .decimal = .{ .start = start, .end = end, .value = value } };
+        },
+        .array => {
+            const indexer = try allocator.create(Type);
+            indexer.* = try deserialize(reader, allocator);
+            const size = try reader.readInt(i64, .little);
+            const len = try reader.readInt(u32, .little);
+            const value = try allocator.alloc(?Type, len);
+            for (value) |*elem| {
+                const has_elem = try reader.readByte();
+                if (has_elem == 1) {
+                    const e = try deserialize(reader, allocator);
+                    elem.* = e;
+                } else {
+                    elem.* = null;
+                }
+            }
+            t.data = .{ .array = .{ .indexer = indexer, .size = size, .value = value } };
+        },
+        .aggregate => {
+            const types_len = try reader.readInt(u32, .little);
+            const types = try allocator.alloc(Type, types_len);
+            for (types) |*tt| tt.* = try deserialize(reader, allocator);
+            const idx_len = try reader.readInt(u32, .little);
+            const indexes = try allocator.alloc(i64, idx_len);
+            for (indexes) |*idx| idx.* = try reader.readInt(i64, .little);
+            const values_len = try reader.readInt(u32, .little);
+            const values = try allocator.alloc(?Type, values_len);
+            for (values) |*val| {
+                const has_val = try reader.readByte();
+                if (has_val == 1) {
+                    const v2 = try deserialize(reader, allocator);
+                    val.* = v2;
+                } else {
+                    val.* = null;
+                }
+            }
+            t.data = .{ .aggregate = .{ .types = types, .indexes = indexes, .values = values } };
+        },
+        .function => {
+            const arg = try allocator.create(Type);
+            arg.* = try deserialize(reader, allocator);
+            const ret = try allocator.create(Type);
+            ret.* = try deserialize(reader, allocator);
+            t.data = .{ .function = .{ .argument = arg, .ret = ret, .body = null } };
+        },
+        .casting => {
+            const tag2 = try reader.readByte();
+            if (tag2 == 0) {
+                const len = try reader.readInt(u32, .little);
+                const buf = try allocator.alloc(u8, len);
+                _ = try reader.readAll(buf);
+                t.data = .{ .casting = .{ .name = buf } };
+            } else {
+                const idx = try reader.readInt(u32, .little);
+                t.data = .{ .casting = .{ .index = idx } };
+            }
+        },
+    }
+    return t;
+}
+
 pub const TypeContext = struct {
-  pub fn hash(_: TypeContext, t: Type) u64 {
-    return t.hash();
-  }
-  pub fn eql(_: TypeContext, a: Type, b: Type) bool {
-    return a.deepEqual(b, false); // should this be true
-  }
+    pub fn hash(_: TypeContext, t: Type) u64 {
+        return t.hash();
+    }
+    pub fn eql(_: TypeContext, a: Type, b: Type) bool {
+        return a.deepEqual(b, false); // should this be true
+    }
 };
