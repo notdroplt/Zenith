@@ -131,6 +131,21 @@ data: union(enum) {
         /// Application node
         application: ?*Node,
     },
+
+    /// Match expression
+    match: struct {
+        /// what is this trying to match into
+        on: *Node,
+
+        /// cases where it matches
+        cases: []struct {
+            /// what is this switching for
+            tag: *Node,
+
+            /// and what does it result in
+            result: *Node,
+        },
+    },
 },
 
 /// Check if two nodes are equal.
@@ -182,7 +197,7 @@ pub fn eql(self: Node, other: *const Node) bool {
         },
         .range => |v| return v.start.eql(od.range.start) and v.end.eql(od.range.end) and v.epsilon.eql(od.range.epsilon),
         .aggr => |v| {
-            if (!std.mem.eql(u8,v.name, od.aggr.name) or v.children.len != od.aggr.children.len)
+            if (!std.mem.eql(u8, v.name, od.aggr.name) or v.children.len != od.aggr.children.len)
                 return false;
 
             for (v.children, od.aggr.children) |c1, c2|
@@ -219,6 +234,8 @@ pub fn deinit(self: *Node, alloc: std.mem.Allocator) void {
         .arr => |v| {
             for (v) |i|
                 i.deinit(alloc);
+            
+            alloc.free(v);
         },
         .unr => |v| v.val.deinit(alloc),
         .bin => |v| {
@@ -271,6 +288,14 @@ pub fn deinit(self: *Node, alloc: std.mem.Allocator) void {
             if (v.application) |app|
                 app.deinit(alloc);
         },
+        .match => |v| {
+            v.on.deinit(alloc);
+
+            for (v.cases) |case| {
+                case.result.deinit(alloc);
+                case.tag.deinit(alloc);
+            }
+        }
     }
 
     alloc.destroy(self);
@@ -306,21 +331,22 @@ pub fn initStr(alloc: std.mem.Allocator, position: misc.Pos, value: misc.String)
     return node;
 }
 
-pub fn initArr(alloc: std.mem.Allocator, position: misc.Pos, value: []*Node) !*Node {
-    const node = try alloc.create(Node);
-    node.* = .{
-        .position = position,
-        .data = .{.arr = value}
-    };
-    return node;
-}
-
 /// Reference node factory
 pub fn initRef(alloc: std.mem.Allocator, position: misc.Pos, value: misc.String) !*Node {
     const node = try alloc.create(Node);
     node.* = .{
         .position = position,
         .data = .{ .ref = value },
+    };
+    return node;
+}
+
+/// Array node factory
+pub fn initArr(alloc: std.mem.Allocator, position: misc.Pos, value: []*Node) !*Node {
+    const node = try alloc.create(Node);
+    node.* = .{
+        .position = position,
+        .data = .{ .arr = value },
     };
     return node;
 }
@@ -391,8 +417,8 @@ pub fn initExpr(alloc: std.mem.Allocator, position: misc.Pos, name: misc.String,
     return node;
 }
 
-/// Calculate a weight for how many instructions would a node be in a tree, 
-/// allowing for 
+/// Calculate a weight for how many instructions would a node be in a tree,
+/// allowing for
 pub fn weight(self: *const Node) usize {
     return switch (self.data) {
         .type, .range, .aggr, .sum, .mod => 0,
@@ -438,5 +464,4 @@ test Node {
     try std.testing.expect(int1.eql(int2));
     try std.testing.expect(int2.eql(int1)); // should commutative
     try std.testing.expect(!int1.eql(int3));
-
 }

@@ -122,6 +122,9 @@ pub const Tokens = union(enum) {
 
     /// "->"
     Arrow,
+
+    /// "|>"
+    Push,
 };
 
 /// Lexer errors
@@ -477,7 +480,7 @@ pub fn consume(self: *Lexer) Error!Token {
         '~', => Token.init(.Til, pos),
         '!', => lex.generate('=', .Bang, .Cneq),
         '#', => Token.init(.Hash, pos),
-        '|', => lex.generate('|', .Pipe, .Or),
+        '|', => lex.doubleGenerate('|', '>', .Or, .Push, .Pipe),
         '%', => Token.init(.Per, pos),
         '<', => lex.doubleGenerate('=', '<', .Cle, .Lsh, .Clt),
         '>', => lex.doubleGenerate('=', '>', .Cge, .Rsh, .Cgt),
@@ -538,7 +541,7 @@ test Lexer {
         \\0 1 0.0 1.0 1e2 1.3e2 
         \\"hello" "" 
         \\identifier a b'
-        \\(){}[]=;+-*/&~!#|^%<<>>==!=><>=<=&&||?:.->
+        \\(){}[]=;+-*/&~!#|^%<<>>==!=><>=<=&&||?:.->|>
         \\module match 
     );
 

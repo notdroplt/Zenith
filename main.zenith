@@ -1,21 +1,5 @@
-true = 0 == 0;
+add x y = 1 + 2;
 
-max x y = y < x ? x : y;
+optional : Has { t' } | Empty;
 
-res = max 3 45;
-
-module >> "@echo" {
-    message = 123;
-}
-
-module >> "@importList" {
-    load = { "std" } ; 
-}
-
-module >> "test" {
-    true = true;
-}
-
-module << "test" {
-    false = true;
-}
+min x y = x > y ? x : y;

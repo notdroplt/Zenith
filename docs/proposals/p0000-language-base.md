@@ -17,10 +17,10 @@ This only takes care of the "complex" tokens, ones like `+` and `==` are
 defined inside the parser
 
 The implicit definitions are as follows: 
-- `digit` be characters `0` through `9`.
-- `letter` be characters `A` through `Z`, and `a` through `z`.
-- `character` be any printable ascii character.
-- `newline` be characters `\r`, `\n` or a combination of both
+- `digit`: characters `0` through `9`.
+- `letter`: characters `A` through `Z`, and `a` through `z`.
+- `character`: anything
+- `newline`: characters `\r`, `\n` or a combination of both
 
 ```ebnf
 Int       = digit { digit } ;
@@ -34,18 +34,26 @@ Comment   = "//" { (character) - newline } newline ;
 ### 1.2. Grammar
 
 ```ebnf
-Module   = "module" ("<<" | ">>") String Intr ;
-Expr     = Ternary | Binary | Unary | Primary;
-Formula  = ID { Primary } (":" Type ["=" Expr] | "=" Expr)  ;
-Ternary  = Binary "?" Binary ":" Ternary ;
-Binary   = [ Binary BinaryOp ] Unary ;
-Unary    = UnaryOp ( Unary | Call ) ;
-Call     = ( Call | Primary ) [ Primary ] ;
-Primary  = Int | Float | String | ID | "[" { Expr ";" } "]" | "(" Expr ")" | Match | Intr Primary;
+Expr     = Ternary ;
+Ternary  = Pipe [ "?" Ternary ":" Ternary ] ;
+Pipe     = LogicalOr { "|>" LogicalOr } ;
+Logical  = Relative { ( "||" | "&&" ) Relative } ;
+Relative = Additive { ( "==" | "!=" | "<" | ">" | "<=" | ">=" ) Additive } ;
+Additive = Multi { ( "+" | "-" ) Multi } ;
+Multi    = Shift { ( "*" | "/" | "%" ) Shift } ;
+Shift    = Bitwise { ( "<<" | ">>" ) Bitwise } ;
+Bitwise  = Member { "&" | "|" | "^" Member } ;
+Member   = Unary { ( "." | "#" ) Unary } ;
+Unary    = UnaryOp ( Unary | Postfix ) ;
+Postfix  = Primary { [ Primary ] | ( "." ID ) | ( "#" Unary ) } ;
+Primary  = Int | Float | String | ID | "[" { Expr ";" } "]" 
+          | "(" Expr ")" | Match | Intr Primary;
 
+Module   = "module" ("<<" | ">>") String Intr ;
+Formula  = ID { Primary } (":" Type ["=" Expr] | "=" Expr) ";" ;
 Intr     = "{" { Formula } "}" ;
 IntrApp  = Intr Primary ;
-Match    = "match" IntrApp ;
+Match    = "match" Expr Intr ;
 
 Range    = "[" expr ";" expr [ ";" expr ] "]" ;
 Product  = ID [ Intr ] ;
@@ -57,10 +65,10 @@ Type     = TBinary [ "|" Type ] ;
 
 BinaryOp = "#" | "." | "|" | "&" | "^" | "<<" | ">>" 
          | "*" | "/" | "+" | "-" | "%" | "==" | "!=" 
-         | "<" | ">" | "<=" | ">=" | "&&" | "||" ;
+         | "<" | ">" | "<=" | ">=" | "&&" | "||" | "|>";
 UnaryOp  = "+" | "-" | "~" | "!" | "*" | "&" ;
 
-Program = { ( Module | Formula | Comment ) ";" };
+Program = { ( Module | Formula | Comment ) };
 ```
 
 ## 2. Typing
@@ -68,9 +76,9 @@ Program = { ( Module | Formula | Comment ) ";" };
 There are only the following primitives: $$C = \{ Bool^0, Integer^0, 
 Rational^0, Pointer^1, Array^1, \to^2, Aggregate^n \}$$
 
-> Integers and Rationals are taken as nullary types as they dont take
-> another types as parameters, but can take castings and compile time 
-> numeric values.
+> Integers and Rationals are taken as nullary types as they take no type
+> parameters, instead, castings and compile time numeric values as 
+> limiters.
 
 ### 2.1. Available Types
 #### 2.1.1. Booleans
@@ -80,17 +88,18 @@ isomorphic to a unit type.
 
 #### 2.1.2. Integers
 
-All integers are in the form `[start, end]{value}`, with 
+All integers are in the form `[start, end, padding]{value}`, with 
 $a,b \in \mathbb{Z}, a \le value \le b $, and specialized values may 
 occur. Coercion is only implicit from `IntA` to `IntB` if the size of
 `IntA` is smaller or equal to `IntB`, and both integers have the same
-sign.
+sign. 
 
 #### 2.1.3 Rationals
 
 All rational types are written in the same form as integers,
 but instead of being a subset of $\mathbb{Z}$, be now a subset of
-$\mathbb{Q}$.
+$\mathbb{Q}$. Normally, languages call rationals "floats" or "decimals",
+but computers work with just 
 
 #### 2.1.4 Pointers
 
@@ -124,21 +133,20 @@ unlike products, only one of them can exist at a point in time.
 
 ### 2.2. Operation Types
 
-Types sets are given from now on as follows:
+Types sets are notated in the compiler as follows:
 - Booleans: $B$
 - Integers: $I$
 - Rationals: $R$
 - Products: $P$
 - Sums: $S$
-- Castings: any letter followed by `'`
+- Castings: any name followed by `'` or numbers surrounded by `<>`
 - Pointers: $^*T'$
-- Arrays: $T'\#I$
+- Arrays: $T'\#I$, $I$ might be omitted to represent any size
  
-Some operators offer like behavior into the Numeric set 
-$N = I \cup R \cup N\#I$, which offer less redundancy to write in the
-documentation
+Some operators offer similar behavior into the Numeric set 
+$N = I \cup R \cup N\#I$.
 
-All operations are well defined for types given below:
+Default operations are only defined for types given below:
 
 | function | notation |
 | :-: | :-: |
@@ -170,12 +178,73 @@ All operations are well defined for types given below:
 | `<=`$^2$ | $a' \to a' \to B$ |
 | `\|\|`$^2$ | $B \to B \to B$ |
 | `&&`$^2$ | $B \to B \to B$ |
+| `\|>`$^2$ | $M a \to (a \to M b) \to M b $ |
+
+> The nature of `|>` does not make default implementations for monadic
+> structures
+
+#### 2.2.1 Type Conversions
+
+Using $\rhd$ (`|>`) where the binder is a type allows for type 
+conversions that normally would error on the compiler. In case the type
+of `x` is the same as used in the binder, the whole operation is a no-op.
+
+Being $x_t$ the type of `x`, and $b$ the current binding type:
+
+- $x \rhd Boolean$: defined for numeric and boolean types, 
+equivalent to `x != 0`
+
+- $x \rhd Integer$: defined for numeric and boolean types:
+    - $x_t : Boolean$: works as `x ? 1 : 0`
+    - $x_t : Rational$: truncates `x`
+    - $x_t : Integer, x_t \supset b$: truncate `x`
+
+- $x \rhd Rational$: defined for numeric and boolean types:
+    - $x_t : Boolean$: `x ? 1.0 : 0.0`
+    - $x_t : Integer$: `x * 1.0` without erroring out
+    - $x_t : Rational, x_t \supset b$: truncate `x`
+
+- $x \rhd *t'$: defined for when $x_t : *U$ or $U\#$, allows for pointer
+aliasing
 
 ### 2.3. Induction and deduction rules
 
 To allow more compiler freedom, the typing in every program should only
-hint the analyzer about what the type might be, but any restrictions or
-relaxations that may seem necessary can be done as long as they do not
-affect the expected behavior.
+hint the analyzer about what the type might be, but any modifications
+that may seem necessary can be done as long as they do not affect 
+expected behavior. 
+
+### 2.4 Overloading
+
+Function overloading happens for all functions that have the same name 
+but different signatures. Overloading is only invalid if an application 
+with values of the same type has more than one possible outcome that
+cannot be disambiguated from the type system. Example:
+
+```
+A : ...;
+B : ...;
+C : ...;
+// Assume C and D are different, non-coercible types
+D : ...;
+E : C;
 
 
+// "default implementation" 
+f : A -> B -> C; 
+
+// function signature changes, overload valid
+f : A -> D; // overload 1
+
+// C and D are different, validity is checked on the call site
+f : A -> B -> D; // overload 2
+
+// E coerces to C, as this is another declaration, the compiler fails as
+// the function is not transparent anymore
+f : A -> B -> E;
+```
+
+#### 2.4.1 Operator overloading
+
+the special module name subspace "/@operators" allows the exporting of
+operator functions into the parent namespace. To overload an operator,

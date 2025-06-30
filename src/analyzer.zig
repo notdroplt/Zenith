@@ -112,6 +112,7 @@ fn analyze(self: *Analyzer, currctx: *TContext, node: *Node) !*Node {
         .int => return self.analyzeInt(node),
         .dec => return self.analyzeDec(node),
         .str => return self.analyzeStr(node),
+        .arr => return self.analyzeArr(currctx, node),
         .ref => return self.analyzeRef(currctx, node),
         .unr => return self.analyzeUnr(currctx, node),
         .bin => return self.analyzeBin(currctx, node),
@@ -121,7 +122,8 @@ fn analyze(self: *Analyzer, currctx: *TContext, node: *Node) !*Node {
         .intr => return self.analyzeIntr(currctx, node),
         .range => return self.analyzeRange(currctx, node),
         .mod => return self.analyzeModule(currctx, node),
-        else => return node,
+        .sum => return self.analyzeSum(currctx, node),
+        else => unreachable,
     }
 }
 
@@ -165,6 +167,70 @@ fn analyzeStr(self: *Analyzer, node: *Node) Error!*Node {
     };
 
     node.ntype = arrtype;
+    return node;
+}
+
+fn analyzeArr(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
+    const arr = try self.talloc.alloc(?Type, node.data.arr.len);
+    errdefer self.talloc.free(arr);
+
+    self.castIndex += 1;
+    var res = Type.initCasting(self.castIndex);
+
+    for (node.data.arr, 0..) |v, i| {
+        _ = try self.analyze(currctx, v);
+        if (v.ntype) |nt| {
+            arr[i] = nt.*;
+        } else {
+            arr[i] = null;
+        }
+
+        // first can be literally anything
+        if (i == 0) {
+            res = v.ntype.?.*;
+            continue;
+        }
+
+        const join = Type.join(res, v.ntype.?.*);
+        if (join == .Impossible) {
+            self.errctx = .{
+                .position = v.position,
+                .value = .{
+                    .DisjointTypes = .{
+                        .t1 = res,
+                        .t2 = v.ntype.?.*,
+                    },
+                },
+            };
+            return error.DisjointTypes;
+        }
+
+        res = switch (join) {
+            .New => |new| new,
+            .Left => res,
+            .Right => v.ntype.?.*,
+            .Impossible => unreachable
+        };
+    }
+
+    const idxr = try self.talloc.create(Type);
+    idxr.* = res;
+
+    if (!res.isTemplated()) self.castIndex -= 1;
+
+    const arrt = try self.talloc.create(Type);
+    arrt.* = .{
+        .data = .{
+            .array = .{
+                .indexer = idxr,
+                .size = @intCast(node.data.arr.len),
+                .value = arr,
+            },
+        },
+    };
+
+    node.ntype = arrt;
+
     return node;
 }
 
@@ -363,15 +429,14 @@ fn analyzeBin(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
                     instantiate(rhs, tlhs, bint);
                     instantiateContext(currctx, tlhs, bint);
                 },
-                
-                .Cequ, .Cneq, .Cge , .Cgt , .Cle , .Clt=> {
+
+                .Cequ, .Cneq, .Cge, .Cgt, .Cle, .Clt => {
                     bint.* = Type.initBool(null);
                 },
                 else => {
                     bint.* = tlhs.*;
-                }
+                },
             }
-            
         },
         .integer => |ia| {
             const ib = trhs.data.integer;
@@ -485,12 +550,7 @@ fn analyzeTernary(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node 
     const bfalse = try analyze(self, currctx, node.data.ter.bfalse);
 
     if (!btrue.ntype.?.deepEqual(bfalse.ntype.?.*, false)) {
-        self.errctx = .{
-            .position = node.position,
-            .value = .{
-                .DisjointTypes = .{ .t1 = btrue.ntype.?.*, .t2 = bfalse.ntype.?.* }
-            }
-        };
+        self.errctx = .{ .position = node.position, .value = .{ .DisjointTypes = .{ .t1 = btrue.ntype.?.*, .t2 = bfalse.ntype.?.* } } };
         return error.TypeMismatch;
     }
 
@@ -726,6 +786,19 @@ fn analyzeExpr(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
     return node;
 }
 
+fn analyzeSum(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
+    const sum = node.data.sum;
+
+    const elements = std.ArrayList(Type).init(self.allocator);
+
+    for (sum) |el| {
+        _ = try self.analyze(currctx, el);
+        elements.append(el.ntype.?);
+    }
+
+    
+}
+
 fn binopt(comptime T: type, a: ?T, b: ?T, func: anytype) ?@TypeOf(func(T, a.?, b.?)) {
     if (a == null or b == null) return null;
     return func(T, a.?, b.?);
@@ -749,30 +822,23 @@ fn doBoolMinMax(comptime T: type, func: anytype, ma: anytype, mb: anytype) Type 
 
 fn instantiateType(haysack: *Type, find: *Type, replace: *Type) void {
     switch (haysack.data) {
-        .integer, .decimal, .boolean, .casting => {
-            if (haysack.deepEqual(find.*, true)) {
-                haysack.* = replace.*;
-            }
-        },
+        .integer, .decimal, .boolean, .casting => if (haysack.deepEqual(find.*, true)) {
+            haysack.* = replace.*;
+        } else {},
         .array => |v| {
             instantiateType(v.indexer, find, replace);
 
-            for (v.value) |*i| {
-                if (i.*) |_| {
+            for (v.value) |*i|
+                if (i.*) |_|
                     instantiateType(&(i.*.?), find, replace);
-                }
-            }
         },
         .aggregate => |v| {
-            for (v.types) |*i| {
+            for (v.types) |*i|
                 instantiateType(i, find, replace);
-            }
 
-            for (v.values) |*i| {
-                if (i.*) |_| {
+            for (v.values) |*i|
+                if (i.*) |_|
                     instantiateType(&(i.*.?), find, replace);
-                }
-            }
         },
         .function => |v| {
             instantiateType(v.argument, find, replace);
@@ -784,17 +850,15 @@ fn instantiateType(haysack: *Type, find: *Type, replace: *Type) void {
 fn instantiateContext(ctx: *TContext, find: *Type, replace: *Type) void {
     var memIt = ctx.members.valueIterator();
 
-    while(memIt.next()) |val| {
-        if (val.*.deepEqual(find.*, true)) {
+    while (memIt.next()) |val| {
+        if (val.*.deepEqual(find.*, true))
             val.* = replace;
-        }
     }
 
     var childIt = ctx.children.valueIterator();
 
-    while(childIt.next()) |val| {
+    while (childIt.next()) |val|
         instantiateContext(val, find, replace);
-    }
 }
 
 /// given a node tree, instantiate "find" with "replace"
@@ -803,9 +867,11 @@ fn instantiate(node: *Node, find: *Type, replace: *Type) void {
 
     switch (node.data) {
         .int, .dec, .str, .ref, .mod, .type => {},
-        .unr => |v| {
-            instantiate(v.val, find, replace);
-        },
+        .arr => |v| {
+            for (v) |i|
+                instantiate(i, find, replace);
+        },        
+        .unr => |v| instantiate(v.val, find, replace),
         .bin => |v| {
             instantiate(v.lhs, find, replace);
             instantiate(v.rhs, find, replace);
@@ -825,6 +891,14 @@ fn instantiate(node: *Node, find: *Type, replace: *Type) void {
 
             if (v.application) |app|
                 instantiate(app, find, replace);
+        },
+        .match => |v| {
+            instantiate(v.on, find, replace);
+
+            for (v.cases) |case| {
+                instantiate(case.tag, find, replace);
+                instantiate(case.result, find, replace);
+            }
         },
         .sum => |v| {
             for (v) |s|

@@ -74,9 +74,6 @@ pub fn pipeline(name: misc.String, alloc: std.mem.Allocator) !u8 {
     try Optimizer.optimize_ir(&ir, alloc);
     //try debug.printIR(&ir, stdout);
 
-    try stdout.print("analysis successful\n", .{});
-    try bw.flush();
-
     return 0;
 }
 

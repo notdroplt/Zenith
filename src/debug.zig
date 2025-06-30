@@ -86,7 +86,7 @@ fn printContext(writer: anytype, ctx: misc.ErrorContext) !void {
             try printType(writer, err.t1);
             try writer.print(") and (", .{});
             try printType(writer, err.t2);
-            try writer.print(") do not intersect anywhere in their domains", .{});
+            try writer.print(") are not compatible", .{});
         },
         .InvalidLoad => |err| {
             try writer.print("Type ", .{});
@@ -311,6 +311,7 @@ pub fn printToken(tok: Lexer.Tokens) []const u8 {
         .Cln => ":",
         .Dot => ".",
         .Arrow => "->",
+        .Push => "|>"
     };
 }
 
@@ -380,6 +381,19 @@ pub fn printNode(writer: anytype, node: *const Node) !void {
             _ = try writer.write("}\n");
 
         },
+        .arr => |v| {
+            _ = try writer.write("[");
+
+            for (v, 0..) |it, i| {
+                try printNode(writer, it);
+                if (i + 1 < v.len) {
+                    _ = try writer.write("; ");
+                }
+            }
+
+            _ = try writer.write("]");
+
+        },
         else => {
             try writer.print("#{s}#", .{@tagName(node.data)});
         },
@@ -410,8 +424,8 @@ pub fn printType(writer: anytype, t: Type) !void {
             }
         },
         .array => |arr| {
-            try writer.print("{}#", .{arr.size});
             try printType(writer, arr.indexer.*);
+            try writer.print("#{}", .{arr.size});
         },
         .casting => |c| {
              try writer.print("<{}>", .{c});

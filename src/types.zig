@@ -76,7 +76,7 @@ data: union(enum) {
         indexer: *Type,
 
         /// Array size
-        size: i64,
+        size: u64,
 
         /// Array value, if any
         value: []?Type,
@@ -302,6 +302,81 @@ pub fn deepCopy(self: Type, alloc: std.mem.Allocator) !*Type {
 
     t.paramIdx = self.paramIdx;
     return t;
+}
+
+pub const SetResult = union(enum) {
+    /// A ⊇ B
+    Left,
+
+    /// A ⊆ B
+    Right,
+
+    /// A ∩ B is not equal to either A or B, but also not empty
+    New: Type,
+
+    // A ∩ B = {}
+    Impossible,
+};
+
+/// Does A ∪ B, if possible
+pub fn join(a: Type, b: Type) SetResult {
+    const ad = a.data;
+    const bd = b.data;
+    
+    if (b.data == .casting) return .Left;
+    if (a.data == .casting) return .Right;
+    
+    if (std.meta.activeTag(a.data) != std.meta.activeTag(bd))
+        return .Impossible;
+
+    if (a.deepEqual(b, true)) 
+        return SetResult.Left;
+
+    switch (ad) {
+        .boolean => return SetResult{ .New = Type.initBool(null) },
+        .integer => |ia| {
+            const ib = bd.integer;
+            if (ia.start <= ib.start and ia.end >= ib.end)
+                return SetResult.Left;
+
+            if (ib.start <= ia.start and ib.end >= ia.end)
+                return SetResult.Right;
+
+            return SetResult{
+                .New = Type.initInt(
+                    @min(ia.start, ib.start),
+                    @max(ia.start, ib.start),
+                    ia.value orelse ib.value),
+            };
+        },
+        .decimal => |da| {
+            const db = bd.decimal;
+            if (da.start <= db.start and da.end >= db.end)
+                return SetResult.Left;
+
+            if (db.start <= da.start and db.end >= da.end)
+                return SetResult.Right;
+
+            return SetResult{
+                .New = Type.initFloat(
+                    @min(da.start, db.start),
+                    @max(da.start, db.start),
+                    da.value orelse db.value),
+            };
+        },
+        .array => |aa| {
+            const ab = bd.array;
+            if (!deepEqual(aa.indexer.*, ab.indexer.*, false)) {
+                return SetResult.Impossible;
+            }
+
+            if (aa.size >= ab.size) return SetResult.Left;
+            return SetResult.Right;
+        },
+        .casting => return SetResult.Left,
+        // wrong but yeah :sob:
+        else => return SetResult.Impossible,
+    }
 }
 
 pub fn getParameter(self: Type, index: u8) Error!*Type {
