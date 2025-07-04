@@ -1,5 +1,9 @@
-add x y = x + 3;
+add x y = x + y;
 
-optional : Has { t' } | Empty;
+min x y = x < y ? x : y;
 
-min x y = x > y ? x : y;
+max x y = x > y ? x : y;
+
+clamp v vmin vmax = min vmax (max v vmin);
+
+res = clamp 3 0 5;

@@ -76,7 +76,6 @@ pub fn pipeline(name: misc.String, alloc: std.mem.Allocator) !u8 {
     try debug.printIR(&ir, stdout);
 
     try bw.flush();
-    std.debug.print("here\n", .{});
 
     return 0;
 }

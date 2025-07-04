@@ -200,19 +200,17 @@ pub fn devalue(self: *Type) void {
     switch (self.data) {
         .boolean => self.data.boolean = null,
         .integer => self.data.integer.value = null,
-        .decimal => self.data.decimal.value != null,
+        .decimal => self.data.decimal.value = null,
         .pointer => |v| v.devalue(),
         .array => |v| {
             self.data.array.indexer.devalue();
-            for (v.value) |v| {
-                if (v) |i| i.devalue();
+            for (v.value) |t| {
+                if (t) |i| i.devalue();
             }
-            return true;
         },
         .aggregate => |v| {
             for (v.types) |value|
                 value.devalue();
-            return true;
         },
         .function => |v| {
             v.argument.devalue();

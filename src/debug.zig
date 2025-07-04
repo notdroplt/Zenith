@@ -233,7 +233,8 @@ pub fn printInstruction(inst: IR.Instruction, writer: anytype) !void {
             inst.r2, inst.rd,
             inst.immediate
             }),
-        .mov_reg =>try writer.print("| mov r{} <- r{}\n", .{inst.rd, inst.r1}),
+        .mov_reg => try writer.print("| mov r{} <- r{}\n", .{inst.rd, inst.r1}),
+        .mov_param => try writer.print(" | mov r{} <- param[{}]\n", .{inst.rd, inst.r1}), 
         .nop => try writer.print("| nop\n", .{}),
         else => switch (typeByOpcode(@intFromEnum(inst.opcode))) {
             .R => try writer.print("| {s} r{} <- r{}, r{}\n", .{@tagName(inst.opcode), inst.rd, inst.r1, inst.r2}),

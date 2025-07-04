@@ -363,13 +363,15 @@ fn blockReference(self: *IR, block: BlockOffset, node: *Node) IRError!Value {
     if (refType.isValued())
         return self.constantFromType(block, node);
 
+    std.debug.print("param idx: {}\n", .{refType});
+
     if (refType.paramIdx > 0) {
         return .{
             .vtype = refType,
             .from = block,
             .value = .{
                 .instruction = .{
-                    .opcode = SNIR.Opcodes.mov_reg,
+                    .opcode = SNIR.Opcodes.mov_param,
                     .rd = self.allocateRegister(),
                     .r1 = refType.paramIdx,
                 },

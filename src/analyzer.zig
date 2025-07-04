@@ -375,13 +375,20 @@ fn analyzeBin(self: *Analyzer, currctx: *TContext, node: *Node) Error!void {
             // worst case (happens the most often) is both trhs and tlhs
             // being cast types
 
-            try self.substitutions.put(self.allocator, trhs.*, tlhs);
-            instantiate(rhs, trhs, tlhs);
-            instantiateContext(currctx, trhs, tlhs);
+            const res = try tlhs.deepCopy(self.talloc);
+            res.devalue();
+
+            try self.substitutions.put(self.allocator, trhs.*, res);
+            instantiate(rhs, trhs, res);
+            instantiateContext(currctx, trhs, res);
         } else if (tlhs.data == .casting) {
-            try self.substitutions.put(self.allocator, tlhs.*, trhs);
-            instantiate(lhs, tlhs, trhs);
-            instantiateContext(currctx, tlhs, trhs);
+
+            const res = try trhs.deepCopy(self.talloc);
+            res.devalue();
+
+            try self.substitutions.put(self.allocator, tlhs.*, res);
+            instantiate(lhs, tlhs, res);
+            instantiateContext(currctx, tlhs, res);
         }
     }
 
