@@ -65,6 +65,7 @@ pub fn pipeline(name: misc.String, alloc: std.mem.Allocator) !u8 {
     var ir = IR.init(alloc, analyzer.context);
     defer ir.deinit();
 
+
     ir.fromNodes(nodes.items) catch {
         try debug.printError(stdout, name, parser.code, ir.errctx);
         try bw.flush();
@@ -72,7 +73,10 @@ pub fn pipeline(name: misc.String, alloc: std.mem.Allocator) !u8 {
     };
 
     try Optimizer.optimize_ir(&ir, alloc);
-    //try debug.printIR(&ir, stdout);
+    try debug.printIR(&ir, stdout);
+
+    try bw.flush();
+    std.debug.print("here\n", .{});
 
     return 0;
 }

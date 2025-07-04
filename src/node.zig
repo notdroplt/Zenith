@@ -279,6 +279,7 @@ pub fn deinit(self: *Node, alloc: std.mem.Allocator) void {
         },
         .sum => |v| {
             for (v) |child| child.deinit(alloc);
+            alloc.free(v);
         },
         .intr => |v| {
             for (v.intermediates) |inter| {

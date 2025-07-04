@@ -101,48 +101,47 @@ pub fn deinit(self: *Analyzer) void {
 /// Analyze nodes
 pub fn runAnalysis(self: *Analyzer, nodes: []*Node) !void {
     for (nodes) |node| {
-        _ = try self.analyze(&self.context, node);
+        try self.analyze(&self.context, node);
         self.reset();
     }
 }
 
-fn analyze(self: *Analyzer, currctx: *TContext, node: *Node) !*Node {
-    switch (node.data) {
-        .type => return node,
-        .int => return self.analyzeInt(node),
-        .dec => return self.analyzeDec(node),
-        .str => return self.analyzeStr(node),
-        .arr => return self.analyzeArr(currctx, node),
-        .ref => return self.analyzeRef(currctx, node),
-        .unr => return self.analyzeUnr(currctx, node),
-        .bin => return self.analyzeBin(currctx, node),
-        .call => return self.analyzeCall(currctx, node),
-        .ter => return self.analyzeTernary(currctx, node),
-        .expr => return self.analyzeExpr(currctx, node),
-        .intr => return self.analyzeIntr(currctx, node),
-        .range => return self.analyzeRange(currctx, node),
-        .mod => return self.analyzeModule(currctx, node),
-        .sum => return self.analyzeSum(currctx, node),
+fn analyze(self: *Analyzer, currctx: *TContext, node: *Node) !void {
+    try switch (node.data) {
+        .type => {},
+        .int => self.analyzeInt(node),
+        .dec => self.analyzeDec(node),
+        .str => self.analyzeStr(node),
+        .arr => self.analyzeArr(currctx, node),
+        .ref => self.analyzeRef(currctx, node),
+        .unr => self.analyzeUnr(currctx, node),
+        .bin => self.analyzeBin(currctx, node),
+        .call => self.analyzeCall(currctx, node),
+        .ter => self.analyzeTernary(currctx, node),
+        .expr => self.analyzeExpr(currctx, node),
+        .intr => self.analyzeIntr(currctx, node),
+        .range => self.analyzeRange(currctx, node),
+        .mod => self.analyzeModule(currctx, node),
+        .sum => self.analyzeSum(currctx, node),
+        .aggr => self.analyzeAggr(currctx, node),
         else => unreachable,
-    }
+    };
 }
 
-fn analyzeInt(self: *Analyzer, node: *Node) Error!*Node {
+fn analyzeInt(self: *Analyzer, node: *Node) Error!void {
     const int = node.data.int;
     node.ntype = try self.talloc.create(Type);
     node.ntype.?.* = Type.initInt(int, int, int);
-    return node;
 }
 
-fn analyzeDec(self: *Analyzer, node: *Node) Error!*Node {
+fn analyzeDec(self: *Analyzer, node: *Node) Error!void {
     const dec = node.data.dec;
     node.ntype = try self.talloc.create(Type);
     node.ntype.?.* = Type.initFloat(dec, dec, dec);
-    return node;
 }
 
-fn analyzeStr(self: *Analyzer, node: *Node) Error!*Node {
-    const arr = try self.talloc.alloc(?Type, node.data.str.len);
+fn analyzeStr(self: *Analyzer, node: *Node) Error!void {
+    const arr = try self.talloc.alloc(?*Type, node.data.str.len);
     errdefer self.talloc.free(arr);
 
     const strType = try self.talloc.create(Type);
@@ -150,13 +149,13 @@ fn analyzeStr(self: *Analyzer, node: *Node) Error!*Node {
     strType.* = Type.initInt(0, 255, null);
 
     for (node.data.str, arr) |c, *i| {
-        i.* = Type.initInt(c, c, c);
+        i.* = try self.talloc.create(Type);
+        i.*.?.* = Type.initInt(c, c, c);
     }
 
     const arrtype = try self.talloc.create(Type);
 
     arrtype.* = .{
-        .pointerIndex = 0,
         .data = .{
             .array = .{
                 .size = @intCast(node.data.str.len),
@@ -167,23 +166,18 @@ fn analyzeStr(self: *Analyzer, node: *Node) Error!*Node {
     };
 
     node.ntype = arrtype;
-    return node;
 }
 
-fn analyzeArr(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
-    const arr = try self.talloc.alloc(?Type, node.data.arr.len);
+fn analyzeArr(self: *Analyzer, currctx: *TContext, node: *Node) Error!void {
+    const arr = try self.talloc.alloc(?*Type, node.data.arr.len);
     errdefer self.talloc.free(arr);
 
     self.castIndex += 1;
     var res = Type.initCasting(self.castIndex);
 
     for (node.data.arr, 0..) |v, i| {
-        _ = try self.analyze(currctx, v);
-        if (v.ntype) |nt| {
-            arr[i] = nt.*;
-        } else {
-            arr[i] = null;
-        }
+        try self.analyze(currctx, v);
+        arr[i] = v.ntype;
 
         // first can be literally anything
         if (i == 0) {
@@ -209,7 +203,7 @@ fn analyzeArr(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
             .New => |new| new,
             .Left => res,
             .Right => v.ntype.?.*,
-            .Impossible => unreachable
+            .Impossible => unreachable,
         };
     }
 
@@ -230,22 +224,20 @@ fn analyzeArr(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
     };
 
     node.ntype = arrt;
-
-    return node;
 }
 
-fn analyzeRef(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
+fn analyzeRef(self: *Analyzer, currctx: *TContext, node: *Node) Error!void {
     const refType = currctx.get(node.data.ref);
     if (refType) |refT| {
         node.ntype = refT;
-        return node;
+        return;
     }
 
     if (self.inDefinition) {
         node.ntype = try self.talloc.create(Type);
         self.castIndex += 1;
         node.ntype.?.* = Type.initCasting(self.castIndex);
-        return node;
+        return;
     }
 
     self.errctx = .{
@@ -284,28 +276,34 @@ fn minMax(comptime T: type, x1: T, x2: T, y1: T, y2: T, f: fn (comptime type, T,
     }
 }
 
-fn analyzeUnr(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
-    const rest = try analyze(self, currctx, node.data.unr.val);
+fn analyzeUnr(self: *Analyzer, currctx: *TContext, node: *Node) Error!void {
+    try analyze(self, currctx, node.data.unr.val);
+    const rest = node.data.unr.val;
 
     const op = node.data.unr.op;
     const val = rest.ntype.?;
 
-    const unt = try rest.ntype.?.deepCopy(self.talloc);
+    const unt = try self.talloc.create(Type);
 
     // TODO: add operations to arrays :skull:
     switch (op) {
-        .Amp => unt.*.pointerIndex += 1,
+        .Amp => unt.* = .{
+            .data = .{ .pointer = val },
+        },
         .Plus => {},
         .Star => {
-            if (val.data == .casting and val.pointerIndex == 0) {
+            if (val.data == .casting) {
                 self.castIndex += 1;
-                unt.* = Type.initCasting(self.castIndex);
-                unt.*.pointerIndex += 1; // become pointer
-                try self.substitutions.put(self.allocator, val.*, unt);
-            } else if (val.pointerIndex == 0)
+                unreachable;
+                // FIXME: make pointer casting work
+                // unt.* = Type.initCasting(self.castIndex);
+                // unt.*.pointerIndex += 1; // become pointer
+                // try self.substitutions.put(self.allocator, val.*, unt);
+            } else if (val.data != .pointer)
                 try self.undefinedOperation(.Star, null, val, node.position);
 
-            unt.*.pointerIndex -= 1;
+            node.ntype = val.data.pointer;
+            return;
         },
         .Bang => {
             if (val.data == .casting) {
@@ -358,12 +356,13 @@ fn analyzeUnr(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
     if (val.data == .casting) instantiate(rest, val, unt);
 
     node.ntype = unt;
-    return node;
 }
 
-fn analyzeBin(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
-    const lhs = try analyze(self, currctx, node.data.bin.lhs);
-    const rhs = try analyze(self, currctx, node.data.bin.rhs);
+fn analyzeBin(self: *Analyzer, currctx: *TContext, node: *Node) Error!void {
+    try analyze(self, currctx, node.data.bin.lhs);
+    try analyze(self, currctx, node.data.bin.rhs);
+    const lhs = node.data.bin.lhs;
+    const rhs = node.data.bin.rhs;
     const op = node.data.bin.op;
 
     const tlhs = lhs.ntype.?;
@@ -392,13 +391,14 @@ fn analyzeBin(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
         }
 
         if (tlhs.isValued() and trhs.isValued()) {
-            bint.* = tlhs.data.array.value[@intCast(trhs.data.integer.value.?)].?;
+            node.ntype = tlhs.data.array.value[@intCast(trhs.data.integer.value.?)].?;
         } else {
-            bint = try tlhs.data.array.indexer.deepCopy(self.talloc);
+            self.talloc.destroy(bint);
+            bint = tlhs.data.array.indexer;
         }
 
         node.ntype.? = bint;
-        return node;
+        return;
     }
 
     if (op == .Arrow) {
@@ -408,7 +408,7 @@ fn analyzeBin(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
                 .function = .{ .argument = tlhs, .ret = trhs },
             },
         };
-        return node;
+        return;
     }
 
     if (op == .Dot) {
@@ -503,12 +503,13 @@ fn analyzeBin(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
     }
 
     node.ntype = bint;
-    return node;
 }
 
-fn analyzeCall(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
-    const caller = try analyze(self, currctx, node.data.call.caller);
-    const callee = try analyze(self, currctx, node.data.call.callee);
+fn analyzeCall(self: *Analyzer, currctx: *TContext, node: *Node) Error!void {
+    try analyze(self, currctx, node.data.call.caller);
+    try analyze(self, currctx, node.data.call.callee);
+    const caller = node.data.call.caller;
+    const callee = node.data.call.callee;
 
     if (caller.ntype.?.data != .function) {
         self.errctx = .{
@@ -530,73 +531,84 @@ fn analyzeCall(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
         return error.TypeMismatch;
     }
 
-    node.ntype = try caller.ntype.?.data.function.ret.deepCopy(self.talloc);
-    return node;
+    node.ntype = caller.ntype.?.data.function.ret;
 }
 
-fn analyzeTernary(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
-    const cond = try analyze(self, currctx, node.data.ter.cond);
-    if (cond.ntype == null or cond.ntype.?.data != .boolean) {
+fn analyzeTernary(self: *Analyzer, currctx: *TContext, node: *Node) Error!void {
+    try analyze(self, currctx, node.data.ter.cond);
+    const cond = node.data.ter.cond.ntype;
+    if (cond == null or cond.?.data != .boolean) {
         self.errctx = .{
-            .position = cond.position,
+            .position = node.data.ter.cond.position,
             .value = .{
-                .NonBooleanDecision = .{ .condtype = cond.ntype.?.* },
+                .NonBooleanDecision = .{
+                    .condtype = cond.?.*,
+                },
             },
         };
         return error.NonBooleanDecision;
     }
 
-    const btrue = try analyze(self, currctx, node.data.ter.btrue);
-    const bfalse = try analyze(self, currctx, node.data.ter.bfalse);
+    try analyze(self, currctx, node.data.ter.btrue);
+    try analyze(self, currctx, node.data.ter.bfalse);
+    const btrue = node.data.ter.btrue.ntype.?;
+    const bfalse = node.data.ter.bfalse.ntype.?;
 
-    if (!btrue.ntype.?.deepEqual(bfalse.ntype.?.*, false)) {
-        self.errctx = .{ .position = node.position, .value = .{ .DisjointTypes = .{ .t1 = btrue.ntype.?.*, .t2 = bfalse.ntype.?.* } } };
+    if (!btrue.deepEqual(bfalse.*, false)) {
+        self.errctx = .{
+            .position = node.position,
+            .value = .{
+                .DisjointTypes = .{
+                    .t1 = btrue.*,
+                    .t2 = bfalse.*,
+                },
+            },
+        };
         return error.TypeMismatch;
     }
 
-    node.ntype = btrue.ntype;
-    return node;
+    node.ntype = btrue;
 }
 
-fn analyzeIntr(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
+fn analyzeIntr(self: *Analyzer, currctx: *TContext, node: *Node) Error!void {
     const intr = node.data.intr;
     var innerctx = TContext{};
     defer innerctx.deinit(self.allocator);
 
     innerctx.parent = currctx;
 
-    for (intr.intermediates) |inter| {
-        inter.* = (try analyze(self, &innerctx, inter)).*;
-    }
+    for (intr.intermediates) |inter|
+        try analyze(self, &innerctx, inter);
 
-    intr.application.?.* = (try analyze(self, &innerctx, intr.application.?)).*;
-    return node;
+    try analyze(self, &innerctx, intr.application.?);
 }
 
-fn analyzeRange(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
+fn analyzeRange(self: *Analyzer, currctx: *TContext, node: *Node) Error!void {
     const range = node.data.range;
-    const start = try analyze(self, currctx, range.start);
-    const end = try analyze(self, currctx, range.end);
-    const epsilon = try analyze(self, currctx, range.epsilon);
+    try analyze(self, currctx, range.start);
+    try analyze(self, currctx, range.end);
+    try analyze(self, currctx, range.epsilon);
+    const rs = range.start.ntype.?;
+    const re = range.end.ntype.?;
+    const rp = range.epsilon.ntype.?;
 
-    if (!start.ntype.?.isValued())
+    if (!rs.isValued())
         return error.RequiresValue;
 
-    if (!end.ntype.?.isValued())
+    if (!re.isValued())
         return error.RequiresValue;
 
-    if (!epsilon.ntype.?.isValued())
+    if (!rp.isValued())
         return error.RequiresValue;
 
-    if (start.ntype.?.data == .integer and end.ntype.?.data == .integer and epsilon.ntype.?.data == .integer) {
-        const istart = start.ntype.?.data.integer.value;
-        const iend = end.ntype.?.data.integer.value;
+    if (rs.data == .integer and re.data == .integer and rp.data == .integer) {
+        const istart = rs.data.integer.value;
+        const iend = re.data.integer.value;
         //const ivalue = epsilon.ntype.?.data.integer.value;
 
         const trange = try self.talloc.create(Type);
 
         trange.* = .{
-            .pointerIndex = 0,
             .data = .{
                 .integer = .{
                     .start = istart.?,
@@ -607,17 +619,16 @@ fn analyzeRange(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
         };
 
         node.ntype = trange;
-        return node;
+        return;
     }
 
-    if (start.ntype.?.data == .decimal and end.ntype.?.data == .decimal and epsilon.ntype.?.data == .decimal) {
-        const dstart = start.ntype.?.data.decimal.value;
-        const dend = end.ntype.?.data.decimal.value;
+    if (rs.data == .decimal and re.data == .decimal and rp.data == .decimal) {
+        const dstart = rs.data.decimal.value;
+        const dend = re.data.decimal.value;
 
         const trange = try self.talloc.create(Type);
 
         trange.* = .{
-            .pointerIndex = 0,
             .data = .{
                 .decimal = .{
                     .start = dstart.?,
@@ -628,7 +639,7 @@ fn analyzeRange(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
         };
 
         node.ntype = trange;
-        return node;
+        return;
     }
 
     return error.TypeMismatch;
@@ -636,7 +647,7 @@ fn analyzeRange(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
 
 const debug = @import("debug.zig");
 
-fn analyzeModule(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
+fn analyzeModule(self: *Analyzer, currctx: *TContext, node: *Node) Error!void {
     // modules are always top level, we don't need to return useful nodes
     const mod = node.data.mod;
 
@@ -652,7 +663,7 @@ fn analyzeModule(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
                 }
             }
         }
-        return node;
+        return;
     }
 
     if (mod.direction) {
@@ -690,20 +701,18 @@ fn analyzeModule(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
                 return error.UndefinedReference;
             }
         }
-
-        return node;
+        return;
     }
     // todo: check from build if file tree matches the module path
     for (mod.nodes) |mnode| {
         const pname = mnode.data.expr.name;
-        const modnode = try analyze(self, currctx, mnode);
-        const res = try modnode.ntype.?.deepCopy(self.talloc);
+        try analyze(self, currctx, mnode);
+        const res = mnode.ntype.?;
         try self.modules.addTree(self.allocator, mod.path, pname, res);
     }
-    return node;
 }
 
-fn analyzeExpr(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
+fn analyzeExpr(self: *Analyzer, currctx: *TContext, node: *Node) Error!void {
     const expr = node.data.expr;
     var innerctx = TContext{};
     defer innerctx.deinit(self.allocator);
@@ -717,7 +726,7 @@ fn analyzeExpr(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
         const param_type = try self.talloc.create(Type);
         param_type.* = Type.initCasting(cast_idx);
         param_type.paramIdx = @intCast(i + 1);
-        param.ntype = try param_type.deepCopy(self.talloc);
+        param.ntype = param_type;
         param_types[i] = param_type;
         try innerctx.add(self.allocator, param.data.ref, param.ntype.?);
     }
@@ -745,11 +754,11 @@ fn analyzeExpr(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
     if (expr.expr) |body_node| {
         _ = try analyze(self, &innerctx, body_node);
         if (body_node.ntype) |body_type| {
-            return_type = try body_type.deepCopy(self.talloc);
+            return_type = body_type;
         } else {
             return_type = try self.talloc.create(Type);
-            return_type.* = Type.initCasting(self.castIndex);
             self.castIndex += 1;
+            return_type.* = Type.initCasting(self.castIndex);
         }
     } else {
         return_type = try self.talloc.create(Type);
@@ -762,7 +771,6 @@ fn analyzeExpr(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
         const i = expr.params.len - idx;
         const ft = try self.talloc.create(Type);
         ft.* = .{
-            .pointerIndex = 0,
             .data = .{
                 .function = .{
                     .argument = param_types[i],
@@ -774,7 +782,7 @@ fn analyzeExpr(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
         func_type = ft;
     }
 
-    node.ntype = try func_type.deepCopy(self.talloc);
+    node.ntype = func_type;
 
     var it = self.substitutions.iterator();
     while (it.next()) |val| {
@@ -782,21 +790,42 @@ fn analyzeExpr(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
     }
     // Step 6: Add to current context
     try currctx.add(self.allocator, expr.name, func_type);
-
-    return node;
 }
 
-fn analyzeSum(self: *Analyzer, currctx: *TContext, node: *Node) Error!*Node {
+fn analyzeSum(self: *Analyzer, currctx: *TContext, node: *Node) Error!void {
     const sum = node.data.sum;
 
-    const elements = std.ArrayList(Type).init(self.allocator);
+    var elements = std.ArrayList(*Type).init(self.talloc);
 
     for (sum) |el| {
-        _ = try self.analyze(currctx, el);
-        elements.append(el.ntype.?);
+        try self.analyze(currctx, el);
+        try elements.append(el.ntype.?);
     }
 
-    
+    node.ntype = try self.talloc.create(Type);
+    node.ntype.?.* = Type{
+        .data = .{
+            .aggregate = .{ .types = try elements.toOwnedSlice(), .isSum = true },
+        },
+    };
+}
+
+fn analyzeAggr(self: *Analyzer, currctx: *TContext, node: *Node) Error!void {
+    const prod = node.data.aggr;
+
+    var elements = std.ArrayList(*Type).init(self.talloc);
+
+    for (prod.children) |el| {
+        try self.analyze(currctx, el);
+        try elements.append(el.ntype.?);
+    }
+
+    node.ntype = try self.talloc.create(Type);
+    node.ntype.?.* = Type{
+        .data = .{
+            .aggregate = .{ .types = try elements.toOwnedSlice(), .isSum = false },
+        },
+    };
 }
 
 fn binopt(comptime T: type, a: ?T, b: ?T, func: anytype) ?@TypeOf(func(T, a.?, b.?)) {
@@ -825,20 +854,17 @@ fn instantiateType(haysack: *Type, find: *Type, replace: *Type) void {
         .integer, .decimal, .boolean, .casting => if (haysack.deepEqual(find.*, true)) {
             haysack.* = replace.*;
         } else {},
+        .pointer => |v| instantiateType(v, find, replace),
         .array => |v| {
             instantiateType(v.indexer, find, replace);
 
-            for (v.value) |*i|
-                if (i.*) |_|
-                    instantiateType(&(i.*.?), find, replace);
+            for (v.value) |i|
+                if (i) |t|
+                    instantiateType(t, find, replace);
         },
         .aggregate => |v| {
-            for (v.types) |*i|
+            for (v.types) |i|
                 instantiateType(i, find, replace);
-
-            for (v.values) |*i|
-                if (i.*) |_|
-                    instantiateType(&(i.*.?), find, replace);
         },
         .function => |v| {
             instantiateType(v.argument, find, replace);
@@ -870,7 +896,7 @@ fn instantiate(node: *Node, find: *Type, replace: *Type) void {
         .arr => |v| {
             for (v) |i|
                 instantiate(i, find, replace);
-        },        
+        },
         .unr => |v| instantiate(v.val, find, replace),
         .bin => |v| {
             instantiate(v.lhs, find, replace);

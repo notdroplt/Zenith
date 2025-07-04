@@ -70,6 +70,9 @@ data: union(enum) {
         value: ?f64,
     },
 
+    /// Point to another type
+    pointer: *Type,
+
     /// Sized collection of elements
     array: struct {
         /// What is the type for each element on the array
@@ -79,21 +82,17 @@ data: union(enum) {
         size: u64,
 
         /// Array value, if any
-        value: []?Type,
+        value: []?*Type,
     },
 
     /// Collection of heterogeneous data, can be either from a sum
     /// or a product type
     aggregate: struct {
         /// All types inside the struct
-        types: []Type,
+        types: []*Type,
 
-        /// Offsets for all elements, increasing order when analyzed,
-        /// but byte offsets after perfect alignment
-        indexes: []i64,
-
-        /// Values for the elements in the aggregate
-        values: []?Type,
+        /// check to see if this aggregate is a sum or a product
+        isSum: bool,
     },
 
     /// Transformer of values
@@ -112,14 +111,17 @@ data: union(enum) {
     casting: Casting,
 },
 
-/// How many pointers deep is this type
-pointerIndex: u8 = 0,
-
 /// Apply arguments into this closure
 partialArgs: ?[]?IR.Value = null,
 
 /// 1 + param index, making retrieval easier
 paramIdx: u8 = 0,
+
+/// Size of this type
+tsize: i32 = 0,
+
+/// Padding of this type
+tpadding: i32 = 0,
 
 /// How many arguments is this function still expecting
 pub fn expectedArgs(self: Type) usize {
@@ -176,6 +178,7 @@ pub fn isValued(self: Type) bool {
         .boolean => |v| v != null,
         .integer => |v| v.value != null,
         .decimal => |v| v.value != null,
+        .pointer => |v| v.isValued(),
         .array => |v| {
             for (v.value) |value|
                 if (value == null or !value.?.isValued())
@@ -183,8 +186,8 @@ pub fn isValued(self: Type) bool {
             return true;
         },
         .aggregate => |v| {
-            for (v.values) |value|
-                if (value == null or !value.?.isValued())
+            for (v.types) |value|
+                if (!value.isValued())
                     return false;
             return true;
         },
@@ -193,10 +196,37 @@ pub fn isValued(self: Type) bool {
     };
 }
 
+pub fn devalue(self: *Type) void {
+    switch (self.data) {
+        .boolean => self.data.boolean = null,
+        .integer => self.data.integer.value = null,
+        .decimal => self.data.decimal.value != null,
+        .pointer => |v| v.devalue(),
+        .array => |v| {
+            self.data.array.indexer.devalue();
+            for (v.value) |v| {
+                if (v) |i| i.devalue();
+            }
+            return true;
+        },
+        .aggregate => |v| {
+            for (v.types) |value|
+                value.devalue();
+            return true;
+        },
+        .function => |v| {
+            v.argument.devalue();
+            v.ret.devalue();
+        },
+        .casting => {},
+    }
+}
+
 pub fn isTemplated(self: Type) bool {
     return switch (self.data) {
         .casting => true,
         .function => |f| f.argument.isTemplated() and f.ret.isTemplated(),
+        .pointer => |p| p.isTemplated(),
         .array => |a| a.indexer.isTemplated(),
         .aggregate => |a| {
             for (a.types) |t|
@@ -210,7 +240,6 @@ pub fn isTemplated(self: Type) bool {
 
 pub fn deepEqual(t1: Type, t2: Type, checkValued: bool) bool {
     if (std.meta.activeTag(t1.data) != std.meta.activeTag(t2.data)) return false;
-    if (t1.pointerIndex != t2.pointerIndex) return false;
 
     return switch (t1.data) {
         .integer => |v1| {
@@ -221,6 +250,7 @@ pub fn deepEqual(t1: Type, t2: Type, checkValued: bool) bool {
             const v2 = t2.data.decimal;
             return v1.start == v2.start and v1.end == v2.end and (!checkValued or v1.value == v2.value);
         },
+        .pointer => t1.data.pointer.deepEqual(t2.data.pointer.*, checkValued),
         .boolean => t1.data.boolean == t2.data.boolean,
         .array => {
             if (t1.data.array.size != t2.data.array.size) return false;
@@ -229,14 +259,14 @@ pub fn deepEqual(t1: Type, t2: Type, checkValued: bool) bool {
 
             for (t1.data.array.value, t2.data.array.value) |a, b| {
                 if (a == null or b == null) return false;
-                if (!deepEqual(a.?, b.?, checkValued)) return false;
+                if (!deepEqual(a.?.*, b.?.*, checkValued)) return false;
             }
             return true;
         },
         .aggregate => |v| {
             if (v.types.len != t2.data.aggregate.types.len) return false;
             for (v.types, t2.data.aggregate.types) |a, b| {
-                if (!deepEqual(a, b, checkValued)) return false;
+                if (!deepEqual(a.*, b.*, checkValued)) return false;
             }
             return true;
         },
@@ -261,27 +291,32 @@ pub fn deepCopy(self: Type, alloc: std.mem.Allocator) !*Type {
         .boolean => |v| {
             t.* = initBool(v);
         },
+        .pointer => {
+            t.* = self;
+            t.data.pointer = try self.data.pointer.deepCopy(alloc);
+        },
         .array => |v| {
-            var newValues = try alloc.alloc(?Type, v.value.len);
+            var newValues = try alloc.alloc(?*Type, v.value.len);
             for (v.value, 0..) |value, i| {
                 if (value == null) continue;
                 const res = try value.?.deepCopy(alloc);
-                newValues[i] = res.*;
-                alloc.destroy(res); // only the top
+                newValues[i] = res;
             }
 
-            t.data = .{ .array = .{
-                .size = v.size,
-                .indexer = try v.indexer.deepCopy(alloc),
-                .value = newValues,
-            } };
+            t.data = .{
+                .array = .{
+                    .size = v.size,
+                    .indexer = try v.indexer.deepCopy(alloc),
+                    .value = newValues,
+                },
+            };
         },
         .aggregate => |v| {
-            const newTypes = try alloc.alloc(Type, v.types.len);
+            const newTypes = try alloc.alloc(*Type, v.types.len);
             errdefer alloc.free(newTypes);
             for (v.types, 0..) |value, i| {
                 const res = try value.deepCopy(alloc);
-                newTypes[i] = res.*;
+                newTypes[i] = res;
                 alloc.destroy(res);
             }
             t.data.aggregate.types = newTypes;
@@ -322,14 +357,14 @@ pub const SetResult = union(enum) {
 pub fn join(a: Type, b: Type) SetResult {
     const ad = a.data;
     const bd = b.data;
-    
+
     if (b.data == .casting) return .Left;
     if (a.data == .casting) return .Right;
-    
+
     if (std.meta.activeTag(a.data) != std.meta.activeTag(bd))
         return .Impossible;
 
-    if (a.deepEqual(b, true)) 
+    if (a.deepEqual(b, true))
         return SetResult.Left;
 
     switch (ad) {
@@ -343,10 +378,7 @@ pub fn join(a: Type, b: Type) SetResult {
                 return SetResult.Right;
 
             return SetResult{
-                .New = Type.initInt(
-                    @min(ia.start, ib.start),
-                    @max(ia.start, ib.start),
-                    ia.value orelse ib.value),
+                .New = Type.initInt(@min(ia.start, ib.start), @max(ia.start, ib.start), ia.value orelse ib.value),
             };
         },
         .decimal => |da| {
@@ -358,10 +390,7 @@ pub fn join(a: Type, b: Type) SetResult {
                 return SetResult.Right;
 
             return SetResult{
-                .New = Type.initFloat(
-                    @min(da.start, db.start),
-                    @max(da.start, db.start),
-                    da.value orelse db.value),
+                .New = Type.initFloat(@min(da.start, db.start), @max(da.start, db.start), da.value orelse db.value),
             };
         },
         .array => |aa| {
@@ -418,55 +447,54 @@ pub fn getCastings(self: Type, alloc: std.mem.Allocator) ![]const Casting {
     return try list.toOwnedSlice();
 }
 
-pub fn hash(self: Type) u64 {
-    var hasher = std.hash.Wyhash.init(0);
-
-    hasher.update(&[_]u8{@intFromEnum(self.data)});
-    hasher.update(&[_]u8{self.pointerIndex});
-    hasher.update(&[_]u8{self.paramIdx});
+fn hashImpl(self: Type, hasher: *std.hash.Wyhash) void {
+    var h = hasher;
+    h.update(&[_]u8{@intFromEnum(self.data), self.paramIdx});
 
     switch (self.data) {
         .boolean => |v| {
-            if (v) |b| hasher.update(&[_]u8{if (b) 1 else 0});
+            if (v) |b| h.update(&[_]u8{if (b) 1 else 0});
         },
         .integer => |v| {
-            hasher.update(std.mem.asBytes(&v.start));
-            hasher.update(std.mem.asBytes(&v.end));
-            if (v.value) |val| hasher.update(std.mem.asBytes(&val));
+            h.update(std.mem.asBytes(&v.start));
+            h.update(std.mem.asBytes(&v.end));
+            if (v.value) |val| h.update(std.mem.asBytes(&val));
         },
         .decimal => |v| {
-            hasher.update(std.mem.asBytes(&v.start));
-            hasher.update(std.mem.asBytes(&v.end));
-            if (v.value) |val| hasher.update(std.mem.asBytes(&val));
+            h.update(std.mem.asBytes(&v.start));
+            h.update(std.mem.asBytes(&v.end));
+            if (v.value) |val| h.update(std.mem.asBytes(&val));
         },
+        .pointer => |v| return hashImpl(v.*, h),
         .array => |v| {
-            hasher.update(std.mem.asBytes(&v.indexer.hash()));
-            hasher.update(std.mem.asBytes(&v.size));
+            hashImpl(v.indexer.*, h);
+            h.update(std.mem.asBytes(&v.size));
             for (v.value) |elem| {
-                if (elem) |e| hasher.update(std.mem.asBytes(&e.hash()));
+                if (elem) |e| hashImpl(e.*, h);
             }
         },
         .aggregate => |v| {
-            for (v.types) |t| hasher.update(std.mem.asBytes(&t.hash()));
-            for (v.indexes) |idx| hasher.update(std.mem.asBytes(&idx));
-            for (v.values) |val| {
-                if (val) |v2| hasher.update(std.mem.asBytes(&v2.hash()));
-            }
+            for (v.types) |t| hashImpl(t.*, h);
+            h.update(&[_]u8{if (v.isSum) 1 else 0});
         },
         .function => |v| {
-            hasher.update(std.mem.asBytes(&v.argument.hash()));
-            hasher.update(std.mem.asBytes(&v.ret.hash()));
+            hashImpl(v.argument.*, h);
+            hashImpl(v.ret.*, h);
         },
         .casting => |v| {
-            hasher.update(std.mem.asBytes(&v));
+            h.update(std.mem.asBytes(&v));
         },
     }
-    return hasher.final();
+}
+
+pub fn hash(self: Type) u64 {
+    var hasher = std.hash.Wyhash.init(0);
+    self.hashImpl(&hasher);
+    return hasher.final();    
 }
 
 pub fn serialize(self: Type, writer: anytype) !void {
     try writer.writeByte(@intFromEnum(self.data));
-    try writer.writeByte(self.pointerIndex);
     try writer.writeByte(self.paramIdx);
 
     switch (self.data) {
@@ -525,11 +553,9 @@ pub fn serialize(self: Type, writer: anytype) !void {
 
 pub fn deserialize(reader: anytype, allocator: std.mem.Allocator) !Type {
     const tag = @as(@TypeOf(Type.data), try reader.readByte());
-    const pointerIndex = try reader.readByte();
     const paramIdx = try reader.readByte();
 
     var t: Type = undefined;
-    t.pointerIndex = pointerIndex;
     t.paramIdx = paramIdx;
 
     switch (@as(Type.data, @enumFromInt(tag))) {
@@ -554,7 +580,7 @@ pub fn deserialize(reader: anytype, allocator: std.mem.Allocator) !Type {
         .array => {
             const indexer = try allocator.create(Type);
             indexer.* = try deserialize(reader, allocator);
-            const size = try reader.readInt(i64, .little);
+            const s = try reader.readInt(i64, .little);
             const len = try reader.readInt(u32, .little);
             const value = try allocator.alloc(?Type, len);
             for (value) |*elem| {
@@ -566,7 +592,7 @@ pub fn deserialize(reader: anytype, allocator: std.mem.Allocator) !Type {
                     elem.* = null;
                 }
             }
-            t.data = .{ .array = .{ .indexer = indexer, .size = size, .value = value } };
+            t.data = .{ .array = .{ .indexer = indexer, .size = s, .value = value } };
         },
         .aggregate => {
             const types_len = try reader.readInt(u32, .little);
@@ -609,6 +635,77 @@ pub fn deserialize(reader: anytype, allocator: std.mem.Allocator) !Type {
         },
     }
     return t;
+}
+
+pub fn size(self: Type) isize {
+    if (self.tsize != 0) return self.tsize;
+
+    var s = 0;
+    switch (self.data) {
+        .boolean => s = 1,
+        .function => s = 8, // function pointers only (?)
+        .casting => s = -1,
+        .pointer => s = 8,
+        .aggregate => |v| if (v.isSum) {
+            for (v.types) |t| {
+                const p = t.padding();
+                const rem = @mod(s, p);
+                s += t.size() + if (rem == 0) 0 else p - rem;
+            }
+        } else {
+            for (v.types) |t| s = @max(s, t.size());
+        },
+        .array => |v| s = v.indexer.size() * v.size,
+        .integer => |v| {
+            const items = @as(u64, @intCast(v.end - v.end)) + 1;
+            const bits = std.math.log2_int_ceil(u64, items);
+            s = @divFloor(bits + 7, 8);
+        },
+        .decimal => |v|
+        // TODO: f128 and f256 (?)
+        s = if (v.end >= std.math.floatMax(f32) or v.start <= -std.math.floatMax(f32))
+            8
+        else
+            4,
+    }
+
+    self.tsize = s;
+    return s;
+}
+
+pub fn padding(self: Type) isize {
+    if (self.tpadding != 0) return self.tpadding;
+
+    var p = 0;
+    switch (self.data) {
+        .boolean => p = 1,
+        .function => p = 8,
+        .casting => p = -1,
+        .pointer => p = 8,
+        .aggregate => |v| for (v.types) |t| {
+            p = @max(p, t.padding());
+        },
+        .array => |v| p = v.indexer.padding(),
+        // only for scalar integers
+        else => p = self.size(),
+    }
+    self.tpadding = p;
+    return p;
+}
+
+/// try to avoid padding inside a type
+pub fn perfectType(self: Type) void {
+    if (self.isTemplated() // templates will float to the top
+    or self.data != .aggregate 
+    or self.data.aggregate.isSum)
+        return; // almost everyone is perfect
+
+    const agg = self.data.aggregate;
+    std.mem.sort(Type, agg.types, {}, struct {
+        fn lessThan(_: void, a: Type, b: Type) bool {
+            return a.padding() > b.padding();
+        }
+    }.lessThan);
 }
 
 pub const TypeContext = struct {

@@ -3,7 +3,7 @@ const zenith = @import("zenith.zig");
 
 pub fn main() !u8 {
     var gpa = std.heap.GeneralPurposeAllocator(.{
-        .verbose_log = true
+        //.verbose_log = true
     }){};
     const alloc = gpa.allocator();
     const start_time = std.time.nanoTimestamp();

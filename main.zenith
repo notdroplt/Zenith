@@ -1,4 +1,4 @@
-add x y = 1 + 2;
+add x y = x + 3;
 
 optional : Has { t' } | Empty;
 

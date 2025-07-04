@@ -423,6 +423,10 @@ pub fn printType(writer: anytype, t: Type) !void {
                 try writer.print("Bool", .{});
             }
         },
+        .pointer => |v| {
+            try writer.print("*", .{});
+            try printType(writer, v.*);
+        },
         .array => |arr| {
             try printType(writer, arr.indexer.*);
             try writer.print("#{}", .{arr.size});
