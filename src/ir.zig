@@ -1,6 +1,6 @@
 const std = @import("std");
 const misc = @import("misc.zig");
-const Context = @import("context.zig").Context;
+const Context = @import("context.zig");
 const Type = @import("types.zig");
 const Node = @import("node.zig");
 const Parser = @import("parser.zig");
@@ -100,10 +100,10 @@ const PolyRegistryKey = struct {
     polyType: *Type,
 };
 
-/// Key and context for monomorphised functions
+/// Key and context for monomorphic functions
 const TemplateRegistry = struct {
     /// at which block does this function start from
-    blockId: BlockOffset = 0, 
+    blockId: BlockOffset = 0,
 
     /// castings at the same index are instanced into the according types
     instances: []const Type = &[_]Type{},
@@ -121,7 +121,7 @@ const PolyRegistryContext = struct {
     pub fn eql(_: PolyRegistryContext, pk1: PolyRegistryKey, pk2: PolyRegistryKey) bool {
         if (!std.mem.eql(u8, pk1.name, pk2.name))
             return false;
-        
+
         if (!pk1.polyType.deepEqual(pk2.polyType.*, true))
             return false;
 
@@ -148,20 +148,15 @@ regIndex: SNIR.InfiniteRegister = 8,
 alloc: std.mem.Allocator,
 
 /// Error context
-errctx: misc.ErrorContext = .{ .value = .NoContext },
+errorContext: misc.ErrorContext = .{ .value = .NoContext },
 
 /// Variable context
-context: Context(*Type) = undefined,
+context: Context,
 
-polyregistry: std.HashMapUnmanaged(
-    PolyRegistryKey,
-    std.ArrayListUnmanaged(TemplateRegistry),
-    PolyRegistryContext,
-    std.hash_map.default_max_load_percentage
-) = .{},
+polyRegistry: std.HashMapUnmanaged(PolyRegistryKey, std.ArrayListUnmanaged(TemplateRegistry), PolyRegistryContext, std.hash_map.default_max_load_percentage) = .{},
 
 /// Instantiate a new IR context
-pub fn init(alloc: std.mem.Allocator, context: Context(*Type)) IR {
+pub fn init(alloc: std.mem.Allocator, context: Context) IR {
     return .{ .alloc = alloc, .context = context };
 }
 
@@ -173,7 +168,7 @@ pub fn deinit(self: *IR) void {
         node.value_ptr.*.instructions.deinit(self.alloc);
     }
     self.nodes.deinit(self.alloc);
-    self.polyregistry.deinit(self.alloc);
+    self.polyRegistry.deinit(self.alloc);
     self.data.deinit(self.alloc);
 }
 
@@ -189,21 +184,20 @@ pub fn fromNodes(self: *IR, nodes: []*Node) !void {
                 .polyType = node.ntype.?,
             };
 
-            try self.polyregistry.put(self.alloc, key, .{});
+            try self.polyRegistry.put(self.alloc, key, .{});
             continue;
         }
 
         if (node.ntype.?.isValued()) {
             if (self.data.getEntry(node.data.expr.name)) |_| {
-                self.errctx = .{
-                    .position = node.position,
-                    .value = .ConstantReassignment
-                };
+                self.errorContext = .{ .position = node.position, .value = .ConstantReassignment };
                 return error.ConstantReassignment;
             }
             try self.data.put(self.alloc, node.data.expr.name, node.ntype.?);
             continue;
         }
+
+        if (node.data != .expr or node.data.expr.expr == null) continue;
 
         const bid = try self.newBlock();
         const val = try self.blockNode(bid, node);
@@ -252,7 +246,7 @@ fn calculateLoadSize(self: *IR, value: *Type) IRError!SNIR.Opcodes {
         return SNIR.Opcodes.ld_dwrd;
 
     if (value.data != .integer) {
-        self.errctx = .{
+        self.errorContext = .{
             .value = .{
                 .InvalidLoad = value,
             },
@@ -293,17 +287,17 @@ fn calculateStoreSize(value: *Type) IRError!SNIR.Opcodes {
     return SNIR.Opcodes.st_dwrd;
 }
 
-fn blockNode(self: *IR, currblock: BlockOffset, node: *Node) IRError!Value {
+fn blockNode(self: *IR, block: BlockOffset, node: *Node) IRError!Value {
     switch (node.data) {
-        .int => return self.blockInteger(currblock, node),
-        .dec => return self.blockDecimal(currblock, node),
-        // .str => return self.blockString(currblock, node),
-        .ref => return self.blockReference(currblock, node),
-        .unr => return self.blockUnary(currblock, node),
-        .bin => return self.blockBinary(currblock, node),
-        .call => return self.blockCall(currblock, node),
-        .ter => return self.blockTernary(currblock, node),
-        .expr => return self.blockExpr(currblock, node),
+        .int => return self.blockInteger(block, node),
+        .dec => return self.blockDecimal(block, node),
+        // .str => return self.blockString(block, node),
+        .ref => return self.blockReference(block, node),
+        .unr => return self.blockUnary(block, node),
+        .bin => return self.blockBinary(block, node),
+        .call => return self.blockCall(block, node),
+        .ter => return self.blockTernary(block, node),
+        .expr => return self.blockExpr(block, node),
         else => return IRError.InvalidBlock,
     }
 }
@@ -319,7 +313,7 @@ fn appendIfConstant(self: *IR, block: BlockOffset, value: Value) IRError!SNIR.In
                     .rd = reg,
                     .r1 = 0,
                     .immediate = @bitCast(value.vtype.data.decimal.value.?),
-                });    
+                });
             } else {
                 try self.addInstruction(block, .{
                     .opcode = SNIR.Opcodes.mov,
@@ -363,8 +357,6 @@ fn blockReference(self: *IR, block: BlockOffset, node: *Node) IRError!Value {
     if (refType.isValued())
         return self.constantFromType(block, node);
 
-    std.debug.print("param idx: {}\n", .{refType});
-
     if (refType.paramIdx > 0) {
         return .{
             .vtype = refType,
@@ -373,7 +365,7 @@ fn blockReference(self: *IR, block: BlockOffset, node: *Node) IRError!Value {
                 .instruction = .{
                     .opcode = SNIR.Opcodes.mov_param,
                     .rd = self.allocateRegister(),
-                    .r1 = refType.paramIdx,
+                    .r1 = refType.paramIdx % (@typeInfo(@TypeOf(refType.paramIdx)).int.bits / 2),
                 },
             },
         };
@@ -385,7 +377,7 @@ fn blockReference(self: *IR, block: BlockOffset, node: *Node) IRError!Value {
         .value = .{
             .instruction = .{
                 .opcode = self.calculateLoadSize(refType) catch |err| {
-                    self.errctx.position = node.position;
+                    self.errorContext.position = node.position;
                     return err;
                 },
                 .rd = self.allocateRegister(),
@@ -401,7 +393,7 @@ fn blockUnary(self: *IR, block: BlockOffset, node: *Node) IRError!Value {
         return self.constantFromType(block, node);
 
     const unary = node.data.unr;
-    const unrtype = node.ntype;
+    const unrType = node.ntype;
 
     const inner = try self.blockNode(block, unary.val);
 
@@ -423,16 +415,16 @@ fn blockUnary(self: *IR, block: BlockOffset, node: *Node) IRError!Value {
             .r2 = result,
         },
         .Star => Instruction{
-            .opcode = self.calculateLoadSize(unrtype.?) catch |err| {
-                self.errctx.position = node.position;
+            .opcode = self.calculateLoadSize(unrType.?) catch |err| {
+                self.errorContext.position = node.position;
                 return err;
             },
             .rd = self.allocateRegister(),
             .r1 = result,
         },
         .Amp => Instruction{
-            .opcode = calculateStoreSize(unrtype.?) catch |err| {
-                self.errctx.position = node.position;
+            .opcode = calculateStoreSize(unrType.?) catch |err| {
+                self.errorContext.position = node.position;
                 return err;
             },
             .rd = self.allocateRegister(),
@@ -442,7 +434,7 @@ fn blockUnary(self: *IR, block: BlockOffset, node: *Node) IRError!Value {
     };
 
     return .{
-        .vtype = unrtype.?,
+        .vtype = unrType.?,
         .from = inner.from,
         .value = .{ .instruction = instruction },
     };
@@ -452,17 +444,14 @@ fn getBinaryOp(self: *IR, from: BlockOffset, node: *Node, lreg: SNIR.InfiniteReg
     const binary = node.data.bin;
 
     if (node.ntype.?.data == .casting) {
-        self.errctx = .{
-            .position = node.position,
-            .value = .{ .InvalidLoad = node.ntype.? }
-        };
+        self.errorContext = .{ .position = node.position, .value = .{ .InvalidLoad = node.ntype.? } };
         return error.InvalidLoad;
     }
 
     const isSigned =
         (binary.lhs.ntype == null or binary.rhs.ntype == null) or
         (binary.lhs.ntype.?.data.integer.start < 0 and binary.rhs.ntype.?.data.integer.start < 0);
-    
+
     return switch (binary.op) {
         .Plus => .addr,
         .Min => .subr,
@@ -496,7 +485,7 @@ fn blockBinary(self: *IR, block: BlockOffset, node: *Node) IRError!Value {
         return self.constantFromType(block, node);
 
     const binary = node.data.bin;
-    const bintype = node.ntype;
+    const binType = node.ntype;
     const swap = binary.op == .Cge or binary.op == .Clt;
 
     const left = try self.blockNode(block, binary.lhs);
@@ -510,7 +499,7 @@ fn blockBinary(self: *IR, block: BlockOffset, node: *Node) IRError!Value {
     const instrOp = try self.getBinaryOp(right.from, node, lreg, rreg);
 
     return .{
-        .vtype = bintype.?,
+        .vtype = binType.?,
         .from = right.from,
         .value = .{
             .instruction = .{
@@ -528,29 +517,27 @@ fn blockTernary(self: *IR, block: BlockOffset, node: *Node) IRError!Value {
         return self.constantFromType(block, node);
 
     const ternary = node.data.ter;
-    const ternarytype = node.ntype;
-
     const cond = try blockNode(self, block, ternary.cond);
 
     if (cond.value == .constant) {
         return blockNode(self, cond.from, if (cond.vtype.data.boolean.?) ternary.btrue else ternary.bfalse);
     }
 
-    const condreg = try self.appendIfConstant(cond.from, cond);
-    const trueblock = try self.newBlock();
-    errdefer self.deinitBlock(trueblock);
+    const condReg = try self.appendIfConstant(cond.from, cond);
+    const trueBlock = try self.newBlock();
+    errdefer self.deinitBlock(trueBlock);
 
-    const btrue = try self.blockNode(trueblock, ternary.btrue);
-    const treg = try self.appendIfConstant(trueblock, btrue);
+    const btrue = try self.blockNode(trueBlock, ternary.btrue);
+    const treg = try self.appendIfConstant(trueBlock, btrue);
 
-    const falseblock = try self.newBlock();
-    errdefer self.deinitBlock(falseblock);
+    const falseBlock = try self.newBlock();
+    errdefer self.deinitBlock(falseBlock);
 
-    const bfalse = try self.blockNode(falseblock, ternary.bfalse);
-    const freg = try self.appendIfConstant(falseblock, bfalse);
+    const bfalse = try self.blockNode(falseBlock, ternary.bfalse);
+    const freg = try self.appendIfConstant(falseBlock, bfalse);
 
     if (treg != freg) {
-        try self.addInstruction(falseblock, .{
+        try self.addInstruction(falseBlock, .{
             .opcode = SNIR.Opcodes.mov_reg,
             .rd = treg,
             .r1 = freg,
@@ -563,38 +550,38 @@ fn blockTernary(self: *IR, block: BlockOffset, node: *Node) IRError!Value {
     //        \        /
     //        merge block
 
-    try self.newEdge(cond.from, trueblock);
-    try self.newEdge(cond.from, falseblock);
+    try self.newEdge(cond.from, trueBlock);
+    try self.newEdge(cond.from, falseBlock);
 
-    const mergeblock = try self.newBlock();
-    errdefer self.deinitBlock(mergeblock);
+    const mergeBlock = try self.newBlock();
+    errdefer self.deinitBlock(mergeBlock);
 
-    try self.newEdge(btrue.from, mergeblock);
-    try self.newEdge(bfalse.from, mergeblock);
+    try self.newEdge(btrue.from, mergeBlock);
+    try self.newEdge(bfalse.from, mergeBlock);
 
     // jump on false
     try self.addInstruction(cond.from, .{
         .opcode = SNIR.Opcodes.blk_jmp,
         .r1 = @intFromEnum(SNIR.BlockJumpCondition.Equal),
-        .r2 = condreg,
+        .r2 = condReg,
         .rd = 0,
-        .immediate = @truncate(falseblock),
+        .immediate = @truncate(falseBlock),
     });
 
     try self.addInstruction(cond.from, .{
         .opcode = SNIR.Opcodes.blk_jmp,
         .r1 = @intFromEnum(SNIR.BlockJumpCondition.Unconditional),
         .r2 = 0,
-        .immediate = @truncate(trueblock),
+        .immediate = @truncate(trueBlock),
     });
 
     return .{
-        .vtype = ternarytype.?,
-        .from = mergeblock,
+        .vtype = node.ntype.?,
+        .from = mergeBlock,
         .value = .{
             .instruction = .{
                 .opcode = SNIR.Opcodes.blk_jmp,
-                .rd = @truncate(mergeblock),
+                .rd = @truncate(mergeBlock),
                 .r1 = @intFromEnum(SNIR.BlockJumpCondition.Unconditional),
                 .r2 = 0,
             },
@@ -624,7 +611,7 @@ fn blockIntermediate(self: *IR, block: BlockOffset, node: *Node) IRError!Value {
     }
 
     if (intrNode.application) |application|
-        return try self.blockNode(post, application);
+        return self.blockNode(post, application);
 
     // all intermediates need to have an application
     // the ones which dont usually are merged into other nodes
@@ -632,11 +619,41 @@ fn blockIntermediate(self: *IR, block: BlockOffset, node: *Node) IRError!Value {
 }
 
 fn blockCall(self: *IR, block: BlockOffset, node: *Node) !Value {
-    var callee = try self.blockNode(block, node.data.call.callee);
-    var caller = try self.blockNode(callee.from, node.data.call.caller);
+    const ncall = node.data.call;
+    const expected_args = ncall.caller.ntype.?.expectedArgs();
+
+    if (expected_args == ncall.callee.len) {
+        var resb = block;
+        const arg_regs = try self.alloc.alloc(SNIR.InfiniteRegister, expected_args);
+        defer self.alloc.free(arg_regs);
+
+        for (ncall.callee, arg_regs) |arg_node, *i| {
+            const arg_val = try self.blockNode(resb, arg_node);
+            i = try self.appendIfConstant(arg_val.from, arg_val);
+            resb = arg_val.from;
+        }
+
+        const resv = try self.blockNode(resb, ncall.caller);
+        
+        reg 
+
+        // Inline instructions from function body
+        for (func_body.instructions.items) |instr| {
+            try self.addInstruction(block, instr);
+        }
+
+        return .{
+            .vtype = ncall.caller.ntype.?.data.function.ret,
+            .from = block,
+            .value = .{ .register = 4 }, // convention: register 4 holds return value
+        };
+    }
+
+    var callee = try self.blockNode(block, ncall.callee);
+
+    var caller = try self.blockNode(callee.from, ncall.caller);
 
     // Handle partial application
-    const expected_args = callee.vtype.expectedArgs();
 
     if (expected_args > 1) {
         if (caller.vtype.partialArgs) |pa| {
@@ -663,10 +680,7 @@ fn blockCall(self: *IR, block: BlockOffset, node: *Node) !Value {
 
     try self.addInstruction(caller.from, instr);
 
-    return .{
-        .vtype = callee.vtype.data.function.ret,
-        .value = .{ .instruction = instr },
-    };
+    return .{ .vtype = callee.vtype.data.function.ret, .value = .{ .register = instr.rd } };
 }
 
 fn blockExpr(self: *IR, block: BlockOffset, node: *Node) IRError!Value {
@@ -678,8 +692,6 @@ fn blockExpr(self: *IR, block: BlockOffset, node: *Node) IRError!Value {
         // refresh registers
         self.regIndex = 8;
     }
-
-    
 
     return self.blockNode(initialBlock, node.data.expr.expr.?);
 }

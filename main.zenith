@@ -1,9 +1,19 @@
-add x y = x + y;
+int : [0; 100; 1];
 
-min x y = x < y ? x : y;
+Rational : Fraction { int; int };
 
-max x y = x > y ? x : y;
+Optional t' : Has { t' } | Empty {};
 
-clamp v vmin vmax = min vmax (max v vmin);
+`|>` x f : Optional t' -> (t' -> Optional u') -> Optional u'
+ = match x {
+  (Has v) -> f v;
+  Empty -> Empty;
+ };
 
-res = clamp 3 0 5;
+module >> "@evaluate" {
+  i = int;
+  optint = Optional int;
+  res1 = Empty;
+  res2 = (Has 250);
+
+}

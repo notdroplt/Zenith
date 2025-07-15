@@ -41,6 +41,11 @@ pub const Error = error{
 /// Define a cast type
 pub const Casting = u32;
 
+pub const Flags = enum(usize) {
+    Materializable = 0,
+    Constructor = 1,
+};
+
 /// Value inside the type
 data: union(enum) {
     /// Boolean: can be true/false/valueless (trool  lol)
@@ -91,8 +96,8 @@ data: union(enum) {
         /// All types inside the struct
         types: []*Type,
 
-        /// check to see if this aggregate is a sum or a product
-        isSum: bool,
+        /// if this is a product type, the constructor is not null
+        constructor: ?misc.String,
     },
 
     /// Transformer of values
@@ -112,7 +117,12 @@ data: union(enum) {
 },
 
 /// Apply arguments into this closure
-partialArgs: ?[]?IR.Value = null,
+partialArgs: ?[]?IR.Value = null, // stupidly cursed way to make a unique_ptr
+
+/// sets flags for this type:
+/// bit 0: is this materializable
+/// bit 1: is this a constructor (only when `.data == .function`)
+flags: std.bit_set.IntegerBitSet(2) = .{ .mask = 0 },
 
 /// 1 + param index, making retrieval easier
 paramIdx: u8 = 0,
@@ -125,9 +135,10 @@ tpadding: i32 = 0,
 
 /// How many arguments is this function still expecting
 pub fn expectedArgs(self: Type) usize {
-    if (self.data == .function)
-        return 1 + self.data.function.body.?.ntype.?.expectedArgs();
-    return 0;
+    return switch (self.data) {
+        .function => |v| 1 + v.body.?.ntype.?.expectedArgs(),
+        else => 0,
+    };
 }
 
 /// Initialize an integer with a range
@@ -280,19 +291,10 @@ pub fn deepCopy(self: Type, alloc: std.mem.Allocator) !*Type {
     const t = try alloc.create(Type);
     errdefer alloc.destroy(t);
     switch (self.data) {
-        .integer => |v| {
-            t.* = initInt(v.start, v.end, v.value);
-        },
-        .decimal => |v| {
-            t.* = initFloat(v.start, v.end, v.value);
-        },
-        .boolean => |v| {
-            t.* = initBool(v);
-        },
-        .pointer => {
-            t.* = self;
-            t.data.pointer = try self.data.pointer.deepCopy(alloc);
-        },
+        .integer => |v| t.* = initInt(v.start, v.end, v.value),
+        .decimal => |v| t.* = initFloat(v.start, v.end, v.value),
+        .boolean => |v| t.* = initBool(v),
+        .pointer => |v| t.data.pointer = try v.deepCopy(alloc),
         .array => |v| {
             var newValues = try alloc.alloc(?*Type, v.value.len);
             for (v.value, 0..) |value, i| {
@@ -312,28 +314,31 @@ pub fn deepCopy(self: Type, alloc: std.mem.Allocator) !*Type {
         .aggregate => |v| {
             const newTypes = try alloc.alloc(*Type, v.types.len);
             errdefer alloc.free(newTypes);
-            for (v.types, 0..) |value, i| {
+            for (v.types, newTypes) |value, *el| {
                 const res = try value.deepCopy(alloc);
-                newTypes[i] = res;
-                alloc.destroy(res);
+                el.* = res;
             }
-            t.data.aggregate.types = newTypes;
-        },
-        .function => |v| {
             t.data = .{
-                .function = .{
-                    .argument = try v.argument.deepCopy(alloc),
-                    .ret = try v.ret.deepCopy(alloc),
-                    .body = v.body,
+                .aggregate = .{
+                    .types = newTypes,
+                    .constructor = v.constructor,
                 },
             };
         },
-        .casting => {
-            t.* = self;
+        .function => |v| t.data = .{
+            .function = .{
+                .argument = try v.argument.deepCopy(alloc),
+                .ret = try v.ret.deepCopy(alloc),
+                .body = v.body,
+            },
         },
+        .casting => t.* = self,
     }
 
     t.paramIdx = self.paramIdx;
+    t.tpadding = self.tpadding;
+    t.tsize = self.tsize;
+    t.flags = self.flags;
     return t;
 }
 
@@ -442,12 +447,12 @@ pub fn getCastings(self: Type, alloc: std.mem.Allocator) ![]const Casting {
     }.collect;
 
     try function(&self, &list);
-    return try list.toOwnedSlice();
+    return list.toOwnedSlice();
 }
 
 fn hashImpl(self: Type, hasher: *std.hash.Wyhash) void {
     var h = hasher;
-    h.update(&[_]u8{@intFromEnum(self.data), self.paramIdx});
+    h.update(&[_]u8{ @intFromEnum(self.data), self.paramIdx });
 
     switch (self.data) {
         .boolean => |v| {
@@ -473,7 +478,9 @@ fn hashImpl(self: Type, hasher: *std.hash.Wyhash) void {
         },
         .aggregate => |v| {
             for (v.types) |t| hashImpl(t.*, h);
-            h.update(&[_]u8{if (v.isSum) 1 else 0});
+            h.update(&[_]u8{if (v.constructor != null) 1 else 0});
+            if (v.constructor) |ctor|
+                h.update(ctor);
         },
         .function => |v| {
             hashImpl(v.argument.*, h);
@@ -488,7 +495,7 @@ fn hashImpl(self: Type, hasher: *std.hash.Wyhash) void {
 pub fn hash(self: Type) u64 {
     var hasher = std.hash.Wyhash.init(0);
     self.hashImpl(&hasher);
-    return hasher.final();    
+    return hasher.final();
 }
 
 pub fn serialize(self: Type, writer: anytype) !void {
@@ -694,8 +701,7 @@ pub fn padding(self: Type) isize {
 /// try to avoid padding inside a type
 pub fn perfectType(self: Type) void {
     if (self.isTemplated() // templates will float to the top
-    or self.data != .aggregate 
-    or self.data.aggregate.isSum)
+    or self.data != .aggregate or self.data.aggregate.isSum)
         return; // almost everyone is perfect
 
     const agg = self.data.aggregate;

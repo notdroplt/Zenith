@@ -42,32 +42,30 @@ pub fn pipeline(name: misc.String, alloc: std.mem.Allocator) !u8 {
     defer analyzer.deinit();
 
     var nodes = parser.parseNodes() catch {
-        if (parser.errctx.value == .NoContext) {
-            parser.errctx = parser.lexer.errctx;
+        if (parser.errorContext.value == .NoContext) {
+            parser.errorContext = parser.lexer.errorContext;
         }
-        try debug.printError(stdout, name, parser.code, parser.errctx);
+        try debug.printError(stdout, name, parser.code, parser.errorContext);
         try bw.flush();
         return 254;
-    };   
-    
-    defer { 
+    };
+
+    defer {
         for (nodes.items) |node| node.deinit(alloc);
         nodes.deinit(alloc);
     }
 
     analyzer.runAnalysis(nodes.items) catch {
-        try debug.printError(stdout, name, parser.code, analyzer.errctx);
+        try debug.printError(stdout, name, parser.code, analyzer.errorContext);
         try bw.flush();
         return 253;
     };
 
-
     var ir = IR.init(alloc, analyzer.context);
     defer ir.deinit();
 
-
     ir.fromNodes(nodes.items) catch {
-        try debug.printError(stdout, name, parser.code, ir.errctx);
+        try debug.printError(stdout, name, parser.code, ir.errorContext);
         try bw.flush();
         return 252;
     };
@@ -80,7 +78,7 @@ pub fn pipeline(name: misc.String, alloc: std.mem.Allocator) !u8 {
     return 0;
 }
 
-test "the pipeline"{
+test "the pipeline" {
     _ = @import("misc.zig");
     _ = @import("lexer.zig");
     _ = @import("node.zig");

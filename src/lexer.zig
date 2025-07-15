@@ -153,7 +153,7 @@ pub const Token = struct {
     /// Position in the code
     pos: misc.Pos = .{},
 
-    /// init a token 
+    /// init a token
     pub fn init(tid: Tokens, pos: misc.Pos) Token {
         return .{ .val = tid, .pos = pos };
     }
@@ -170,7 +170,7 @@ index: usize = 0,
 last: ?Token = null,
 
 /// Context for error printing
-errctx: ErrorContext = .{ .value = .NoContext },
+errorContext: ErrorContext = .{ .value = .NoContext },
 
 /// Initialize a lexer
 pub inline fn init(code: misc.String) Lexer {
@@ -249,7 +249,7 @@ fn consumeString(self: Lexer) Error!Token {
         lex = lex.walk();
 
     if (lex.end()) {
-        lex.errctx = .{
+        lex.errorContext = .{
             .position = .{ .index = start, .span = lex.index - start },
             .value = .MalformedToken,
         };
@@ -268,23 +268,37 @@ fn consumeString(self: Lexer) Error!Token {
 
 /// Check if char is something invalid for an identifier
 fn isToken(c: u8) bool {
-    return c == '!' or c == '#' or c == '%' or c == '&' or c == '[' 
-       or c == ']' or c == '^'
-       or (c >= '(' and c <= '/') 
-       or (c >= ':' and c <= '?') 
-       or (c >= '{' and c <= '~')
-       or c == ' ' or c == '\n' or c == '\t' or c == '\r';
+    return c == '!' or c == '#' or c == '%' or c == '&' or c == '[' or c == ']' or c == '^' or (c >= '(' and c <= '/') or (c >= ':' and c <= '?') or (c >= '{' and c <= '~') or c == ' ' or c == '\n' or c == '\t' or c == '\r';
 }
 
 /// Consume an identifier
-fn consumeIdentifier(self: Lexer) Token {
+fn consumeIdentifier(self: *Lexer) !Token {
     const start = self.index;
     var lex = self;
 
-    lex = lex.walk();
+    const tick = lex.char('`');
+
+    lex.* = lex.walk();
+
+    if (tick) {
+        while (!lex.char('`')) {
+            lex.* = lex.walk();
+        }
+        lex.* = lex.walk();
+
+        return .{
+            .pos = .{
+                .index = start + 1,
+                .span = lex.index - start - 1,
+            },
+            .val = .{
+                .Ref = lex.code[start..lex.index],
+            },
+        };
+    }
 
     while (!lex.end() and !isToken(lex.code[lex.index]))
-        lex = lex.walk();
+        lex.* = lex.walk();
 
     return .{
         .pos = .{
@@ -325,14 +339,14 @@ fn consumeNumber(self: Lexer) Error!Token {
         while (lex.isNumeric())
             lex = lex.walk();
     }
-    const rpos = misc.Pos{ .index = start, .span = lex.index - start };
+    const pos = misc.Pos{ .index = start, .span = lex.index - start };
 
-    const str = lex.code[start .. start + rpos.span];
+    const str = lex.code[start .. start + pos.span];
 
     if (isInt)
-        return Lexer.parseInt(str, rpos);
+        return Lexer.parseInt(str, pos);
 
-    return Lexer.parseDec(str, rpos);
+    return Lexer.parseDec(str, pos);
 }
 
 /// Parse an int string into an integer token
@@ -415,7 +429,7 @@ pub fn consume(self: *Lexer) Error!Token {
 
     if (lex.isNumeric()) {
         self.last = lex.consumeNumber() catch {
-            self.errctx = .{
+            self.errorContext = .{
                 .position = .{
                     .index = lex.index,
                     .span = 1,
@@ -429,7 +443,7 @@ pub fn consume(self: *Lexer) Error!Token {
 
     if (lex.char('"')) {
         self.last = lex.consumeString() catch {
-            self.errctx = .{
+            self.errorContext = .{
                 .position = .{ .index = lex.index, .span = 1 },
                 .value = .MalformedToken,
             };
@@ -452,44 +466,68 @@ pub fn consume(self: *Lexer) Error!Token {
         return tok;
     }
 
-    if (lex.isAlpha() or lex.char('_')) {
-        self.last = lex.consumeIdentifier();
+    if (lex.isAlpha() or lex.char('_') or lex.char('`')) {
+        self.last = try lex.consumeIdentifier();
         return self.last.?;
     }
 
     const pos = misc.Pos{ .index = lex.index, .span = 1 };
     const curr = lex.current() catch {
-        self.errctx = .{ .position = pos, .value = .MalformedToken };
+        self.errorContext = .{ .position = pos, .value = .MalformedToken };
         return error.MalformedToken;
     };
 
     const tok: ?Token = switch (curr) {
-        '(', => Token.init(.Lpar, pos),
-        ')', => Token.init(.Rpar, pos),
-        '{', => Token.init(.Lcur, pos),
-        '}', => Token.init(.Rcur, pos),
-        '[', => Token.init(.Lsqb, pos),
-        ']', => Token.init(.Rsqb, pos),
-        '=', => lex.generate('=', .Equ, .Cequ),
-        '+', => Token.init(.Plus, pos),
-        '-', => lex.generate('>', .Min, .Arrow),
-        '*', => Token.init(.Star, pos),
-        '/', => Token.init(.Bar, pos),
-        '&', => lex.generate('&', .Amp, .And),
-        '^', => Token.init(.Hat, pos),
-        '~', => Token.init(.Til, pos),
-        '!', => lex.generate('=', .Bang, .Cneq),
-        '#', => Token.init(.Hash, pos),
-        '|', => lex.doubleGenerate('|', '>', .Or, .Push, .Pipe),
-        '%', => Token.init(.Per, pos),
-        '<', => lex.doubleGenerate('=', '<', .Cle, .Lsh, .Clt),
-        '>', => lex.doubleGenerate('=', '>', .Cge, .Rsh, .Cgt),
-        '?', => Token.init(.Ques, pos),
-        ':', => Token.init(.Cln, pos),
-        ';', => Token.init(.Semi, pos),
-        '.', => Token.init(.Dot, pos),
+        '(',
+        => Token.init(.Lpar, pos),
+        ')',
+        => Token.init(.Rpar, pos),
+        '{',
+        => Token.init(.Lcur, pos),
+        '}',
+        => Token.init(.Rcur, pos),
+        '[',
+        => Token.init(.Lsqb, pos),
+        ']',
+        => Token.init(.Rsqb, pos),
+        '=',
+        => lex.generate('=', .Equ, .Cequ),
+        '+',
+        => Token.init(.Plus, pos),
+        '-',
+        => lex.generate('>', .Min, .Arrow),
+        '*',
+        => Token.init(.Star, pos),
+        '/',
+        => Token.init(.Bar, pos),
+        '&',
+        => lex.generate('&', .Amp, .And),
+        '^',
+        => Token.init(.Hat, pos),
+        '~',
+        => Token.init(.Til, pos),
+        '!',
+        => lex.generate('=', .Bang, .Cneq),
+        '#',
+        => Token.init(.Hash, pos),
+        '|',
+        => lex.doubleGenerate('|', '>', .Or, .Push, .Pipe),
+        '%',
+        => Token.init(.Per, pos),
+        '<',
+        => lex.doubleGenerate('=', '<', .Cle, .Lsh, .Clt),
+        '>',
+        => lex.doubleGenerate('=', '>', .Cge, .Rsh, .Cgt),
+        '?',
+        => Token.init(.Ques, pos),
+        ':',
+        => Token.init(.Cln, pos),
+        ';',
+        => Token.init(.Semi, pos),
+        '.',
+        => Token.init(.Dot, pos),
         else => {
-            self.last = lex.consumeIdentifier();
+            self.last = try lex.consumeIdentifier();
             return self.last.?;
         },
     };
@@ -499,7 +537,10 @@ pub fn consume(self: *Lexer) Error!Token {
     if (tok) |t|
         return t;
 
-    self.errctx = .{ .position = pos, .value = .MalformedToken, };
+    self.errorContext = .{
+        .position = pos,
+        .value = .MalformedToken,
+    };
 
     return error.MalformedToken;
 }
@@ -602,7 +643,7 @@ test Lexer {
             .Dec => |v| try expectEqual(v, tok.val.Dec),
             .Str => |v| try expect(std.mem.eql(u8, v, tok.val.Str)),
             .Ref => |v| try expect(std.mem.eql(u8, v, tok.val.Ref)),
-            else => {}
+            else => {},
         }
         lexer = lexer.catchUp(tok);
     }

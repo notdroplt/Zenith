@@ -12,6 +12,14 @@ pub const Pos = struct {
 
     /// How far does the symbol span
     span: usize = 0,
+
+    /// Merge two positions, asserts a is before b
+    pub fn merge(a: Pos, b: Pos) Pos {
+        return .{
+            .index = @min(a.index, b.index),
+            .span = @abs(b.index - a.index) + b.span,
+        };
+    }
 };
 
 /// Give more details about any errors that occurs during compilation,
@@ -26,7 +34,10 @@ pub const ErrorContext = struct {
         MalformedExpression: void,
 
         /// A token that was not expected shows up
-        UnexpectedToken: []const Lexer.Tokens,
+        UnexpectedToken: struct {
+            expects: []const Lexer.Tokens,
+            got: Lexer.Token,
+        },
 
         /// An operation between one or two types that was not defined
         UndefinedOperation: struct {
@@ -40,18 +51,19 @@ pub const ErrorContext = struct {
             rhs: *Type,
         },
 
-        NonBooleanDecision: struct {
-            /// Non boolean type
-            condtype: Type,
-        },
+        /// Operation requires a valued type
+        RequiresValue,
+
+        // Decision taken was not given in a boolean form
+        NonBooleanDecision: *Type,
 
         /// Two types that can not be joined together
         DisjointTypes: struct {
             /// Type one
-            t1: Type,
+            t1: *Type,
 
             /// Type two
-            t2: Type,
+            t2: *Type,
         },
 
         UnknownParameter: struct {
@@ -74,13 +86,25 @@ pub const ErrorContext = struct {
         InvalidStore: *Type,
 
         /// Tried to call a non function
-        InvalidCall,
+        InvalidCall: *Type,
+
+        /// Invalid argument given to function call
+        InvalidArgument: struct {
+            /// What was supposed to be given
+            expected: *Type,
+
+            /// What was given
+            got: *Type,
+        },
 
         /// Tried to reassign a constant
         ConstantReassignment,
 
         /// Tried to divide by zero
         DivisionByZero,
+
+        /// Tried to match with invalid value type
+        InvalidMatch: *Type,
 
         /// Empty module import/export
         EmptyImport: bool,
@@ -89,6 +113,15 @@ pub const ErrorContext = struct {
         UndefinedExternSymbol: struct {
             path: String,
             name: String
+        },
+
+        /// Typed arguments did not match the amount given as parameters
+        ArgumentCount: struct {
+            /// How many the type inference returned as expected
+            typed: usize,
+
+            /// How many were written in the type list
+            given: usize,
         },
 
         /// Base case

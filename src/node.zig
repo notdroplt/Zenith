@@ -6,6 +6,14 @@ const Type = @import("types.zig");
 const Lexer = @import("lexer.zig");
 const Node = @This();
 
+pub const MatchCase = struct {
+    /// what is this switching for
+    tag: ?*Node,
+
+    /// and what does it result in
+    result: *Node,
+};
+
 /// Current node source position
 position: misc.Pos = .{},
 
@@ -71,7 +79,7 @@ data: union(enum) {
         caller: *Node,
 
         /// Callee node
-        callee: *Node,
+        callee: []*Node,
     },
 
     /// Expression, either ntype or expr node need to not be null
@@ -138,13 +146,7 @@ data: union(enum) {
         on: *Node,
 
         /// cases where it matches
-        cases: []struct {
-            /// what is this switching for
-            tag: *Node,
-
-            /// and what does it result in
-            result: *Node,
-        },
+        cases: []MatchCase,
     },
 },
 
@@ -224,6 +226,21 @@ pub fn eql(self: Node, other: *const Node) bool {
                     return false;
             return true;
         },
+        .match => |v| {
+            if (!v.on.eql(od.match.on)) return false;
+            if (v.cases.len != od.match.cases.len) return false;
+            for (v.cases, od.match.cases) |c1, c2| {
+                const c1n = c1.tag == null;
+                const c2n = c2.tag == null;
+                if (c1n != c2n) return false;
+                if (c1.tag) |_| {
+                    if (!c1.tag.?.eql(c2.tag.?)) return false;
+                }
+
+                if (!c1.result.eql(c2.result)) return false;
+            }
+            return true;
+        }
     }
 }
 
@@ -249,7 +266,8 @@ pub fn deinit(self: *Node, alloc: std.mem.Allocator) void {
         },
         .call => |v| {
             v.caller.deinit(alloc);
-            v.callee.deinit(alloc);
+            for (v.callee) |callee|
+                callee.deinit(alloc);
         },
         .expr => |v| {
             for (v.params) |param| {
@@ -273,7 +291,6 @@ pub fn deinit(self: *Node, alloc: std.mem.Allocator) void {
             v.epsilon.deinit(alloc);
         },
         .aggr => |v| {
-            for (v.children) |child| child.deinit(alloc);
 
             alloc.free(v.children);
         },
@@ -294,8 +311,11 @@ pub fn deinit(self: *Node, alloc: std.mem.Allocator) void {
 
             for (v.cases) |case| {
                 case.result.deinit(alloc);
-                case.tag.deinit(alloc);
+                if (case.tag) |tag|
+                    tag.deinit(alloc);
             }
+
+            alloc.free(v.cases);
         }
     }
 
@@ -399,7 +419,7 @@ pub fn initTer(alloc: std.mem.Allocator, position: misc.Pos, cond: *Node, btrue:
 }
 
 /// Call node factory
-pub fn initCall(alloc: std.mem.Allocator, position: misc.Pos, caller: *Node, callee: *Node) !*Node {
+pub fn initCall(alloc: std.mem.Allocator, position: misc.Pos, caller: *Node, callee: []*Node) !*Node {
     const node = try alloc.create(Node);
     node.* = .{
         .position = position,
